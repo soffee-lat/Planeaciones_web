@@ -12,6 +12,7 @@ class AppPanelProvider extends BasePanelProvider {
             ->resources([
                 \App\Filament\App\Resources\Schools\SchoolResource::class,
                 \App\Filament\App\Resources\Groups\GroupResource::class,
+                \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::class,
             ]);
     }
 }

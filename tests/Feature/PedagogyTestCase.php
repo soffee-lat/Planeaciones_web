@@ -114,7 +114,11 @@ abstract class PedagogyTestCase extends TestCase
             'group' => $group,
             'profile' => $profile,
             'grade' => $ctx['grade'],
+            'otherGrade' => $ctx['otherGrade'],
             'version' => $ctx['version'],
+            'draftVersion' => $ctx['draftVersion'],
+            'draftGrade' => $ctx['draftGrade'],
+            'curriculum' => $ctx['curriculum'],
         ];
     }
 }
