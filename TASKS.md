@@ -171,7 +171,7 @@ Se implementó **NUEVA PLANEACIÓN wizard rápido/avanzado** con `CurriculumSugg
 
 ## Fase 3 — Planes y pagos
 
-- [ ] PlanVersion: max_planning_days/planning_limit/correction_limit/human_review_limit; cotización U=ceil(D/M), segmentos y confirmación.
+- [x] **Subfase 3A — Planes y reglas comerciales**: `Plan` + `PlanVersion` versionada e inmutable, `PlanningUnitCalculator` con estrategia `calendar_days_v1` (`U = ceil(D/M)`, días naturales inclusivos), límites `max_planning_days` / `planning_limit` / `human_review_limit` / `correction_limit` / `group_limit`, CRUD mínimo en `/admin`, seeder de planes DEMO. Ver evidencia bajo "Evidencia Subfase 3A".
 - [ ] Periodos, reservas con quantity=U, corrección por ronda/solicitud y límites de grupos.
 - [ ] Probar D=M, M+1, varios M, mes/año, sin saldo U, cambio de plan/fechas y reserva concurrente.
 - [ ] PaymentGateway, adapters manual/fake, pedidos, eventos y devoluciones.
@@ -179,6 +179,24 @@ Se implementó **NUEVA PLANEACIÓN wizard rápido/avanzado** con `CurriculumSugg
 - [ ] Probar concurrencia, doble confirmación, cuota agotada, devolución parcial y expiración.
 
 Salida: ningún doble cargo lógico ni sobreconsumo; no confundir pago manual con gateway real.
+
+### Evidencia Subfase 3A
+
+- Migración `2026_09_12_000001_create_plans_and_plan_versions.php`: tablas `plans` (identidad estable con `code UNIQUE`) y `plan_versions` (fotografía comercial con `plan_id + number` UNIQUE). CHECKs a nivel Postgres: `max_planning_days>0`, `planning_limit>0`, `group_limit>0`, `interval_count>0`, `human_review_limit>=0`, `correction_limit>=0`, `price_minor>=0`, `interval_unit IN ('month','year')`, rango `effective_from <= effective_until`, coherencia `human_review_required=false OR human_review_limit>0`. Inmutabilidad garantizada por trigger PL/pgSQL `plan_version_immutability_guard` que rechaza UPDATE/DELETE cuando `OLD.published_at IS NOT NULL` y exige `published_by` + `checksum` en la transición de publicación. Se difieren explícitamente `subscription`, `subscription_period`, `usage_reservation`, `order`, `payment`, `payment_gateway`, webhooks, checkout, saldo del usuario, activación tras pago, consumo real y enganche comercial con `PlanningRequest` (todo para 3B/3C/3D/Fase 4).
+- Modelos `App\Models\Plan` (fillable code/name/description/active) y `App\Models\PlanVersion` (casts `features:array`, `human_review_required:bool`, `published_at:datetime`) con hooks Eloquent `updating`/`deleting` que lanzan `PLAN_VERSION_PUBLISHED_IMMUTABLE` para fallar temprano antes del trigger BD. Factories `PlanFactory` y `PlanVersionFactory` con estados `reviewed()` y `published()`.
+- Servicio `App\Services\Planning\PlanningUnitCalculator` con constante `STRATEGY = 'calendar_days_v1'`. Fórmula: `D = start->diffInDays(end) + 1` sobre `startOfDay()` (naturales inclusivos, sin excluir fines de semana ni festivos), `U = ceil(D/M)`. Devuelve además `segments[]` consecutivos de hasta M días sin solape ni hueco. Rechaza `PLANNING_DATE_RANGE_INVALID` y `PLAN_VERSION_INVALID_MAX_PLANNING_DAYS`.
+- Acción `App\Actions\Plans\PublishPlanVersion` (transacción con `lockForUpdate` de plan + versión) que valida coherencia comercial, calcula `checksum = sha256(payload_ordenado)` y setea `published_at`, `published_by`, `checksum`. Códigos semánticos: `PLAN_VERSION_ALREADY_PUBLISHED`, `PLAN_VERSION_HUMAN_REVIEW_LIMIT_REQUIRED`, `PLAN_VERSION_INVALID_*`.
+- Políticas `PlanPolicy` y `PlanVersionPolicy` (traits `AuthorizesCurriculumTree`): sólo administrador activo + email verificado puede crear/publicar; docente-cliente y docente-revisor pueden ver el catálogo; borrar sólo si está en borrador; delete de `Plan` bloqueado si tiene versiones publicadas.
+- Recursos Filament `/admin`: `PlanResource` (list/create/edit) y `PlanVersionResource` (list/create/edit) con acciones `EditAction`/`DeleteAction` visibles sólo para versiones en borrador y acción `publish` que invoca la Action de dominio. Registrados en `AdminPanelProvider`.
+- Seeder idempotente `Database\Seeders\DemoPlansSeeder` que crea y publica **BASIC-DEMO** (M=7, planning_limit=4, human_review_limit=0, correction_limit=1, group_limit=1, human_review_required=false) y **REVIEWED-DEMO** (M=7, planning_limit=4, human_review_limit=4, correction_limit=2, group_limit=2, human_review_required=true). Precio 0 y moneda MXN son placeholders sin validez comercial hasta 3B.
+- Tests añadidos (24 assertions nuevas, 12 tests nuevos):
+  - `PlanningUnitCalculatorTest`: dataProvider con M=7 para 1→1, 7→1, 8→2, 14→2, 15→3, 28→4, 31→5, fin de semana inclusivo; segmentación de 18 días → 3 segmentos `[1-7, 8-14, 15-18]` sin solape ni hueco; rechazo de rango invertido y `M<=0`.
+  - `PlanVersionTest`: publicar como admin, `PLAN_VERSION_ALREADY_PUBLISHED` en doble publicación, CHECK BD de coherencia revisión humana, unicidad `(plan_id,number)`, valores inválidos rechazados por CHECK, publicada inmutable vía Eloquent (`PLAN_VERSION_PUBLISHED_IMMUTABLE`) y vía trigger BD (`QueryException` con `PLAN_VERSION_PUBLISHED`), nueva versión draft coexiste con publicada, autorizaciones de customer/reviewer/admin.
+  - `PlanTest`: admin puede crear, customer/reviewer no; código único protegido por índice.
+- Suite completa: `.\tools\php.ps1 vendor/phpunit/phpunit/phpunit` ⇒ `OK (153 tests, 413 assertions)` en 37.3 s (24 tests nuevos vs los 129 previos).
+- Rutas Filament confirmadas por `artisan route:list --path=admin`: `admin/plans`, `admin/plans/create`, `admin/plans/{record}/edit`, `admin/plan-versions`, `admin/plan-versions/create`, `admin/plan-versions/{record}/edit`.
+- **Auditoría responsive diferida** a la próxima sesión con servidor `php artisan serve`: los recursos son formularios/tablas estándar de Filament v5 (mismo template que `CurriculumResource` que ya aprobó 375×812 y 1440×900 en 2D); no hay componentes custom con riesgo de overflow horizontal. Se hará smoke visual antes de 3B.
+- **Subfase 3B, 3C, 3D y Fase 4 NO iniciadas**: no se implementó `Subscription`, `SubscriptionPeriod`, `UsageReservation`, `Order`, `Payment`, `PaymentGateway`, webhook, checkout, saldo del usuario, activación tras pago, consumo real de unidades, enganche comercial con `PlanningRequest`, IA, generación, revisión humana, documentos, renderer DOCX/PDF, notificaciones comerciales, máquina de estados de pipeline ni outbox.
 
 ## Fase 4 — Pipeline vertical manual
 

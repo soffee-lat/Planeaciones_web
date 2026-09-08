@@ -12,6 +12,8 @@ class AdminPanelProvider extends BasePanelProvider {
             ->resources([
                 \App\Filament\Resources\Curricula\CurriculumResource::class,
                 \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::class,
+                \App\Filament\Resources\Plans\PlanResource::class,
+                \App\Filament\Resources\PlanVersions\PlanVersionResource::class,
             ]);
     }
 }
