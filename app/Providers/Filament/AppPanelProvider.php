@@ -1,0 +1,14 @@
+<?php
+namespace App\Providers\Filament;
+use Filament\Panel;
+use Filament\Support\Colors\Color;
+class AppPanelProvider extends BasePanelProvider {
+    public function panel(Panel $panel): Panel {
+        return $this->base($panel)->id('app')->path('app')
+            ->brandName('Planeaciones · Docentes')
+            ->colors(['primary' => Color::Teal])
+            ->default()->registration(\App\Filament\Auth\Register::class)
+            ->pages([\App\Filament\App\Pages\Dashboard::class, \App\Filament\App\Pages\Onboarding::class]);
+    }
+}
+
