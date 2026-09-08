@@ -14,6 +14,9 @@ class AdminPanelProvider extends BasePanelProvider {
                 \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::class,
                 \App\Filament\Resources\Plans\PlanResource::class,
                 \App\Filament\Resources\PlanVersions\PlanVersionResource::class,
+                \App\Filament\Resources\Subscriptions\SubscriptionResource::class,
+                \App\Filament\Resources\SubscriptionPeriods\SubscriptionPeriodResource::class,
+                \App\Filament\Resources\UsageReservations\UsageReservationResource::class,
             ]);
     }
 }
