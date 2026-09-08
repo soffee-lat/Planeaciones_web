@@ -68,7 +68,7 @@ class PlanningRequestResource extends Resource
                     ->helperText('Solo tus grupos activos. Al elegir se fija currículo y grado del grupo.'),
 
                 DatePicker::make('starts_on')->label('Fecha inicial')->required()->native(false),
-                DatePicker::make('ends_on')->label('Fecha final')->required()->native(false)->after_or_equal('starts_on'),
+                DatePicker::make('ends_on')->label('Fecha final')->required()->native(false)->afterOrEqual('starts_on'),
 
                 TextInput::make('project')->label('Tema o proyecto')->required()->maxLength(255)->columnSpanFull(),
                 Textarea::make('topic')->label('Detalle del tema')->rows(2)->columnSpanFull(),
