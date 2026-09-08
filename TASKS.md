@@ -16,13 +16,30 @@ Evidencia: ARCHITECTURE.md, DATABASE.md, WORKFLOWS.md, PERMISSIONS.md, AI_PIPELI
 
 ## Fase 1 — Base y acceso
 
-- [ ] Verificar PHP/extensiones, Composer, Node, pdo_pgsql y PostgreSQL; resolver y fijar dependencias.
-- [ ] Instalar Laravel/Filament, tres PanelProviders, español, UTC y zona de negocio.
-- [ ] Crear identidad/roles, registro, correo, reset, onboarding y Policies base.
-- [ ] Configurar pruebas PostgreSQL, factories ficticias, queues y storage privado.
-- [ ] Probar login, roles, acceso cruzado y correo no verificado; revisar UI responsive.
+- [x] Verificar PHP/extensiones, Composer, Node, pdo_pgsql y PostgreSQL; resolver y fijar dependencias.
+- [x] Instalar Laravel/Filament, tres PanelProviders, español, UTC y zona de negocio.
+- [x] Crear identidad/roles, registro, correo, reset, onboarding y Policies base.
+- [x] Configurar pruebas PostgreSQL, factories ficticias, queues y storage privado.
+- [x] Probar login, roles, acceso cruzado y correo no verificado; revisar UI responsive.
 
 Salida: tres accesos aislados con suite de autorización pasando; lockfiles y .env.example sin secretos.
+
+### Evidencia Fase 1 — 2026-09-08
+
+Verificado por el agente de cierre, sin iniciar Fase 2.
+
+- Runtime: PHP 8.4.7 con `tools/php.ps1` cargando `.runtime/php.ini` que habilita `pdo_pgsql` y `pgsql`; Laravel 13.31.0; PostgreSQL local escuchando en `127.0.0.1:55432` (base `planeaciones` / `planeaciones_test`, usuario `planeaciones`). `composer.lock` y `package-lock.json` presentes; `.env.example` sin secretos y `.env.testing` con credencial local aislada.
+- Config: `config/database.php` con `pgsql` como única conexión activa; `config/queue.php` con `database` por default; `config/filesystems.php` con disco `private` en `storage/app/private` y `serve => false`; locale `es`, timezone UTC. Tres `PanelProvider` (`AppPanelProvider`, `ReviewPanelProvider`, `AdminPanelProvider`) montan `/app`, `/review`, `/admin` sobre `BasePanelProvider` que aplica `emailVerification`, `emailChangeVerification`, `databaseTransactions`, middleware CSRF/sesión y `EnsureActivePanelAccess`.
+- Identidad: migración `2026_09_08_000001_add_identity_and_roles.php` añade `roles`, `role_user` (PK compuesta) y columnas `status`+`onboarding_completed_at`. `User` implementa `FilamentUser` y `MustVerifyEmail`; `RoleCode` enum (Customer/Reviewer/Administrator). Registro público sólo desde `/app` vía `RegisterCustomer`; reset y verificación cubiertos por `RequestPasswordReset`, `EditProfile`, `Login` (normaliza email). Onboarding en `App\Filament\App\Pages\Onboarding` con acción `CompleteOnboarding`. `UserPolicy` gobierna `view`/`update`/`completeOnboarding`.
+- Suite completa: `.\tools\php.ps1 vendor/phpunit/phpunit/phpunit --testdox` → `OK (28 tests, 142 assertions)` en 9.63 s. Cubre matriz de roles, rechazo de panel cruzado, verificación de correo obligatoria, suspensión y revocación aplicadas a sesión activa, registro público que ignora campos privilegiados, unicidad case-insensitive de email en PostgreSQL, unicidad del pivot `role_user`, CHECK sobre `status`, worker real sobre cola `database`, `afterCommit` en dispatch, row lock entre conexiones y storage privado sin ruta pública ni symlink.
+- Revisión visual `/app`: reportada por el agente previo (dashboard, onboarding y responsive móvil del cliente). No re-verificada en este cierre.
+- Revisión visual `/review`: servidor `php artisan serve` en `127.0.0.1:8000`. `/review/login` renderiza en español con marca `Planeaciones · Revisión` (acento morado) y enlace de reset. Autenticado, `/review` muestra topbar, avatar, sidebar `Inicio`, título `Espacio de revisión` y las dos secciones placeholder `Hola, {nombre}` y `Tu cuenta, bajo tu control` con botón a `/review/profile`. Contenido operativo intencionalmente ausente (Fases 5–6).
+- Revisión visual `/admin`: `/admin/login` con marca `Planeaciones · Administración` (acento ámbar). Autenticado, `/admin` muestra topbar, sidebar `Inicio`, título `Administración` y las mismas dos secciones placeholder apuntando a `/admin/profile`. Sin recursos CRUD expuestos (Fases 2–8).
+- Responsive: layout Filament v5 sirve las mismas vistas; NO se ejecutó verificación explícita en viewport móvil sobre `/review` y `/admin` en este cierre (queda como pendiente menor, ver más abajo). El responsive de `/app` fue revisado por el agente previo.
+- Aislamiento: la matriz de roles y los rechazos de panel cruzado están cubiertos por `IdentityAccessTest::test_role_access_matrix_is_enforced_on_server`, `test_login_accepts_customer_and_rejects_wrong_panel_and_password`, `test_suspended_and_roleless_accounts_are_denied` y `test_unverified_accounts_cannot_open_any_dashboard`; y por `AccountSecurityTest::test_revoked_role_and_suspension_apply_to_existing_session` y `test_customer_dashboard_contains_no_other_customer_data`. Todos verdes en la corrida actual.
+- Archivos modificados en este cierre: `TASKS.md` (esta sección de evidencia). No se tocó código de aplicación; no se corrigió ningún fallo porque la suite ya estaba en verde. Se creó y eliminó un archivo auxiliar temporal `storage/framework/seed_demo_users.php` para poblar dos usuarios demo (`admin@test.local`, `reviewer@test.local`) usados solo en la revisión visual local; no queda commiteado.
+- Pendientes menores dentro del alcance de Fase 1: (a) verificación explícita de responsive en viewport móvil para `/review` y `/admin` (Filament es responsive por defecto pero no se probó a mano en este cierre); (b) documentar en README/DEV el uso de `tools/php.ps1` como envoltorio PHP obligatorio para trabajar en Windows con la Postgres local. Ambos no bloquean el cierre lógico de Fase 1.
+- Fase 2 NO iniciada. No se creó ninguna migración, modelo, servicio o acción del catálogo curricular ni del importador; los checks de la sección Fase 2 permanecen en `[ ]`.
 
 ## Fase 2 — Grupos y borradores
 
