@@ -5,7 +5,16 @@ namespace App\Policies;
 use App\Enums\RoleCode;
 use App\Models\User;
 
-trait AuthorizesCurriculumTree
+/**
+ * Autorización compartida por policies que sólo distinguen dos capas:
+ *   - lectura: cualquier rol activo con email verificado (canReadCatalog);
+ *   - escritura: sólo administrador activo y verificado (isAdmin).
+ *
+ * No contiene lógica curricular: el nombre histórico
+ * `AuthorizesCurriculumTree` se renombró a este nombre neutral para
+ * poder reutilizarlo en el módulo comercial (Plan/PlanVersion).
+ */
+trait AuthorizesActiveRoleUser
 {
     protected function isAdmin(User $user): bool
     {

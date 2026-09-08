@@ -7,7 +7,7 @@ use App\Models\User;
 
 class CurriculumPolicy
 {
-    use AuthorizesCurriculumTree;
+    use AuthorizesActiveRoleUser;
 
     public function viewAny(User $user): bool
     {

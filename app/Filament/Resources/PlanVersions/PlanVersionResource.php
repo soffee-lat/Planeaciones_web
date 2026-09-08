@@ -45,19 +45,26 @@ class PlanVersionResource extends Resource
                 ->options(fn () => Plan::query()->orderBy('code')->pluck('name', 'id')->all())
                 ->required()
                 ->searchable(),
-            TextInput::make('number')->label('Número')->numeric()->required()->minValue(1),
-            TextInput::make('price_minor')->label('Precio (centavos)')->numeric()->required()->minValue(0),
-            TextInput::make('currency')->label('Moneda ISO 4217')->required()->maxLength(8)->default('MXN'),
-            Select::make('interval_unit')->label('Intervalo')->required()->options(['month' => 'month', 'year' => 'year']),
-            TextInput::make('interval_count')->label('Cantidad de intervalo')->numeric()->required()->minValue(1)->default(1),
-            TextInput::make('max_planning_days')->label('max_planning_days (M)')->numeric()->required()->minValue(1),
-            TextInput::make('planning_limit')->label('planning_limit')->numeric()->required()->minValue(1),
-            TextInput::make('human_review_limit')->label('human_review_limit')->numeric()->required()->minValue(0)->default(0),
-            TextInput::make('correction_limit')->label('correction_limit')->numeric()->required()->minValue(0)->default(0),
-            TextInput::make('group_limit')->label('group_limit')->numeric()->required()->minValue(1)->default(1),
-            TextInput::make('correction_window_days')->label('correction_window_days')->numeric()->minValue(0)->default(0),
-            TextInput::make('sla_hours')->label('sla_hours')->numeric()->minValue(0)->default(0),
-            Toggle::make('human_review_required')->label('Requiere revisión humana')->default(false),
+            TextInput::make('number')->label('Número de versión')->numeric()->required()->minValue(1)
+                ->helperText('Correlativo por plan; junto al plan forma la clave única.'),
+            TextInput::make('price_minor')->label('Precio (en centavos)')->numeric()->required()->minValue(0)
+                ->helperText('Ej. 12345 = 123.45 en la moneda indicada.'),
+            TextInput::make('currency')->label('Moneda (ISO 4217)')->required()->maxLength(8)->default('MXN'),
+            Select::make('interval_unit')->label('Unidad de intervalo')->required()->options(['month' => 'Mes', 'year' => 'Año']),
+            TextInput::make('interval_count')->label('Cantidad de intervalo')->numeric()->required()->minValue(1)->default(1)
+                ->helperText('Ej. 1 mes, 12 meses, 1 año.'),
+            TextInput::make('max_planning_days')->label('Máximo de días por unidad (M)')->numeric()->required()->minValue(1)
+                ->helperText('M en la fórmula U = ceil(D / M).'),
+            TextInput::make('planning_limit')->label('Planeaciones (unidades) por periodo')->numeric()->required()->minValue(1),
+            TextInput::make('human_review_limit')->label('Unidades con revisión humana por periodo')->numeric()->required()->minValue(0)->default(0)
+                ->helperText('0 si el plan no incluye revisión humana.'),
+            TextInput::make('correction_limit')->label('Correcciones por solicitud')->numeric()->required()->minValue(0)->default(0)
+                ->helperText('No se multiplica por U.'),
+            TextInput::make('group_limit')->label('Grupos activos por suscripción')->numeric()->required()->minValue(1)->default(1),
+            TextInput::make('correction_window_days')->label('Días para solicitar corrección')->numeric()->minValue(0)->default(0),
+            TextInput::make('sla_hours')->label('SLA (horas)')->numeric()->minValue(0)->default(0),
+            Toggle::make('human_review_required')->label('Requiere revisión humana')->default(false)
+                ->helperText('Si se activa, el límite de revisión humana debe ser mayor a 0.'),
             DatePicker::make('effective_from')->label('Vigencia desde'),
             DatePicker::make('effective_until')->label('Vigencia hasta'),
         ]);
@@ -73,8 +80,12 @@ class PlanVersionResource extends Resource
                 TextColumn::make('max_planning_days')->label('M'),
                 TextColumn::make('planning_limit')->label('Límite'),
                 IconColumn::make('human_review_required')->label('Revisión humana')->boolean(),
-                IconColumn::make('published_at')->label('Publicada')->boolean()->getStateUsing(fn (PlanVersion $r) => $r->isPublished()),
-                TextColumn::make('published_at')->label('Publicación')->dateTime()->sortable(),
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->getStateUsing(fn (PlanVersion $r) => $r->isPublished() ? 'Publicada' : 'Borrador')
+                    ->color(fn (string $state) => $state === 'Publicada' ? 'success' : 'warning'),
+                TextColumn::make('published_at')->label('Publicación')->dateTime()->sortable()->placeholder('—'),
             ])
             ->recordActions([
                 EditAction::make()->visible(fn (PlanVersion $r) => $r->isDraft()),

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 abstract class CurriculumElementPolicy
 {
-    use AuthorizesCurriculumTree;
+    use AuthorizesActiveRoleUser;
 
     public function viewAny(User $user): bool
     {
