@@ -12,6 +12,12 @@
         </div>
         @else
         <p class="mt-4">Tu cuenta y tu perfil pedagógico están listos.</p>
+        <div class="mt-6">
+            <x-filament::button tag="a" size="lg" icon="heroicon-o-document-plus" href="{{ \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl('create') }}">
+                Nueva planeación
+            </x-filament::button>
+            <a class="ms-3 text-sm underline" href="{{ \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl() }}">Ver mis planeaciones</a>
+        </div>
         @endif
     </x-filament::section>
     <x-filament::section>

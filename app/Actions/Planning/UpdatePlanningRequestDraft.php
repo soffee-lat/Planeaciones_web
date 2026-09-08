@@ -31,6 +31,7 @@ class UpdatePlanningRequestDraft
         }
 
         $data = Validator::make($input, [
+            'creation_mode' => ['nullable', 'string', 'in:quick,advanced'],
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'period_label' => ['nullable', 'string', 'max:64'],

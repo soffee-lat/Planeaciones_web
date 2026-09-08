@@ -54,15 +54,16 @@ class EditPlanningRequest extends EditRecord
     {
         return [
             Action::make('confirm')
-                ->label('Confirmar y congelar snapshot')
+                ->label('Confirmar planeación')
                 ->color('warning')
                 ->requiresConfirmation()
+                ->modalDescription('Se congelará la selección curricular y el perfil pedagógico. Después no podrás editar esta planeación.')
                 ->visible(fn () => $this->getRecord()?->isDraft() ?? false)
                 ->action(function () {
                     try {
                         app(ConfirmPlanningRequest::class)->execute(auth()->user(), $this->getRecord());
-                        Notification::make()->success()->title('Solicitud confirmada')
-                            ->body('Se congeló el snapshot. Continuará cuando exista plan/cupo (fase comercial).')
+                        Notification::make()->success()->title('Tu solicitud quedó guardada')
+                            ->body('El siguiente paso será activar el procesamiento.')
                             ->send();
                         $this->redirect(PlanningRequestResource::getUrl('view', ['record' => $this->getRecord()->id]));
                     } catch (\Throwable $e) {
