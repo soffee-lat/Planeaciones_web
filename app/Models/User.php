@@ -24,6 +24,15 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function hasRole(RoleCode $role): bool {
         return $this->roles()->where('code', $role->value)->exists();
     }
+    public function schools(): \Illuminate\Database\Eloquent\Relations\HasMany {
+        return $this->hasMany(School::class, 'owner_id');
+    }
+    public function groups(): \Illuminate\Database\Eloquent\Relations\HasMany {
+        return $this->hasMany(Group::class, 'owner_id');
+    }
+    public function hasPedagogicalOnboardingComplete(): bool {
+        return \App\Services\Onboarding\OnboardingProgress::isPedagogicalComplete($this);
+    }
     public function canAccessPanel(Panel $panel): bool {
         if ($this->status !== 'active') { return false; }
         return match ($panel->getId()) {
