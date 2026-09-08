@@ -114,7 +114,7 @@ class PlanningRequestResource extends Resource
                         TextInput::make('period_label')->label('Etiqueta de periodo (opcional)')->maxLength(64),
 
                         Placeholder::make('duration_hint')
-                            ->label('')
+                            ->label('Duración')
                             ->content(function (Get $get) {
                                 $s = $get('starts_on');
                                 $e = $get('ends_on');
@@ -137,10 +137,10 @@ class PlanningRequestResource extends Resource
                     ->icon(Heroicon::OutlinedBookOpen)
                     ->schema([
                         Placeholder::make('curriculum_intro')
-                            ->label('')
+                            ->hiddenLabel()
                             ->content(function (Get $get) {
                                 if ($get('creation_mode') === 'quick') {
-                                    return new HtmlString('<strong>Modo Rápido.</strong> Pulsa «Obtener sugerencias» para que te propongamos alineación curricular. Podrás aceptar, quitar o cambiar. Nada se confirma automáticamente.');
+                                    return new HtmlString('<strong>Modo Rápido.</strong> Pulsa «Sugerir alineación curricular» y te propondremos contenidos, PDA y ejes a partir de las palabras clave de tu proyecto y tema. Podrás aceptar, quitar o cambiar cualquiera. Nada se confirma automáticamente.');
                                 }
                                 return new HtmlString('<strong>Modo Avanzado.</strong> Elige tú mismo los contenidos, PDA y ejes. Se filtran por currículo y grado del grupo.');
                             })
@@ -148,7 +148,8 @@ class PlanningRequestResource extends Resource
 
                         \Filament\Schemas\Components\Actions::make([
                             Action::make('suggest')
-                                ->label('Obtener sugerencias')
+                                ->label('Sugerir alineación curricular')
+                                ->tooltip('Búsqueda determinista por palabras clave sobre el catálogo curricular publicado. No usa IA ni servicios externos.')
                                 ->icon(Heroicon::OutlinedSparkles)
                                 ->color('primary')
                                 ->visible(fn (Get $get) => $get('creation_mode') === 'quick')
@@ -210,6 +211,16 @@ class PlanningRequestResource extends Resource
                             ->options(fn (Get $get) => static::contentOptions($get('group_id')))
                             ->helperText('Se filtran por la versión y grado del grupo.')
                             ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set) {
+                                // Al cambiar contenidos, poda los PDA cuyo contenido ya no esté seleccionado
+                                // para evitar el error "validation.in" al avanzar en el wizard.
+                                $allowed = array_map('intval', array_keys(static::pdaOptions($get('group_id'), $get('selected_contents') ?? [])));
+                                $current = array_map('intval', $get('selected_pdas') ?? []);
+                                $filtered = array_values(array_intersect($current, $allowed));
+                                if ($filtered !== $current) {
+                                    $set('selected_pdas', $filtered);
+                                }
+                            })
                             ->columnSpanFull(),
 
                         Select::make('selected_pdas')
@@ -236,11 +247,11 @@ class PlanningRequestResource extends Resource
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->schema([
                         Placeholder::make('summary')
-                            ->label('')
+                            ->hiddenLabel()
                             ->content(fn (Get $get) => new HtmlString(static::buildSummaryHtml($get)))
                             ->columnSpanFull(),
                         Placeholder::make('confirm_hint')
-                            ->label('')
+                            ->hiddenLabel()
                             ->content(new HtmlString('Al guardar quedará como <strong>borrador</strong>. Para dejarla lista para procesamiento pulsa <strong>Confirmar planeación</strong> desde la vista de edición.'))
                             ->columnSpanFull(),
                     ]),
