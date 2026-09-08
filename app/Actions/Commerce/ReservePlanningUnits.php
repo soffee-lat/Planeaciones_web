@@ -49,6 +49,7 @@ class ReservePlanningUnits
                     $existing->subscription_period_id !== $period->id
                     || $existing->resource !== $resource
                     || (int) $existing->quantity !== $units
+                    || $existing->planning_request_id !== $planningRequestId
                 ) {
                     throw new RuntimeException('USAGE_IDEMPOTENCY_CONFLICT');
                 }

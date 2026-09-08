@@ -74,6 +74,12 @@ class PlanningRequest extends Model
             'due_at' => 'datetime',
             'input_snapshot' => 'array',
             'status' => PlanningRequestStatus::class,
+            'calculation_snapshot' => 'array',
+            'commercial_authorized_at' => 'datetime',
+            'human_review_required_snapshot' => 'boolean',
+            'planning_days' => 'integer',
+            'planning_units' => 'integer',
+            'correction_limit_snapshot' => 'integer',
         ];
     }
 
@@ -85,6 +91,31 @@ class PlanningRequest extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class);
+    }
+
+    public function subscriptionPeriod(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionPeriod::class);
+    }
+
+    public function planVersion(): BelongsTo
+    {
+        return $this->belongsTo(PlanVersion::class);
+    }
+
+    public function segments(): HasMany
+    {
+        return $this->hasMany(PlanningRequestSegment::class)->orderBy('sequence');
+    }
+
+    public function usageReservations(): HasMany
+    {
+        return $this->hasMany(UsageReservation::class);
     }
 
     public function curriculumVersion(): BelongsTo

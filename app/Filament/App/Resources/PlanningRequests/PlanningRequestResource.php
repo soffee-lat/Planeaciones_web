@@ -90,10 +90,12 @@ class PlanningRequestResource extends Resource
                     ->icon(Heroicon::OutlinedCalendarDays)
                     ->schema([
                         DatePicker::make('starts_on')
+                            ->live()
                             ->label('Fecha inicial')
                             ->required()
                             ->native(false),
                         DatePicker::make('ends_on')
+                            ->live()
                             ->label('Fecha final')
                             ->required()
                             ->native(false)
@@ -254,6 +256,12 @@ class PlanningRequestResource extends Resource
                             ->hiddenLabel()
                             ->content(new HtmlString('Al guardar quedará como <strong>borrador</strong>. Para dejarla lista para procesamiento pulsa <strong>Confirmar planeación</strong> desde la vista de edición.'))
                             ->columnSpanFull(),
+                        Placeholder::make('commercial_summary')
+                            ->label('Tu plan y las unidades necesarias')
+                            ->content(fn (Get $get) => view('filament.app.pages.commercial-summary', [
+                                'summary' => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->forCustomer(auth()->user(), $get('starts_on'), $get('ends_on')),
+                            ]))
+                            ->columnSpanFull(),
                     ]),
             ])
                 ->columnSpanFull()
@@ -397,17 +405,12 @@ class PlanningRequestResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn (PlanningRequestStatus $state) => match ($state) {
-                        PlanningRequestStatus::BORRADOR => 'Borrador',
-                        PlanningRequestStatus::ESPERANDO_PAGO => 'Confirmada · Esperando plan/pago',
-                        default => $state->value,
-                    })
+                    ->formatStateUsing(fn (PlanningRequest $record) => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->status($record))
                     ->color(fn (PlanningRequestStatus $state) => match ($state) {
                         PlanningRequestStatus::BORRADOR => 'gray',
                         PlanningRequestStatus::ESPERANDO_PAGO => 'warning',
                         default => 'info',
                     }),
-                TextColumn::make('input_revision')->label('Rev. entrada')->toggleable(),
                 TextColumn::make('updated_at')->label('Actualizada')->since()->toggleable(),
             ])
             ->recordActions([

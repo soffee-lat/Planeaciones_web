@@ -57,6 +57,11 @@ class PlanningRequestPolicy
             && $request->isDraft();
     }
 
+    public function authorizeProcessing(User $user, PlanningRequest $request): bool
+    {
+        return $this->isActiveCustomer($user) && $request->owner_id === $user->id;
+    }
+
     public function delete(User $user, PlanningRequest $request): bool
     {
         // Solo borradores propios pueden borrarse; una vez confirmada, se

@@ -54,6 +54,7 @@ class EditPlanningRequest extends EditRecord
     {
         return [
             Action::make('confirm')
+                ->databaseTransaction(false)
                 ->label('Confirmar planeación')
                 ->color('warning')
                 ->requiresConfirmation()
@@ -61,16 +62,33 @@ class EditPlanningRequest extends EditRecord
                 ->visible(fn () => $this->getRecord()?->isDraft() ?? false)
                 ->action(function () {
                     try {
+                        $this->save(shouldRedirect: false, shouldSendSavedNotification: false);
                         app(ConfirmPlanningRequest::class)->execute(auth()->user(), $this->getRecord());
-                        Notification::make()->success()->title('Tu solicitud quedó guardada')
-                            ->body('El siguiente paso será activar el procesamiento.')
-                            ->send();
+                        $this->attemptCommercialAuthorization();
                         $this->redirect(PlanningRequestResource::getUrl('view', ['record' => $this->getRecord()->id]));
+                    } catch (\Illuminate\Validation\ValidationException $e) {
+                        throw $e;
                     } catch (\Throwable $e) {
+                        report($e);
                         Notification::make()->danger()->title('No se pudo confirmar')
-                            ->body($e->getMessage())->send();
+                            ->body('Revisa las fechas, el perfil del grupo y la selección de contenidos y PDA.')->send();
                     }
                 }),
         ];
+    }
+
+    private function attemptCommercialAuthorization(): void
+    {
+        try {
+            app(\App\Actions\Planning\AuthorizePlanningRequestForProcessing::class)->execute(auth()->user(), $this->getRecord());
+            Notification::make()->success()->title('Tu planeación está preparando su siguiente paso')
+                ->body('Las unidades quedaron reservadas. Puedes consultar el seguimiento en Mis planeaciones.')->send();
+        } catch (\App\Exceptions\PlanningCommercialException $error) {
+            Notification::make()->warning()->title('Solicitud confirmada · Pendiente de activar')->body($error->userMessage())->send();
+        } catch (\Throwable $error) {
+            report($error);
+            Notification::make()->warning()->title('Tu solicitud está confirmada')
+                ->body('No pudimos activar el procesamiento ahora. Puedes volver a intentarlo desde el seguimiento.')->send();
+        }
     }
 }

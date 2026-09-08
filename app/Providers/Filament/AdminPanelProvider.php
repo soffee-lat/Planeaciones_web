@@ -10,6 +10,7 @@ class AdminPanelProvider extends BasePanelProvider {
             
             ->pages([\App\Filament\Admin\Pages\Dashboard::class])
             ->resources([
+                \App\Filament\Resources\PlanningRequests\PlanningRequestResource::class,
                 \App\Filament\Resources\Curricula\CurriculumResource::class,
                 \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::class,
                 \App\Filament\Resources\Plans\PlanResource::class,
@@ -24,4 +25,3 @@ class AdminPanelProvider extends BasePanelProvider {
             ]);
     }
 }
-

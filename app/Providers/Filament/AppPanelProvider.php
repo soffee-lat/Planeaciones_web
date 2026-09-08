@@ -8,7 +8,7 @@ class AppPanelProvider extends BasePanelProvider {
             ->brandName('Planeaciones · Docentes')
             ->colors(['primary' => Color::Teal])
             ->default()->registration(\App\Filament\Auth\Register::class)
-            ->pages([\App\Filament\App\Pages\Dashboard::class, \App\Filament\App\Pages\Onboarding::class])
+            ->pages([\App\Filament\App\Pages\Dashboard::class, \App\Filament\App\Pages\Onboarding::class, \App\Filament\App\Pages\MyPlan::class])
             ->resources([
                 \App\Filament\App\Resources\Schools\SchoolResource::class,
                 \App\Filament\App\Resources\Groups\GroupResource::class,
@@ -16,4 +16,3 @@ class AppPanelProvider extends BasePanelProvider {
             ]);
     }
 }
-
