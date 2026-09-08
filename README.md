@@ -1,3 +1,48 @@
+# Planeaciones
+
+Aplicación Laravel 13 + Filament 5 sobre PostgreSQL. Tres paneles aislados: `/app` (docente cliente), `/review` (revisor) y `/admin` (administración). Diseño y fases en `ARCHITECTURE.md`, `TASKS.md`, `PERMISSIONS.md`, `WORKFLOWS.md`, `AI_PIPELINE.md`, `DATABASE.md`, `CURRICULUM.md` y `MVP.md`.
+
+## Desarrollo local en Windows
+
+Este proyecto usa una PostgreSQL local aislada en `.runtime/postgresql/` y requiere la extensión `pdo_pgsql`. El PHP global de Windows normalmente **no** trae `pdo_pgsql` habilitada, por lo que ejecutar `php`, `composer` o `vendor/bin/phpunit` directamente falla con:
+
+```
+PDOException: could not find driver (Connection: pgsql)
+```
+
+Para evitarlo, todo comando PHP debe pasar por el envoltorio [`tools/php.ps1`](tools/php.ps1), que fija `PHPRC` a `.runtime/php.ini` (php.ini con `extension=pdo_pgsql` y `extension=pgsql` habilitados) y delega en `php`.
+
+### Ejemplos de ejecución
+
+Pruebas (suite completa):
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit --testdox
+```
+
+Un solo archivo o filtro:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit --filter IdentityAccess
+```
+
+Artisan:
+
+```powershell
+.\tools\php.ps1 artisan migrate
+.\tools\php.ps1 artisan serve --host=127.0.0.1 --port=8000
+.\tools\php.ps1 artisan tinker
+```
+
+Composer (solo cuando el paso invoca scripts PHP que abren conexión a PostgreSQL, por ejemplo `post-autoload-dump` con `package:discover`; en la mayoría de comandos de solo dependencia el `composer` global sirve):
+
+```powershell
+$env:PHPRC = "$PWD\.runtime\php.ini"; composer install
+$env:PHPRC = "$PWD\.runtime\php.ini"; composer require vendor/paquete
+```
+
+Si `pdo_pgsql` ya está habilitada en el PHP global (por ejemplo en macOS, Linux o Windows con `pdo_pgsql` cargado en `php.ini`), el envoltorio no es necesario; se puede invocar `php`, `composer` y `vendor/bin/phpunit` directamente. En Windows es obligatorio.
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

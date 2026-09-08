@@ -41,6 +41,15 @@ Verificado por el agente de cierre, sin iniciar Fase 2.
 - Pendientes menores dentro del alcance de Fase 1: (a) verificación explícita de responsive en viewport móvil para `/review` y `/admin` (Filament es responsive por defecto pero no se probó a mano en este cierre); (b) documentar en README/DEV el uso de `tools/php.ps1` como envoltorio PHP obligatorio para trabajar en Windows con la Postgres local. Ambos no bloquean el cierre lógico de Fase 1.
 - Fase 2 NO iniciada. No se creó ninguna migración, modelo, servicio o acción del catálogo curricular ni del importador; los checks de la sección Fase 2 permanecen en `[ ]`.
 
+### Evidencia adicional Fase 1 — cierre pendientes 2026-09-08
+
+- Responsive `/review` a 390×844 y 375×812 (Playwright viewport, `.runtime/review-390.png`, `.runtime/review-375.png`): topbar con hamburger a la izquierda + avatar a la derecha, sidebar oculta accesible por overlay, título `Espacio de revisión`, dos secciones apiladas verticalmente sin scroll horizontal, botón `Ver mi perfil` con tamaño táctil correcto. Sin defectos.
+- Responsive `/admin` a 390×844 y 375×812 (`.runtime/admin-390.png`, `.runtime/admin-375.png`): equivalente a `/review`, con título `Administración` y marca `Planeaciones · Administración` al desplegar el sidebar. Overlay del sidebar verificado interactivamente. Sin defectos.
+- Como no hubo problemas responsive reales, no se modificó código de la aplicación; ninguna corrección era necesaria. Los PNG están en `.runtime/` (fuera de Git) como respaldo local del reviewer.
+- README actualizado con la sección "Desarrollo local en Windows" que documenta `tools/php.ps1` como envoltorio PHP obligatorio (porque el PHP global no trae `pdo_pgsql`) y ejemplos de ejecución para pruebas, artisan y composer.
+- Suite completa re-ejecutada tras los cambios documentales: `OK (28 tests, 142 assertions)` en 10.1 s.
+- Fase 2 continúa sin iniciar; ningún archivo bajo `app/`, `database/migrations`, `database/factories`, `app/Actions` o `app/Services` fue creado o modificado en este subcierre.
+
 ## Fase 2 — Grupos y borradores
 
 - [ ] Catálogo curricular: ocho entidades, integridad por versión, publicación inmutable y administración mínima.
