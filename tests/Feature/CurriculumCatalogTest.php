@@ -292,4 +292,62 @@ class CurriculumCatalogTest extends TestCase
         $this->actingAs($customer)->get('/admin/curricula')->assertForbidden();
         $this->actingAs($reviewer)->get('/admin/curricula')->assertForbidden();
     }
+
+    // ---------- Marcador editorial pendiente ----------
+
+    public function test_borrador_puede_contener_marcador_editorial_pendiente(): void
+    {
+        $version = $this->buildValidDraft();
+        $content = $version->curricularContents()->first();
+        // Actualización directa permitida mientras la versión sea borrador.
+        $content->update([
+            'title' => PublishCurriculumVersion::PENDING_EDITORIAL_MARKER,
+            'full_text' => 'texto real aunque el título esté pendiente',
+        ]);
+
+        $this->assertNull($version->fresh()->published_at);
+        $this->assertStringContainsString(
+            PublishCurriculumVersion::PENDING_EDITORIAL_MARKER,
+            $content->fresh()->title
+        );
+    }
+
+    public function test_no_se_puede_publicar_si_hay_marcador_editorial_pendiente(): void
+    {
+        $admin = $this->admin();
+        $version = $this->buildValidDraft();
+        $version->curricularContents()->first()->update([
+            'full_text' => 'Prefijo. ' . PublishCurriculumVersion::PENDING_EDITORIAL_MARKER . ' sufijo.',
+        ]);
+        $version->pdas()->first()->update([
+            'full_text' => PublishCurriculumVersion::PENDING_EDITORIAL_MARKER,
+        ]);
+
+        try {
+            app(PublishCurriculumVersion::class)($version, $admin);
+            $this->fail('Debía rechazarse la publicación con marcador pendiente.');
+        } catch (RuntimeException $e) {
+            $this->assertStringStartsWith('CURRICULUM_EDITORIAL_CONTENT_INCOMPLETE:', $e->getMessage());
+            $this->assertStringContainsString('content:' . $version->curricularContents()->first()->code, $e->getMessage());
+            $this->assertStringContainsString('pda:' . $version->pdas()->first()->code, $e->getMessage());
+        }
+        $this->assertNull($version->fresh()->published_at);
+    }
+
+    public function test_al_sustituir_todos_los_marcadores_puede_publicar(): void
+    {
+        $admin = $this->admin();
+        $version = $this->buildValidDraft();
+        $content = $version->curricularContents()->first();
+        $pda = $version->pdas()->first();
+        $content->update(['full_text' => PublishCurriculumVersion::PENDING_EDITORIAL_MARKER]);
+        $pda->update(['full_text' => PublishCurriculumVersion::PENDING_EDITORIAL_MARKER]);
+
+        // Sustituir por texto real validado.
+        $content->update(['full_text' => 'Texto final validado por edición.']);
+        $pda->update(['full_text' => 'PDA final validado por edición.']);
+
+        $published = app(PublishCurriculumVersion::class)($version, $admin);
+        $this->assertNotNull($published->published_at);
+    }
 }

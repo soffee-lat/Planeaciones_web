@@ -9,6 +9,9 @@ use RuntimeException;
 
 class PublishCurriculumVersion
 {
+    /** Marcador editorial canónico permitido en borradores, prohibido al publicar. */
+    public const PENDING_EDITORIAL_MARKER = '__PENDING_EDITORIAL__';
+
     /**
      * Publish a draft CurriculumVersion after validating structural invariants.
      * Throws RuntimeException with a semantic code when publication is not allowed.
@@ -86,6 +89,27 @@ class PublishCurriculumVersion
             ->where('p.curriculum_version_id', $vid)
             ->whereColumn('c.educational_phase_id', '<>', 'g.educational_phase_id')
             ->pluck('p.code');
+
+        // Textos editoriales pendientes: no se permite publicar mientras un
+        // contenido o PDA conserve el marcador editorial canónico.
+        $marker = self::PENDING_EDITORIAL_MARKER;
+        $pendingContents = DB::table('curricular_contents')
+            ->where('curriculum_version_id', $vid)
+            ->where(function ($q) use ($marker) {
+                $q->where('title', 'like', '%' . $marker . '%')
+                    ->orWhere('full_text', 'like', '%' . $marker . '%');
+            })
+            ->pluck('code')
+            ->map(fn ($c) => 'content:' . $c);
+        $pendingPdas = DB::table('pdas')
+            ->where('curriculum_version_id', $vid)
+            ->where('full_text', 'like', '%' . $marker . '%')
+            ->pluck('code')
+            ->map(fn ($c) => 'pda:' . $c);
+        $pending = $pendingContents->concat($pendingPdas);
+        if ($pending->isNotEmpty()) {
+            throw new RuntimeException('CURRICULUM_EDITORIAL_CONTENT_INCOMPLETE:' . $pending->implode(','));
+        }
         if ($misaligned->isNotEmpty()) {
             throw new RuntimeException('PDA_GRADE_PHASE_MISMATCH:' . $misaligned->implode(','));
         }

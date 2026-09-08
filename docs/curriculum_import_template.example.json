@@ -56,8 +56,8 @@
   "curricular_contents": [
     {
       "code": "F3-LEN-C001",
-      "title": "<título del contenido oficial>",
-      "full_text": "<pendiente: texto oficial validado por edición>",
+      "title": "__PENDING_EDITORIAL__",
+      "full_text": "__PENDING_EDITORIAL__",
       "phase_code": "F3",
       "field_code": "LEN",
       "source_locator": "Programa Sintético Fase 3, p. <n>",
@@ -67,7 +67,7 @@
   "pdas": [
     {
       "code": "F3-G1-LEN-C001-P01",
-      "full_text": "<pendiente: texto oficial validado por edición>",
+      "full_text": "__PENDING_EDITORIAL__",
       "content_code": "F3-LEN-C001",
       "grade_code": "G1",
       "source_locator": "Programa Sintético Fase 3, p. <n>",
