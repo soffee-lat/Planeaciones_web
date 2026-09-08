@@ -107,6 +107,87 @@ ImportReport indica modo, éxito/fallo, currículo, número de versión, draft_i
 
 Fase 2 debe probar JSON/CSV equivalentes, schema desconocido, texto requerido ausente, duplicados, referencias inexistentes, fase/grado incompatible, versión publicada y borrador existente, falta de permisos, rollback ante fallo intermedio, importaciones concurrentes y dry-run sin cambios. Verificar que importación válida termina en borrador no seleccionable y que publicación solo ocurre mediante acción editorial separada. Fixtures únicamente ficticias, sin cargar datos reales en esta entrega.
 
+### Contrato JSON definitivo — Subfase 2A.2 (schema_version = 1)
+
+Este contrato es el implementado en `App\Services\Curriculum\CurriculumImportService` y verificado por `tests/Feature/CurriculumImportTest.php`. El CSV queda POST-MVP; primero se estabiliza JSON. Las diferencias respecto al borrador provisional `curriculum_import_contract_draft.json` se detallan al final de esta sección.
+
+Objeto raíz obligatorio:
+
+- `schema_version` — entero, único valor aceptado: `1`.
+- `curriculum` — objeto con:
+  - `code` (string, 1..64, sin espacios exteriores). Identifica el `Curriculum`. Si existe, se reutiliza tal cual y su metadata no se modifica; si no existe, se crea con los campos del objeto.
+  - `name` (string, 1..1024).
+  - `country_code` (string, ≤8, opcional).
+  - `educational_level` (string, ≤64, opcional).
+  - `description` (string, ≤20000, opcional).
+- `version` — objeto con:
+  - `number` (entero ≥ 1). La pareja `(curriculum_id, number)` debe no existir.
+  - `label` (string, 1..255).
+  - `source_reference` (string o objeto JSON, opcional). Si es objeto se serializa a JSON antes de persistir en la columna `source_reference`.
+  - `effective_from`, `effective_until` (string `YYYY-MM-DD` o `null`, opcionales; final ≥ inicial).
+- `educational_phases` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
+- `grades` — arreglo NO vacío de `{code, name, phase_code, ordinal, sort_order?}`.
+- `formative_fields` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
+- `curricular_contents` — arreglo NO vacío de `{code, title, full_text, phase_code, field_code, source_locator?, sort_order?}`.
+- `pdas` — arreglo NO vacío de `{code, full_text, content_code, grade_code, source_locator?, sort_order?}`.
+- `articulating_axes` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
+
+Reglas de códigos y referencias:
+
+- Todos los `code` son códigos internos de la plataforma; nunca IDs de base de datos ni identificadores oficiales. Son sensibles a mayúsculas y no pueden llevar espacios al inicio o al final.
+- Los `code` deben ser únicos dentro de su propia colección. Duplicados dentro del archivo se rechazan con `DUPLICATE_CODE`.
+- Referencias válidas: `grades[].phase_code`, `curricular_contents[].phase_code|field_code`, `pdas[].content_code|grade_code`. Referencias no encontradas producen `REFERENCE_NOT_FOUND`.
+- Invariante fase/grado: para cada PDA, la `phase_code` del `Grade` referenciado debe coincidir con la `phase_code` del `CurricularContent` referenciado. Incumplimientos: `PDA_GRADE_PHASE_MISMATCH`.
+- Advertencia (no error): si algún contenido queda sin PDA en el archivo, el reporte emite un `warning` porque la publicación posterior fallará hasta agregarlo. La importación de borrador SÍ se permite en ese caso.
+
+Códigos de error semánticos emitidos por el servicio:
+
+- `SCHEMA_VERSION_UNSUPPORTED`, `MISSING_FIELD`, `INVALID_FIELD`.
+- `DUPLICATE_CODE`, `REFERENCE_NOT_FOUND`, `PDA_GRADE_PHASE_MISMATCH`.
+- `VERSION_EXISTS` (borrador con mismo número), `VERSION_PUBLISHED` (versión publicada con mismo número).
+- `ACTOR_NOT_AUTHORIZED` (actor no administrador activo).
+- `INVALID_JSON` (archivo no parseable) — emitido por `ImportCurriculumDraft`.
+- `IMPORT_TRANSACTION_FAILED` (fallo en escritura una vez validado; provoca rollback total).
+
+Comportamiento operativo:
+
+- Comando: `php artisan curriculum:import <archivo.json> --actor=<email|id> [--dry-run]`. `--actor` es obligatorio y debe resolver a un `User` con rol Administrator y `status=active`.
+- Atomicidad: toda la ingesta ocurre dentro de una única transacción PostgreSQL. Cualquier error revierte todo; no quedan registros parciales. El dry-run realiza las mismas validaciones y aborta la transacción sin escribir.
+- Idempotencia (create-only): la reimportación del mismo archivo falla con `VERSION_EXISTS` o `VERSION_PUBLISHED`. No hay merge, upsert ni sobrescritura. Para corregir, se ajusta el archivo y se importa con otro `version.number`, o se elimina el borrador previo por acción editorial separada.
+- La importación NUNCA publica: `published_at`, `published_by` y `checksum` quedan `NULL`. `curricula.selectable_version_id` NUNCA se modifica desde el importador.
+- Los triggers de inmutabilidad y las FK compuestas de PostgreSQL siguen activos; el servicio no los deshabilita y usa modelos Eloquent normales, respetando policies y guardas.
+- Auditoría: cada ejecución exitosa registra en el log `curriculum.import` con `actor_id`, `curriculum_code`, `version_number`, `draft_id`, `file_hash` (SHA-256 del archivo), conteos y `dry_run`.
+
+Ejemplo mínimo:
+
+```json
+{
+  "schema_version": 1,
+  "curriculum": {"code": "DEMO-IMP", "name": "Currículo ficticio"},
+  "version": {"number": 1, "label": "Borrador prueba"},
+  "educational_phases": [{"code": "PH-A", "name": "Fase A"}],
+  "grades": [{"code": "GR-A1", "name": "Grado A1", "phase_code": "PH-A", "ordinal": 1}],
+  "formative_fields": [{"code": "FF-LANG", "name": "Lenguajes"}],
+  "curricular_contents": [{
+    "code": "CT-1", "title": "Contenido", "full_text": "Texto ficticio.",
+    "phase_code": "PH-A", "field_code": "FF-LANG"
+  }],
+  "pdas": [{
+    "code": "PDA-1", "full_text": "PDA ficticio.",
+    "content_code": "CT-1", "grade_code": "GR-A1"
+  }],
+  "articulating_axes": [{"code": "AX-INC", "name": "Inclusión"}]
+}
+```
+
+Plantilla completa lista para poblar `MX-NEM-PRIMARY` en `docs/curriculum_import_template.example.json` (solo estructura y códigos internos; los `full_text` deben rellenarse con los textos oficiales validados por el equipo editorial).
+
+Diferencias frente a `curriculum_import_contract_draft.json`:
+
+- El campo raíz `note` no forma parte del schema y se ignoraría (los campos desconocidos NO se validan como error en esta versión, pero es preferible omitirlos).
+- `source_reference` del borrador provisional es un objeto (`{legal_basis, phase_sources}`). El schema definitivo acepta objeto o string; si se envía objeto se serializa a JSON dentro de `curriculum_versions.source_reference` (columna VARCHAR). Si se prefiere estructura persistida, mover esos datos a `source_locator` por elemento o expandir la tabla en una migración futura.
+- Los ejemplos de `contents`/`pdas` del borrador son plantillas incompletas (un solo elemento con `printed_page: null`). La plantilla definitiva enumera explícitamente todos los ejes/campos/grados/fases del manifiesto y deja los `full_text` como marcadores `<pendiente>` para que la revisión editorial los complete antes de la carga real.
+
 ## POST-MVP
 
 Sincronización y actualización automáticas con fuentes externas, importación inteligente desde PDF, scraping, procesamiento automático de documentos curriculares, comparador entre currículos, equivalencias, recomendaciones IA/semánticas, embeddings, personalización aprendida y multigrado. La importación administrativa JSON/CSV conforme a schema definido, aunque incluya cientos de registros, sí es MVP junto con administración de borrador/publicación y búsqueda filtrada. Las menciones previas a importación POST-MVP se refieren a fuentes heterogéneas o procesamiento automático, no a esta carga estructurada.

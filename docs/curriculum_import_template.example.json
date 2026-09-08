@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "curriculum": {
+    "code": "MX-NEM-PRIMARY",
+    "name": "Educación Primaria — Nueva Escuela Mexicana",
+    "country_code": "MX",
+    "educational_level": "primary",
+    "description": "Catálogo curricular estructurado para primaria. Los códigos son internos de la plataforma."
+  },
+  "version": {
+    "number": 1,
+    "label": "Programas Sintéticos de Primaria — edición 2024",
+    "source_reference": {
+      "legal_basis": [
+        "Acuerdo 14/08/22",
+        "Acuerdo 06/08/23",
+        "Acuerdo 08/08/23"
+      ],
+      "phase_sources": {
+        "F3": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_3.pdf",
+        "F4": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_4.pdf",
+        "F5": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_5.pdf"
+      }
+    },
+    "effective_from": null,
+    "effective_until": null
+  },
+  "educational_phases": [
+    { "code": "F3", "name": "Fase 3", "sort_order": 3 },
+    { "code": "F4", "name": "Fase 4", "sort_order": 4 },
+    { "code": "F5", "name": "Fase 5", "sort_order": 5 }
+  ],
+  "grades": [
+    { "code": "G1", "name": "Primer grado",  "phase_code": "F3", "ordinal": 1, "sort_order": 1 },
+    { "code": "G2", "name": "Segundo grado", "phase_code": "F3", "ordinal": 2, "sort_order": 2 },
+    { "code": "G3", "name": "Tercer grado",  "phase_code": "F4", "ordinal": 3, "sort_order": 3 },
+    { "code": "G4", "name": "Cuarto grado",  "phase_code": "F4", "ordinal": 4, "sort_order": 4 },
+    { "code": "G5", "name": "Quinto grado",  "phase_code": "F5", "ordinal": 5, "sort_order": 5 },
+    { "code": "G6", "name": "Sexto grado",   "phase_code": "F5", "ordinal": 6, "sort_order": 6 }
+  ],
+  "formative_fields": [
+    { "code": "LEN", "name": "Lenguajes",                        "sort_order": 1 },
+    { "code": "SPC", "name": "Saberes y Pensamiento Científico", "sort_order": 2 },
+    { "code": "ENS", "name": "Ética, Naturaleza y Sociedades",   "sort_order": 3 },
+    { "code": "DHC", "name": "De lo Humano y lo Comunitario",    "sort_order": 4 }
+  ],
+  "articulating_axes": [
+    { "code": "AX-INCLUSION",     "name": "Inclusión",                                                       "sort_order": 1 },
+    { "code": "AX-CRITICAL",      "name": "Pensamiento crítico",                                             "sort_order": 2 },
+    { "code": "AX-INTERCULTURAL", "name": "Interculturalidad crítica",                                       "sort_order": 3 },
+    { "code": "AX-GENDER",        "name": "Igualdad de género",                                              "sort_order": 4 },
+    { "code": "AX-HEALTH",        "name": "Vida saludable",                                                  "sort_order": 5 },
+    { "code": "AX-LITERACY",      "name": "Apropiación de las culturas a través de la lectura y la escritura","sort_order": 6 },
+    { "code": "AX-ARTS",          "name": "Artes y experiencias estéticas",                                  "sort_order": 7 }
+  ],
+  "curricular_contents": [
+    {
+      "code": "F3-LEN-C001",
+      "title": "<título del contenido oficial>",
+      "full_text": "<pendiente: texto oficial validado por edición>",
+      "phase_code": "F3",
+      "field_code": "LEN",
+      "source_locator": "Programa Sintético Fase 3, p. <n>",
+      "sort_order": 1
+    }
+  ],
+  "pdas": [
+    {
+      "code": "F3-G1-LEN-C001-P01",
+      "full_text": "<pendiente: texto oficial validado por edición>",
+      "content_code": "F3-LEN-C001",
+      "grade_code": "G1",
+      "source_locator": "Programa Sintético Fase 3, p. <n>",
+      "sort_order": 1
+    }
+  ]
+}
