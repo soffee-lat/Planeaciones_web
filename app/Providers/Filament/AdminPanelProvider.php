@@ -17,6 +17,10 @@ class AdminPanelProvider extends BasePanelProvider {
                 \App\Filament\Resources\Subscriptions\SubscriptionResource::class,
                 \App\Filament\Resources\SubscriptionPeriods\SubscriptionPeriodResource::class,
                 \App\Filament\Resources\UsageReservations\UsageReservationResource::class,
+                \App\Filament\Resources\Orders\OrderResource::class,
+                \App\Filament\Resources\Payments\PaymentResource::class,
+                \App\Filament\Resources\Refunds\RefundResource::class,
+                \App\Filament\Resources\PaymentEvents\PaymentEventResource::class,
             ]);
     }
 }
