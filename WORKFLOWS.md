@@ -61,6 +61,12 @@ Crear pedido con monto/moneda del plan versionado. Confirmación confiable manua
 
 Renovación: pedido nuevo; activar solo después de pago; fallo produce past_due y aviso. No asumir cobro recurrente hasta integrar consentimiento y proveedor. Cancelación al fin del periodo conserva derechos pagados. Devolución no borra pago ni versiones; solicitud administrativa decide acceso futuro y restitución de cupos, preserva trabajo entregado y ajusta métricas. Devolución pendiente no se cuenta como confirmada.
 
+## Materialización 5A — entrada a revisión humana
+
+Al terminar una auditoría satisfactoria de un plan con `human_review_required_snapshot=true`, el sistema conserva `REVISION_HUMANA` e intenta `AssignReviewer` dentro del mismo flujo. Solo candidatos con usuario/rol/perfil activos, autorización exacta `grade_id + curriculum_version_id`, una ventana que cubra el SLA y capacidad suficiente son elegibles. Se bloquean perfiles en orden estable antes de recalcular carga para serializar dos solicitudes concurrentes.
+
+La primera asignación consume `human_review` U una sola vez y congela tarifa×U; si no existe candidato no consume, abre `no_reviewer` y permite `review:assign` posterior. Reasignar no cobra otra unidad humana: termina la fila anterior, conserva historial/ciclo y crea reemplazo con su propia tarifa snapshot. Sin reemplazo viable se mantiene la asignación activa actual. Inicio/completado de review, checklist, aprobación humana y trabajo pagable se materializan en subfases siguientes.
+
 ## Asignación y revisión
 
 Filtrar revisores activos, grade_id autorizado de esa versión curricular, disponibilidad cubriendo ventana y carga en unidades + planning_units <= max_load; daily_max también mide unidades de asignaciones iniciales del día local (incluye completadas, excluye anuladas antes de iniciar). Al publicar nuevo catálogo, autorizaciones de grado requieren remapeo explícito, no herencia por ordinal. Orden: vencimiento de solicitudes, menor carga relativa, asignación más antigua, ID estable. Bloquear candidato y solicitud y recalcular límites antes de asignar. Sin candidato: no_reviewer y alerta; nunca asignar a no autorizado. Reasignación administrativa conserva historial y tarifa, libera carga anterior y verifica nuevo candidato.

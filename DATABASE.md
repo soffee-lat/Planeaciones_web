@@ -96,6 +96,14 @@ La identidad de una ejecución (sujeto, stage, mode, prompt, revisión, manifest
 - `planning_post_audit_routing_integrity_*` es diferido: `CORRECCION_IA` exige audit fallido de la versión actual, correction execution/outbox/evento coherentes; `REVISION_HUMANA` exige audit aprobado, Approval AI y derecho humano congelado; `APROBADA` solo-IA exige audit aprobado, Approval AI y evento de ruteo. No enmascara los códigos de integridad de 4D cuando falta la auditoría.
 - Ciclos automáticos internos se limitan mediante `AI_INTERNAL_CORRECTION_MAX_ROUNDS` y presupuesto conocido opcional. **No consultan ni consumen `correction_limit_snapshot`**; el recurso `client_correction` sigue reservado para correcciones comerciales post-entrega.
 
+### Materialización Fase 5A
+
+- `reviewer_profiles`: un perfil por `users.id`, estado operativo, `max_load` y `daily_max` medidos en unidades, `rate_minor` por unidad y moneda. Cambiar la tarifa futura no reescribe snapshots de trabajos ya asignados.
+- `reviewer_grades`: autorización explícita por `reviewer_id + grade_id + curriculum_version_id`; la FK compuesta garantiza que el grado pertenezca exactamente a esa versión curricular. No se heredan autorizaciones al publicar otro catálogo.
+- `reviewer_availability`: ventanas `timestamptz`; una asignación requiere una ventana que cubra desde `assigned_at` hasta `due_at` (o el instante de asignación cuando no hay SLA).
+- `review_assignments`: historial por solicitud/revisor/ciclo con estados `assigned|in_progress|completed|reassigned|cancelled`, tarifa/unidades/total congelados y un índice único parcial para una sola asignación activa por solicitud. La reasignación termina la fila previa y crea otra; nunca reescribe el reviewer histórico.
+- Constraint triggers diferidos verifican al commit request en `REVISION_HUMANA`, derecho humano congelado, aprobación AI de la versión vigente, reserva `human_review` consumida por U, perfil/rol/grado/disponibilidad vigentes y capacidad `max_load`/`daily_max`. Un BEFORE trigger impide insertar historial terminal fabricado y otro congela identidad/transiciones.
+
 Los contratos JSON canónicos no son otra fuente curricular: `GeneratedPlanDraftV1` referencia códigos y `CanonicalPlanV1` copia textos desde `RequestInputVersion`. Ver `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
 
 - prompt_templates: key UNIQUE, category (generation/audit/correction/document_analysis/format_adaptation), name, active_version_id nullable.

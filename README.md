@@ -128,6 +128,22 @@ Prueba integral verificada de cierre de Fase 4 (4F):
 
 4F no agrega endpoints, estados ni persistencia nuevos: verifica que 4B→4E funcionen unidos y que los replays no dupliquen versiones, aprobaciones, outbox ni consumo. Cierre local: **4 tests / 32 assertions** en `Phase4EndToEndTest`; hardening comercial **44 / 146**; suite completa **432 tests / 1521 assertions**, sin fallos.
 
+### Fase 5A — capacidad y asignación humana
+
+Candidato de asignación automática al entrar a `REVISION_HUMANA`, con consumo humano únicamente cuando existe un revisor elegible. Reintento operativo:
+
+```powershell
+.\tools\php.ps1 artisan review:assign <request_id>
+```
+
+Pruebas dirigidas de 5A:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentIntegrityTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentConcurrencyTest.php --do-not-cache-result
+```
+
 Pruebas específicas de 4C:
 
 ```powershell

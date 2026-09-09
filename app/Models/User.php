@@ -30,6 +30,12 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     public function groups(): \Illuminate\Database\Eloquent\Relations\HasMany {
         return $this->hasMany(Group::class, 'owner_id');
     }
+    public function reviewerProfile(): \Illuminate\Database\Eloquent\Relations\HasOne {
+        return $this->hasOne(ReviewerProfile::class, 'user_id');
+    }
+    public function reviewAssignments(): \Illuminate\Database\Eloquent\Relations\HasMany {
+        return $this->hasMany(ReviewerAssignment::class, 'reviewer_id');
+    }
     public function hasPedagogicalOnboardingComplete(): bool {
         return \App\Services\Onboarding\OnboardingProgress::isPedagogicalComplete($this);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\AI;
 
+use App\Actions\Review\AssignReviewer;
 use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
@@ -34,6 +35,7 @@ final class RouteAuditResult
         private CorrectionPromptPolicy $correctionPromptPolicy,
         private PlanningRequestStateMachine $stateMachine,
         private RequestBlockManager $blocks,
+        private AssignReviewer $assignReviewer,
     ) {}
 
     public function execute(AiExecution $auditExecution, ?User $actor = null, ?string $correlationId = null): PlanningRequest
@@ -110,6 +112,10 @@ final class RouteAuditResult
                         ? 'audit_passed_human_review_required'
                         : 'audit_passed_ai_approved',
                 );
+
+                if ($to === PlanningRequestStatus::REVISION_HUMANA) {
+                    $this->assignReviewer->execute($request->fresh(), $correlationId);
+                }
 
                 return $request->fresh();
             }

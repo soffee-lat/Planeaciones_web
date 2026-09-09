@@ -78,7 +78,7 @@ trait CreatesManualAiPipelineScenario
             '41414141-4141-4141-8141-414141414141',
         );
         app(ProcessOutboxEvent::class)->execute(
-            OutboxEvent::query()->where('type', OutboxEventType::PlanningGenerationRequested->value)->sole(),
+            OutboxEvent::query()->where('event_key', 'ai-execution:' . $generation->id . ':generation-dispatch')->sole(),
         );
         $version = app(ImportManualGenerationResult::class)->execute(
             $generation->fresh(),
@@ -89,7 +89,7 @@ trait CreatesManualAiPipelineScenario
             ->where('stage', AiExecutionStage::Audit->value)
             ->sole();
         app(ProcessOutboxEvent::class)->execute(
-            OutboxEvent::query()->where('type', OutboxEventType::PlanningAuditRequested->value)->sole(),
+            OutboxEvent::query()->where('event_key', 'ai-execution:' . $audit->id . ':audit-dispatch')->sole(),
         );
 
         return [
@@ -146,7 +146,12 @@ trait CreatesManualAiPipelineScenario
         string $schemaPath,
         bool $badSchema = false,
     ): PromptVersion {
-        $template = PromptTemplate::factory()->create([
+        $template = PromptTemplate::query()->where('key', $key)->first();
+        if ($template !== null && $template->active_version_id !== null && ! $badSchema) {
+            return PromptVersion::query()->findOrFail($template->active_version_id);
+        }
+
+        $template ??= PromptTemplate::factory()->create([
             'key' => $key,
             'category' => $category->value,
         ]);

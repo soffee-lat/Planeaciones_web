@@ -408,7 +408,12 @@ Salida: recorrido reproducible con fake/manual hasta aprobación automática o c
 
 ## Fase 5 — Calidad
 
-- [ ] Disponibilidad/capacidad en unidades, grados autorizados por catálogo, asignación atómica y reasignación.
+- [ ] **Subfase 5A — capacidad y asignación humana.** Candidato sobre `0986501` (`phase-4-complete`); pendiente verificación local PostgreSQL/PHPUnit antes de marcar completo.
+  - `reviewer_profiles`, `reviewer_grades`, `reviewer_availability` y `review_assignments` materializan capacidad en unidades, tarifa snapshot, grado+versión curricular exactos, ventana de disponibilidad e historial de reasignación.
+  - `AssignReviewer` se ejecuta al entrar a `REVISION_HUMANA`: bloquea solicitud/perfiles en orden determinista, calcula carga activa y diaria, consume una sola vez la reserva `human_review` solo si existe candidato y crea una única asignación activa. Sin capacidad conserva la reserva y abre `no_reviewer`.
+  - `ReassignReviewer` exige admin+motivo, conserva ciclo/historial, toma nueva tarifa snapshot y no vuelve a consumir cupo humano. Si no hay reemplazo viable conserva la asignación actual y abre `no_reviewer`.
+  - PostgreSQL protege una asignación activa por solicitud, identidad/historial, grado exacto, disponibilidad, rol/estado del revisor, consumo humano, aprobación AI vigente, tarifa/unidades y límites `max_load`/`daily_max`.
+  - Pruebas candidatas: dominio, escrituras SQL directas y concurrencia real de dos procesos compitiendo por la última capacidad.
 - [ ] Pantalla de revisión única y checklist configurable versionado.
 - [ ] Corrección/rechazo/escalamiento, nueva versión y auditoría posterior.
 - [ ] Honorarios tarifa×U por ciclo aprobado, liquidación y métricas propias; correcciones cubiertas sin doble pago.
