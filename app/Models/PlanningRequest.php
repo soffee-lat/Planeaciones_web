@@ -178,6 +178,11 @@ class PlanningRequest extends Model
         return $this->hasMany(AiExecution::class, 'request_id');
     }
 
+    public function document(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Document::class, 'request_id');
+    }
+
     public function blocks(): HasMany
     {
         return $this->hasMany(RequestBlock::class, 'request_id');

@@ -48,6 +48,25 @@ class AiExecution extends Model
                     throw new RuntimeException('AI_EXECUTION_IDENTITY_IMMUTABLE');
                 }
             }
+
+            if ($model->getOriginal('status') === AiExecutionStatus::Succeeded->value) {
+                foreach (['status', 'finished_at', 'resulting_version_id'] as $field) {
+                    if ($model->isDirty($field)) {
+                        throw new RuntimeException('AI_EXECUTION_SUCCEEDED_IMMUTABLE');
+                    }
+                }
+
+                if ($model->getOriginal('provider') !== null && ($model->isDirty('provider') || $model->isDirty('model'))) {
+                    throw new RuntimeException('AI_EXECUTION_PROVIDER_MODEL_IMMUTABLE');
+                }
+                if ($model->getOriginal('actual_cost') !== null && ($model->isDirty('actual_cost') || $model->isDirty('cost_currency'))) {
+                    throw new RuntimeException('AI_EXECUTION_ACTUAL_COST_IMMUTABLE');
+                }
+            }
+
+            if ($model->getOriginal('resulting_version_id') !== null && $model->isDirty('resulting_version_id')) {
+                throw new RuntimeException('AI_EXECUTION_RESULT_IMMUTABLE');
+            }
         });
 
         static::deleting(function () {
@@ -83,5 +102,11 @@ class AiExecution extends Model
     public function manualPackage(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(AiManualPackage::class, 'ai_execution_id');
+    }
+
+
+    public function resultingVersion(): BelongsTo
+    {
+        return $this->belongsTo(DocumentVersion::class, 'resulting_version_id');
     }
 }

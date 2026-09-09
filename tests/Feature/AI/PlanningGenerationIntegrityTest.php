@@ -113,20 +113,28 @@ class PlanningGenerationIntegrityTest extends PedagogyTestCase
         $this->assertSame($execution->id, (int) OutboxEvent::query()->sole()->payload['ai_execution_id']);
     }
 
-    public function test_estado_posterior_no_rompe_guard_si_arranque_de_generacion_ya_es_valido(): void
+    public function test_estado_posterior_requiere_resultado_documental_ademas_del_arranque_valido(): void
     {
         config(['ai.mode' => 'manual']);
         $request = $this->readyRequest();
         $this->publishPrompt();
         app(DispatchPlanningGeneration::class)->execute($request);
+        $statementsCompleted = false;
 
-        DB::transaction(function () use ($request): void {
-            DB::table('planning_requests')->where('id', $request->id)->update([
-                'status' => PlanningRequestStatus::AUDITORIA_IA->value,
-            ]);
-        });
+        try {
+            DB::transaction(function () use ($request, &$statementsCompleted): void {
+                DB::table('planning_requests')->where('id', $request->id)->update([
+                    'status' => PlanningRequestStatus::AUDITORIA_IA->value,
+                ]);
+                $statementsCompleted = true;
+            });
+            $this->fail('AUDITORIA_IA requiere DocumentVersion y resultado generation succeeded.');
+        } catch (\PDOException $error) {
+            $this->assertTrue($statementsCompleted);
+            $this->assertStringContainsString('AI_GENERATION_RESULT_REQUIRED', $error->getMessage());
+        }
 
-        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $request->fresh()->status);
+        $this->assertSame(PlanningRequestStatus::GENERACION_IA, $request->fresh()->status);
         $this->assertSame(UsageReservationStatus::Consumed, UsageReservation::query()
             ->where('planning_request_id', $request->id)
             ->where('resource', UsageResource::Planning->value)

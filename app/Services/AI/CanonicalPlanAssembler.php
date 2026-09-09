@@ -22,7 +22,10 @@ class CanonicalPlanAssembler
         $draft = $this->draftValidator->validate($draft->toArray());
         $request->loadMissing('currentInputVersion');
 
-        if ($request->status !== PlanningRequestStatus::LISTA_PARA_PROCESAR
+        if (! in_array($request->status, [
+            PlanningRequestStatus::LISTA_PARA_PROCESAR,
+            PlanningRequestStatus::GENERACION_IA,
+        ], true)
             || $request->commercial_authorized_at === null
             || ! $request->currentInputVersion) {
             throw new AiContractException('CANONICAL_REQUEST_NOT_READY');

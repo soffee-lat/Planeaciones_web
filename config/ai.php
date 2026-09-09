@@ -7,6 +7,7 @@ return [
 
     'prompts' => [
         'generation_key' => env('AI_GENERATION_PROMPT_KEY', 'planning.generation'),
+        'audit_key' => env('AI_AUDIT_PROMPT_KEY', 'planning.audit'),
     ],
 
     'manual' => [

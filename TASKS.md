@@ -372,9 +372,17 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
   - Verificación de cierre: `PlanningRequestStateMachineTest` **2 tests / 5 assertions**, `PlanningGenerationDispatchTest` **11 / 55**, `ManualGenerationOutboxTest` **9 / 54**, `PlanningGenerationIntegrityTest` **3 / 14**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **356 tests / 1227 assertions**, todos sin fallos. `git diff --check` limpio.
   - Durante la validación local se corrigió una falsa divergencia de `input_manifest` causada únicamente por el orden de claves de PostgreSQL JSONB; la comparación usa ahora hash de `CanonicalJson`, conservando igualdad semántica sin debilitar el manifest.
 
-- [ ] Completar máquina de estados/bloqueos/eventos para las etapas posteriores a generación y outbox con workers/scheduler.
-- [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B); importación del resultado manual sigue pendiente.
-- [ ] Document/DocumentVersion, snapshot curricular confirmado y cobertura de todos los segmentos; auditoría y corrección por sección.
+- [ ] **Subfase 4C — importación manual de generación y DocumentVersion.** Implementación candidata preparada sobre el cierre 4B; pendiente ejecutar pruebas PostgreSQL/Laravel antes de marcarla completa.
+  - `ai:import-generation-result`: valida `GeneratedPlanDraftV1`, ensambla `CanonicalPlanV1` desde snapshot congelado, crea `Document` + `DocumentVersion(validated)` append-only y enlaza `AiExecution.resulting_version_id`.
+  - Reintento del mismo payload es idempotente por `source_payload_hash`; payload distinto no reemplaza historial. Provider/model/costo real son opcionales y quedan `null` si se desconocen.
+  - Prepara `AiExecution(stage=audit,status=pending)` con PromptVersion audit activa y materializa `GENERACION_IA → AUDITORIA_IA`; 4C **no ejecuta** auditoría, no crea paquete audit y no llama API.
+  - Migración `2026_09_19_000001_create_documents_and_generation_import.php`: FK circulares de documentos/ejecución, inmutabilidad de versiones y constraint triggers diferidos para impedir `AUDITORIA_IA` sin resultado generation/documento/audit execution coherentes.
+  - Pruebas nuevas preparadas: `ManualGenerationResultImportTest` y `PlanningGenerationResultIntegrityTest`; además se ajusta el test 4B que antes permitía simular `AUDITORIA_IA` sin resultado porque esa tolerancia deja de ser válida en 4C. Evidencia final pendiente de ejecución local.
+
+- [ ] Completar máquina de estados/bloqueos/eventos para las etapas posteriores a auditoría con workers/scheduler.
+- [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B).
+- [ ] Importar generación y persistir Document/DocumentVersion de forma verificada (candidato 4C pendiente suite).
+- [ ] Auditoría y corrección por sección.
 - [x] Mapper de estados `/app` sin metadatos de proveedor/prompts/tokens/ejecuciones para los estados ya declarados.
 - [ ] Probar ambos itinerarios, saltos ilegales, duplicados y versiones inmutables.
 

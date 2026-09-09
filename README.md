@@ -60,6 +60,31 @@ Procesar/reintentar outbox manual pendiente:
 
 `AI_MODE=manual` es el único modo operacional de Fase 4B. Los paquetes se guardan en el disco privado (`storage/app/private/ai/manual/...`) y no se publican mediante `storage:link`. `AI_MODE=api` permanece bloqueado hasta integrar y verificar un proveedor real.
 
+### Fase 4C — importar resultado manual de generación
+
+Antes de importar, `/admin` debe tener una `PromptVersion` publicada y activa de categoría `audit` con key `planning.audit`. 4C todavía **no ejecuta** la auditoría: congela esa versión para la siguiente `AiExecution`.
+
+```powershell
+.\tools\php.ps1 artisan ai:import-generation-result 45 C:\ruta\resultado.json
+```
+
+Metadatos reales opcionales; si se desconocen se omiten y permanecen `null`:
+
+```powershell
+.\tools\php.ps1 artisan ai:import-generation-result 45 C:\ruta\resultado.json `
+  --provider=proveedor-real --model=modelo-real `
+  --actual-cost=0.01234567 --currency=MXN
+```
+
+El JSON debe cumplir `GeneratedPlanDraftV1`. El servidor reconstruye `CanonicalPlanV1` desde el snapshot curricular congelado, crea `Document`/`DocumentVersion` inmutable, marca la ejecución de generación `succeeded` y transiciona `GENERACION_IA → AUDITORIA_IA` preparando una ejecución `audit` pendiente. Repetir el mismo payload es idempotente; un payload distinto para la misma ejecución se rechaza.
+
+Pruebas específicas de 4C:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualGenerationResultImportTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationResultIntegrityTest.php --do-not-cache-result
+```
+
 Los contratos versionados viven en `resources/schemas/ai/` y su explicación en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
 
 Un solo archivo o filtro:
