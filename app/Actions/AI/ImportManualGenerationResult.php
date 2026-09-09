@@ -8,14 +8,17 @@ use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
 use App\Enums\DocumentVersionStatus;
 use App\Enums\PlanningRequestStatus;
+use App\Enums\OutboxEventType;
 use App\Exceptions\AiPipelineException;
 use App\Models\AiExecution;
 use App\Models\AiManualPackage;
 use App\Models\Document;
 use App\Models\DocumentVersion;
+use App\Models\OutboxEvent;
 use App\Models\PlanningRequest;
 use App\Models\User;
 use App\Services\AI\AuditPromptSelector;
+use App\Services\AI\AuditPromptPolicy;
 use App\Services\AI\CanonicalPlanAssembler;
 use App\Services\AI\GeneratedPlanDraftValidator;
 use App\Services\Planning\PlanningRequestStateMachine;
@@ -29,6 +32,7 @@ final class ImportManualGenerationResult
         private GeneratedPlanDraftValidator $draftValidator,
         private CanonicalPlanAssembler $canonicalAssembler,
         private AuditPromptSelector $auditPromptSelector,
+        private AuditPromptPolicy $auditPromptPolicy,
         private PlanningRequestStateMachine $stateMachine,
     ) {}
 
@@ -115,6 +119,10 @@ final class ImportManualGenerationResult
             // de auditoría publicada exacta que pueda quedar congelada en la
             // siguiente AiExecution. No se ejecuta todavía en 4C.
             $auditPrompt = $this->auditPromptSelector->activeForUpdate();
+            // 4D exige que la ejecución de auditoría nazca con un contrato
+            // procesable. Un prompt publicado pero incompatible no debe dejar
+            // la solicitud atrapada en AUDITORIA_IA con identidad inmutable.
+            $this->auditPromptPolicy->assertReady($auditPrompt);
 
             $requestForAssembler = $request->fresh(['currentInputVersion']);
             if (! $requestForAssembler) {
@@ -228,6 +236,33 @@ final class ImportManualGenerationResult
                 || (int) $auditExecution->input_revision !== (int) $request->input_revision
                 || (int) ($auditExecution->input_manifest['source_version_id'] ?? 0) !== (int) $version->id) {
                 throw new AiPipelineException('AI_AUDIT_EXECUTION_IDEMPOTENCY_CONFLICT');
+            }
+
+            $auditEventKey = 'ai-execution:' . $auditExecution->id . ':audit-dispatch';
+            /** @var OutboxEvent|null $auditEvent */
+            $auditEvent = OutboxEvent::query()->where('event_key', $auditEventKey)->lockForUpdate()->first();
+            if (! $auditEvent) {
+                $auditEvent = OutboxEvent::query()->create([
+                    'event_key' => $auditEventKey,
+                    'type' => OutboxEventType::PlanningAuditRequested->value,
+                    'aggregate_id' => $request->id,
+                    'payload' => [
+                        'request_id' => (int) $request->id,
+                        'ai_execution_id' => (int) $auditExecution->id,
+                        'input_revision' => (int) $request->input_revision,
+                        'source_version_id' => (int) $version->id,
+                        'correlation_id' => $correlationId,
+                    ],
+                    'published_at' => null,
+                    'attempts' => 0,
+                    'available_at' => now(),
+                ]);
+            }
+            if ($auditEvent->type !== OutboxEventType::PlanningAuditRequested
+                || (int) $auditEvent->aggregate_id !== (int) $request->id
+                || (int) ($auditEvent->payload['ai_execution_id'] ?? 0) !== (int) $auditExecution->id
+                || (int) ($auditEvent->payload['source_version_id'] ?? 0) !== (int) $version->id) {
+                throw new AiPipelineException('AI_AUDIT_OUTBOX_IDEMPOTENCY_CONFLICT');
             }
 
             $this->stateMachine->assertCanTransition($request->status, PlanningRequestStatus::AUDITORIA_IA);

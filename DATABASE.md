@@ -81,6 +81,13 @@ La identidad de una ejecución (sujeto, stage, mode, prompt, revisión, manifest
 - `document_versions_guard_trg` valida que el canonical declare la misma request/input_revision y que una versión atribuida a IA pertenezca a la misma ejecución/request. Constraint triggers diferidos exigen al commit el enlace bidireccional `DocumentVersion.ai_execution_id ↔ AiExecution.resulting_version_id`.
 - `planning_generation_result_integrity_*` amplía el hardening: desde `AUDITORIA_IA` en adelante debe existir generation succeeded para la revisión vigente, DocumentVersion validada coherente, evento `GENERACION_IA→AUDITORIA_IA` y una `AiExecution(stage=audit)` cuyo manifest apunte a esa versión/hash/correlation. SQL directo ya no puede saltar a auditoría solo porque 4B haya consumido unidades.
 
+### Materialización Fase 4D
+
+- `AuditResultV1` se versiona en `resources/schemas/ai/audit_result_v1.schema.json`: `passed` boolean y `findings` estructurados (`code`, `severity`, `json_path`, `explanation`, `expected_correction`). El validador de dominio exige cero hallazgos cuando pasa y al menos uno cuando falla.
+- `outbox_events` incorpora `planning.audit.requested`. El evento referencia request, audit execution y `source_version_id`; el paquete manual audit usa la misma tabla `ai_manual_packages` (una fila por ejecución) y almacenamiento privado inmutable.
+- `ai_executions_audit_result_shape_check` limita `audit_report` a ejecuciones `stage=audit` y forma `audit_result_v1`. `audit/succeeded` exige `finished_at`, reporte válido y `resulting_version_id NULL`; el reporte queda inmutable al cerrar la ejecución.
+- `planning_audit_result_integrity_*` exige desde `AUDITORIA_IA` outbox audit sobre la `DocumentVersion` actual; si la ejecución está `waiting_manual`/`succeeded` debe existir paquete privado. Para cualquier estado posterior a `AUDITORIA_IA` exige una ejecución audit `succeeded` con reporte sobre la versión/hash vigente. La decisión concreta pass/fail → corrección/aprobación sigue reservada para 4E.
+
 Los contratos JSON canónicos no son otra fuente curricular: `GeneratedPlanDraftV1` referencia códigos y `CanonicalPlanV1` copia textos desde `RequestInputVersion`. Ver `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
 
 - prompt_templates: key UNIQUE, category (generation/audit/correction/document_analysis/format_adaptation), name, active_version_id nullable.

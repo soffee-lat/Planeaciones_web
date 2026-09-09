@@ -1,0 +1,13 @@
+{
+  "schema_version": "audit_result_v1",
+  "passed": false,
+  "findings": [
+    {
+      "code": "PEDAGOGICAL_ALIGNMENT",
+      "severity": "high",
+      "json_path": "/sessions/0",
+      "explanation": "La actividad no evidencia de forma suficiente la meta declarada.",
+      "expected_correction": "Ajustar la actividad para hacer explícita su relación con la meta sin modificar la alineación curricular congelada."
+    }
+  ]
+}

@@ -9,6 +9,7 @@ use App\Models\AiExecution;
 use App\Models\OutboxEvent;
 use App\Models\PlanningRequest;
 use App\Services\AI\ManualGenerationPackageBuilder;
+use App\Services\AI\ManualAuditPackageBuilder;
 use App\Services\AI\RequestBlockManager;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -17,6 +18,7 @@ final class ProcessOutboxEvent
 {
     public function __construct(
         private ManualGenerationPackageBuilder $manualPackageBuilder,
+        private ManualAuditPackageBuilder $manualAuditPackageBuilder,
         private RequestBlockManager $blocks,
     ) {}
 
@@ -64,6 +66,7 @@ final class ProcessOutboxEvent
     {
         match ($event->type) {
             OutboxEventType::PlanningGenerationRequested => $this->handleGenerationRequested($event),
+            OutboxEventType::PlanningAuditRequested => $this->handleAuditRequested($event),
         };
     }
 
@@ -86,6 +89,27 @@ final class ProcessOutboxEvent
         $this->manualPackageBuilder->build($execution);
     }
 
+    private function handleAuditRequested(OutboxEvent $event): void
+    {
+        $executionId = (int) ($event->payload['ai_execution_id'] ?? 0);
+        $requestId = (int) ($event->payload['request_id'] ?? 0);
+        $sourceVersionId = (int) ($event->payload['source_version_id'] ?? 0);
+        if ($executionId < 1 || $requestId < 1 || $sourceVersionId < 1 || $requestId !== (int) $event->aggregate_id) {
+            throw new AiPipelineException('AI_AUDIT_OUTBOX_PAYLOAD_INVALID');
+        }
+
+        /** @var AiExecution|null $execution */
+        $execution = AiExecution::query()->find($executionId);
+        if (! $execution
+            || $execution->request_id !== $requestId
+            || $execution->stage !== AiExecutionStage::Audit
+            || (int) ($execution->input_manifest['source_version_id'] ?? 0) !== $sourceVersionId) {
+            throw new AiPipelineException('AI_AUDIT_OUTBOX_EXECUTION_MISMATCH');
+        }
+
+        $this->manualAuditPackageBuilder->build($execution);
+    }
+
     private function markPublished(OutboxEvent $claimed): void
     {
         DB::transaction(function () use ($claimed): void {
@@ -97,7 +121,7 @@ final class ProcessOutboxEvent
 
             $request = PlanningRequest::query()->whereKey($event->aggregate_id)->lockForUpdate()->first();
             if ($request) {
-                $this->blocks->resolve($request, 'ai_failed', AiExecutionStage::Generation->value);
+                $this->blocks->resolve($request, 'ai_failed', $this->stageForEvent($event)->value);
             }
 
             $event->forceFill([
@@ -135,7 +159,9 @@ final class ProcessOutboxEvent
                 if ($execution && $execution->status !== \App\Enums\AiExecutionStatus::Succeeded) {
                     $execution->forceFill([
                         'error_code' => $errorCode,
-                        'sanitized_error' => 'generation_dispatch_failed',
+                        'sanitized_error' => $this->stageForEvent($event) === AiExecutionStage::Audit
+                            ? 'audit_dispatch_failed'
+                            : 'generation_dispatch_failed',
                     ])->save();
                 }
             }
@@ -145,11 +171,19 @@ final class ProcessOutboxEvent
                 $this->blocks->open(
                     $request,
                     'ai_failed',
-                    AiExecutionStage::Generation->value,
+                    $this->stageForEvent($event)->value,
                     ['error_code' => $errorCode, 'attempts' => (int) $event->attempts],
                     (string) ($event->payload['correlation_id'] ?? '') ?: null,
                 );
             }
         });
+    }
+
+    private function stageForEvent(OutboxEvent $event): AiExecutionStage
+    {
+        return match ($event->type) {
+            OutboxEventType::PlanningGenerationRequested => AiExecutionStage::Generation,
+            OutboxEventType::PlanningAuditRequested => AiExecutionStage::Audit,
+        };
     }
 }

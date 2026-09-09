@@ -65,11 +65,12 @@ class ManualGenerationResultImportTest extends PedagogyTestCase
             'key' => 'planning.audit',
             'category' => PromptCategory::Audit->value,
         ]);
+        $schema = json_decode(file_get_contents(resource_path('schemas/ai/audit_result_v1.schema.json')), true, 512, JSON_THROW_ON_ERROR);
         $version = PromptVersion::factory()->create([
             'template_id' => $template->id,
-            'body' => 'Audita el CanonicalPlanV1 indicado por el pipeline.',
-            'allowed_variables' => [],
-            'output_schema' => ['type' => 'object', 'additionalProperties' => true],
+            'body' => 'CANONICAL={{canonical_plan}} OUTPUT={{output_schema}}',
+            'allowed_variables' => ['canonical_plan', 'output_schema'],
+            'output_schema' => $schema,
             'schema_version' => 'audit_result_v1',
         ]);
 

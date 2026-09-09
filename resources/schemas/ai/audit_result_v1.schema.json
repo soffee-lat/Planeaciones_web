@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://planeaciones.local/schemas/audit-result-v1.schema.json",
+  "title": "AuditResultV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "passed",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "audit_result_v1"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "json_path",
+        "explanation",
+        "expected_correction"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "SCHEMA",
+            "CURRICULUM_REFERENCE",
+            "CURRICULUM_COVERAGE",
+            "PEDAGOGICAL_ALIGNMENT",
+            "TIME_CONSISTENCY",
+            "ASSESSMENT_ALIGNMENT",
+            "AGE_APPROPRIATENESS",
+            "GROUP_CONTEXT",
+            "MATERIAL_FEASIBILITY",
+            "UNSUPPORTED_ASSUMPTION",
+            "SAFETY_OR_INCLUSION",
+            "LANGUAGE_QUALITY"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "json_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "expected_correction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      }
+    }
+  }
+}

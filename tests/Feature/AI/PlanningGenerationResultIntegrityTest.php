@@ -50,9 +50,9 @@ class PlanningGenerationResultIntegrityTest extends PedagogyTestCase
         ];
         if ($category === PromptCategory::Audit) {
             $attributes += [
-                'body' => 'Audita el canonical congelado por la ejecución.',
-                'allowed_variables' => [],
-                'output_schema' => ['type' => 'object', 'additionalProperties' => true],
+                'body' => 'CANONICAL={{canonical_plan}} OUTPUT={{output_schema}}',
+                'allowed_variables' => ['canonical_plan', 'output_schema'],
+                'output_schema' => json_decode(file_get_contents(resource_path('schemas/ai/audit_result_v1.schema.json')), true, 512, JSON_THROW_ON_ERROR),
                 'schema_version' => 'audit_result_v1',
             ];
         } else {

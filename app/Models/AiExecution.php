@@ -50,7 +50,7 @@ class AiExecution extends Model
             }
 
             if ($model->getOriginal('status') === AiExecutionStatus::Succeeded->value) {
-                foreach (['status', 'finished_at', 'resulting_version_id'] as $field) {
+                foreach (['status', 'finished_at', 'resulting_version_id', 'audit_report'] as $field) {
                     if ($model->isDirty($field)) {
                         throw new RuntimeException('AI_EXECUTION_SUCCEEDED_IMMUTABLE');
                     }

@@ -62,7 +62,7 @@ Procesar/reintentar outbox manual pendiente:
 
 ### Fase 4C — importar resultado manual de generación
 
-Antes de importar, `/admin` debe tener una `PromptVersion` publicada y activa de categoría `audit` con key `planning.audit`. 4C todavía **no ejecuta** la auditoría: congela esa versión para la siguiente `AiExecution`.
+Antes de importar, `/admin` debe tener una `PromptVersion` publicada y activa de categoría `audit` con key `planning.audit`, schema exacto `AuditResultV1` y variables mínimas `canonical_plan` + `output_schema`. 4D valida ese contrato antes de congelarlo para impedir ejecuciones audit imposibles de procesar.
 
 ```powershell
 .\tools\php.ps1 artisan ai:import-generation-result 45 C:\ruta\resultado.json
@@ -76,7 +76,21 @@ Metadatos reales opcionales; si se desconocen se omiten y permanecen `null`:
   --actual-cost=0.01234567 --currency=MXN
 ```
 
-El JSON debe cumplir `GeneratedPlanDraftV1`. El servidor reconstruye `CanonicalPlanV1` desde el snapshot curricular congelado, crea `Document`/`DocumentVersion` inmutable, marca la ejecución de generación `succeeded` y transiciona `GENERACION_IA → AUDITORIA_IA` preparando una ejecución `audit` pendiente. Repetir el mismo payload es idempotente; un payload distinto para la misma ejecución se rechaza.
+El JSON debe cumplir `GeneratedPlanDraftV1`. El servidor reconstruye `CanonicalPlanV1` desde el snapshot curricular congelado, crea `Document`/`DocumentVersion` inmutable, marca la ejecución de generación `succeeded` y transiciona `GENERACION_IA → AUDITORIA_IA` preparando una ejecución `audit` pendiente y su outbox. Repetir el mismo payload es idempotente; un payload distinto para la misma ejecución se rechaza.
+
+Procesa después el outbox para generar el paquete privado de auditoría:
+
+```powershell
+.\tools\php.ps1 artisan ai:process-outbox
+```
+
+Tras procesar el paquete fuera del sistema, importa un `AuditResultV1`:
+
+```powershell
+.\tools\php.ps1 artisan ai:import-audit-result <execution_id> <ruta-audit-result.json> --provider=<real> --model=<real>
+```
+
+Proveedor/modelo/costo pueden omitirse si realmente se desconocen. La importación cierra la ejecución audit pero deja la solicitud en `AUDITORIA_IA`; 4E decide corrección, revisión humana o aprobación.
 
 Pruebas específicas de 4C:
 
