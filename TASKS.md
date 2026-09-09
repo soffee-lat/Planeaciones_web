@@ -386,19 +386,23 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
   - Migración `2026_09_20_000001_add_manual_audit_pipeline.php`: shape/immutability de audit report y constraint triggers para exigir outbox/paquete/auditoría succeeded antes de estados posteriores.
   - Verificación local tras hotfix de precedencia: `AuditResultValidatorTest` **7 / 16**, `ManualAuditPipelineTest` **5 / 31**, `ManualAuditResultImportTest` **5 / 22**, `PlanningAuditIntegrityTest` **4 / 7**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **394 tests / 1384 assertions**, todos sin fallos. `git diff --check` limpio.
 
-- [ ] **Subfase 4E — ruteo post-auditoría y corrección interna manual.** Candidato sobre `3442f00`; pendiente ejecutar PHPUnit/PostgreSQL antes de cierre.
+- [x] **Subfase 4E — ruteo post-auditoría y corrección interna manual.** Commit `1552e43`, tag `phase-4e-complete`.
   - Audit pass crea Approval AI exacta y enruta a `APROBADA` (solo IA) o `REVISION_HUMANA` (plan revisado); la reserva humana no se consume en 4E.
   - Audit fail corregible crea execution/outbox correction y `AUDITORIA_IA → CORRECCION_IA`; `CorrectionResultV1` solo permite patch de secciones mutables y el servidor recompone `CanonicalPlanV1` preservando currículo/contexto/source.
   - La corrección crea `DocumentVersion` hija y siempre prepara reauditoría (`CORRECCION_IA → AUDITORIA_IA`). Alcance inseguro o máximo interno abre `ai_quality_attention`.
   - Los ciclos internos usan `AI_INTERNAL_CORRECTION_MAX_ROUNDS`/presupuesto técnico; **no gastan `correction_limit_snapshot` ni `client_correction`**, que siguen siendo rondas comerciales post-entrega.
   - PostgreSQL agrega `approvals` append-only, manifest correction y guardas diferidas para impedir ruteo/corrección/aprobación inconsistentes; aprobación humana permanece bloqueada hasta Fase 5.
+  - Verificación local tras hotfix de validator/PLpgSQL: `CorrectionResultValidatorTest` **7 / 9**, `PlanningCorrectionIntegrityTest` **7 / 12**, `AuditRoutingTest` **9 / 36**, `ManualCorrectionPipelineTest` **3 / 17**, `ManualCorrectionResultImportTest` **8 / 30**, `PlanningAuditIntegrityTest` **4 / 8**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **428 tests / 1489 assertions**, todos sin fallos. `git diff --check` limpio.
 
+- [x] **Subfase 4F — cierre integral end-to-end.** Verificada sobre `1552e43`; no añade funcionalidad productiva.
+  - `Phase4EndToEndTest` recorre 4B→4E como un único flujo: aprobación solo IA, cola `REVISION_HUMANA` sin consumo anticipado, correction→reaudit→approval sobre una nueva `DocumentVersion` y replays idempotentes sin duplicar versiones, approvals, outbox ni consumo.
+  - Verificación local: `Phase4EndToEndTest` **4 tests / 32 assertions**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **432 tests / 1521 assertions**, todos sin fallos. `git diff --check` limpio.
 - [ ] Completar máquina de estados/bloqueos/eventos para revisión humana y etapas posteriores.
 - [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B).
 - [x] Importar generación y persistir Document/DocumentVersion de forma verificada (4C).
-- [ ] Auditoría cerrada (4D); corrección por sección candidata en 4E pendiente de verificación local.
+- [x] Auditoría cerrada (4D) y corrección interna por sección verificada (4E).
 - [x] Mapper de estados `/app` sin metadatos de proveedor/prompts/tokens/ejecuciones para los estados ya declarados.
-- [ ] Probar ambos itinerarios, saltos ilegales, duplicados y versiones inmutables.
+- [x] Probar ambos itinerarios, saltos ilegales, duplicados y versiones inmutables; cobertura distribuida entre 4B–4F, con cierre vertical en `Phase4EndToEndTest`.
 
 Salida: recorrido reproducible con fake/manual hasta aprobación automática o cola de revisión.
 

@@ -120,6 +120,14 @@ Pruebas específicas de 4E:
 .\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningCorrectionIntegrityTest.php --do-not-cache-result
 ```
 
+Prueba integral verificada de cierre de Fase 4 (4F):
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/Phase4EndToEndTest.php --do-not-cache-result
+```
+
+4F no agrega endpoints, estados ni persistencia nuevos: verifica que 4B→4E funcionen unidos y que los replays no dupliquen versiones, aprobaciones, outbox ni consumo. Cierre local: **4 tests / 32 assertions** en `Phase4EndToEndTest`; hardening comercial **44 / 146**; suite completa **432 tests / 1521 assertions**, sin fallos.
+
 Pruebas específicas de 4C:
 
 ```powershell
