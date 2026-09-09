@@ -25,6 +25,7 @@ class CanonicalPlanAssembler
         if (! in_array($request->status, [
             PlanningRequestStatus::LISTA_PARA_PROCESAR,
             PlanningRequestStatus::GENERACION_IA,
+            PlanningRequestStatus::CORRECCION_IA,
         ], true)
             || $request->commercial_authorized_at === null
             || ! $request->currentInputVersion) {

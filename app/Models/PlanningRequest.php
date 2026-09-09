@@ -188,6 +188,11 @@ class PlanningRequest extends Model
         return $this->hasMany(RequestBlock::class, 'request_id');
     }
 
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(Approval::class, 'request_id');
+    }
+
     public function isDraft(): bool
     {
         return $this->status === PlanningRequestStatus::BORRADOR;

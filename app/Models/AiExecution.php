@@ -8,6 +8,7 @@ use App\Enums\AiExecutionStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use RuntimeException;
 
 class AiExecution extends Model
@@ -104,9 +105,13 @@ class AiExecution extends Model
         return $this->hasOne(AiManualPackage::class, 'ai_execution_id');
     }
 
-
     public function resultingVersion(): BelongsTo
     {
         return $this->belongsTo(DocumentVersion::class, 'resulting_version_id');
+    }
+
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(Approval::class, 'ai_execution_id');
     }
 }

@@ -9,7 +9,10 @@ final readonly class CorrectionInput
     /** @param list<string> $sectionKeys @param list<AuditFinding> $findings */
     public function __construct(
         public int $requestId,
+        public int $inputRevision,
         public int $sourceVersionId,
+        public int $sourceAuditExecutionId,
+        public int $correctionRound,
         public CanonicalPlan $canonicalPlan,
         public array $sectionKeys,
         public array $findings,

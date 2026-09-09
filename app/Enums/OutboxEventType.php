@@ -6,4 +6,5 @@ enum OutboxEventType: string
 {
     case PlanningGenerationRequested = 'planning.generation.requested';
     case PlanningAuditRequested = 'planning.audit.requested';
+    case PlanningCorrectionRequested = 'planning.correction.requested';
 }

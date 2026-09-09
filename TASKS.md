@@ -379,17 +379,24 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
   - Migración `2026_09_19_000001_create_documents_and_generation_import.php`: FK circulares de documentos/ejecución, inmutabilidad de versiones y constraint triggers diferidos para impedir `AUDITORIA_IA` sin resultado generation/documento/audit execution coherentes.
   - Verificación local: `ManualGenerationResultImportTest` **12 / 60**, `PlanningGenerationResultIntegrityTest` **5 / 19**, `PlanningGenerationIntegrityTest` **3 / 16**, `CanonicalPlanAssemblerTest` **11 / 22**, `AiExecutionContractTest` **9 / 21**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **373 tests / 1308 assertions**, todos sin fallos. `git diff --check` limpio.
 
-- [ ] **Subfase 4D — auditoría manual estructurada.** Candidato preparado sobre `be911e4`; pendiente ejecutar pruebas PostgreSQL/Laravel antes de cerrarla.
+- [x] **Subfase 4D — auditoría manual estructurada.** Commit `3442f00`, tag `phase-4d-complete`.
   - Valida que el PromptVersion audit congelado use schema exacto `AuditResultV1`; la importación generation crea outbox `planning.audit.requested` en la misma transacción que `AUDITORIA_IA`.
   - `ai:process-outbox` materializa paquete privado `manual_audit` sobre `DocumentVersion`/hash exactos y deja audit execution `waiting_manual`; fallos abren `ai_failed` con `stage=audit`.
   - `ai:import-audit-result` valida pass/fail, categorías/severidades/JSON Pointer, guarda `audit_report` e idempotentemente marca audit `succeeded`. La solicitud permanece `AUDITORIA_IA`; routing queda para 4E.
   - Migración `2026_09_20_000001_add_manual_audit_pipeline.php`: shape/immutability de audit report y constraint triggers para exigir outbox/paquete/auditoría succeeded antes de estados posteriores.
-  - Pruebas candidatas: `AuditResultValidatorTest`, `ManualAuditPipelineTest`, `ManualAuditResultImportTest`, `PlanningAuditIntegrityTest`; evidencia final pendiente de ejecución local.
+  - Verificación local tras hotfix de precedencia: `AuditResultValidatorTest` **7 / 16**, `ManualAuditPipelineTest` **5 / 31**, `ManualAuditResultImportTest` **5 / 22**, `PlanningAuditIntegrityTest` **4 / 7**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **394 tests / 1384 assertions**, todos sin fallos. `git diff --check` limpio.
 
-- [ ] Completar máquina de estados/bloqueos/eventos para decisión post-auditoría y correcciones con workers/scheduler.
+- [ ] **Subfase 4E — ruteo post-auditoría y corrección interna manual.** Candidato sobre `3442f00`; pendiente ejecutar PHPUnit/PostgreSQL antes de cierre.
+  - Audit pass crea Approval AI exacta y enruta a `APROBADA` (solo IA) o `REVISION_HUMANA` (plan revisado); la reserva humana no se consume en 4E.
+  - Audit fail corregible crea execution/outbox correction y `AUDITORIA_IA → CORRECCION_IA`; `CorrectionResultV1` solo permite patch de secciones mutables y el servidor recompone `CanonicalPlanV1` preservando currículo/contexto/source.
+  - La corrección crea `DocumentVersion` hija y siempre prepara reauditoría (`CORRECCION_IA → AUDITORIA_IA`). Alcance inseguro o máximo interno abre `ai_quality_attention`.
+  - Los ciclos internos usan `AI_INTERNAL_CORRECTION_MAX_ROUNDS`/presupuesto técnico; **no gastan `correction_limit_snapshot` ni `client_correction`**, que siguen siendo rondas comerciales post-entrega.
+  - PostgreSQL agrega `approvals` append-only, manifest correction y guardas diferidas para impedir ruteo/corrección/aprobación inconsistentes; aprobación humana permanece bloqueada hasta Fase 5.
+
+- [ ] Completar máquina de estados/bloqueos/eventos para revisión humana y etapas posteriores.
 - [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B).
 - [x] Importar generación y persistir Document/DocumentVersion de forma verificada (4C).
-- [ ] Auditoría y corrección por sección.
+- [ ] Auditoría cerrada (4D); corrección por sección candidata en 4E pendiente de verificación local.
 - [x] Mapper de estados `/app` sin metadatos de proveedor/prompts/tokens/ejecuciones para los estados ya declarados.
 - [ ] Probar ambos itinerarios, saltos ilegales, duplicados y versiones inmutables.
 

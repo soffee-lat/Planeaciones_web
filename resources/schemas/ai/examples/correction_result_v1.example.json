@@ -1,0 +1,9 @@
+{
+  "schema_version": "correction_result_v1",
+  "source_version_id": 1,
+  "patch": {
+    "planning": {
+      "title": "Planeación corregida"
+    }
+  }
+}

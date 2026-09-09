@@ -90,7 +90,35 @@ Tras procesar el paquete fuera del sistema, importa un `AuditResultV1`:
 .\tools\php.ps1 artisan ai:import-audit-result <execution_id> <ruta-audit-result.json> --provider=<real> --model=<real>
 ```
 
-Proveedor/modelo/costo pueden omitirse si realmente se desconocen. La importación cierra la ejecución audit pero deja la solicitud en `AUDITORIA_IA`; 4E decide corrección, revisión humana o aprobación.
+Proveedor/modelo/costo pueden omitirse si realmente se desconocen. La importación cierra la ejecución audit y deja la solicitud en `AUDITORIA_IA`. Fase 4E enruta el resultado:
+
+```powershell
+.\tools\php.ps1 artisan ai:route-audit-result <audit_execution_id>
+```
+
+Si el audit pasa, crea Approval AI y la solicitud queda `APROBADA` o `REVISION_HUMANA` según el derecho congelado. Si falla y el alcance es corregible, crea una ejecución correction + outbox y cambia a `CORRECCION_IA`. Procesa el outbox para obtener el paquete privado de corrección:
+
+```powershell
+.\tools\php.ps1 artisan ai:process-outbox
+```
+
+Importa después `CorrectionResultV1`:
+
+```powershell
+.\tools\php.ps1 artisan ai:import-correction-result <correction_execution_id> C:\ruta\correction-result.json
+```
+
+La importación crea una `DocumentVersion` hija y prepara reauditoría, por lo que vuelve a `AUDITORIA_IA`. Los ciclos internos se limitan con `AI_INTERNAL_CORRECTION_MAX_ROUNDS` (default 2) y **no consumen `correction_limit` del cliente**. Alcance no seguro o límite agotado abre `ai_quality_attention` y conserva la solicitud en auditoría.
+
+Pruebas específicas de 4E:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/CorrectionResultValidatorTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/AuditRoutingTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualCorrectionPipelineTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualCorrectionResultImportTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningCorrectionIntegrityTest.php --do-not-cache-result
+```
 
 Pruebas específicas de 4C:
 

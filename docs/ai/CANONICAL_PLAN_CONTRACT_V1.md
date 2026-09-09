@@ -236,15 +236,15 @@ En sesiones puede enviar referencias por **código**, nunca textos curriculares 
 
 El servidor valida las referencias y después ensambla `CanonicalPlanV1`.
 
-## Auditoría futura
+## Auditoría estructurada (AuditResultV1)
 
-`AuditService` debe devolver hallazgos estructurados con:
+`AuditService`/modo manual devuelve hallazgos estructurados con:
 
 - `code`
 - `severity`
 - `json_path`
-- `message`
-- `expected_fix`
+- `explanation`
+- `expected_correction`
 
 Categorías mínimas:
 
@@ -261,11 +261,13 @@ Categorías mínimas:
 - `SAFETY_OR_INCLUSION`
 - `LANGUAGE_QUALITY`
 
-## Corrección futura
+## Corrección estructurada (CorrectionResultV1)
 
-`CorrectionService` puede modificar únicamente:
+`CorrectionResultV1` referencia `source_version_id` y contiene un patch por secciones. El scope se deriva del AuditResult exacto y solo admite:
 
 ```text
+/planning/title
+/planning/project_name
 /pedagogical_design
 /sessions
 /assessment_plan
@@ -277,10 +279,11 @@ Debe tener prohibido modificar:
 
 ```text
 /source
+/context
 /curricular_alignment
 ```
 
-Las fechas, IDs y datos congelados de `/planning` tampoco son editables por IA.
+Las fechas, IDs, rango, tipo de planeación, minutos y demás datos server-side de `/planning` tampoco son editables por IA. Tras aplicar el patch, el servidor vuelve a construir `GeneratedPlanDraftV1` y `CanonicalPlanV1`; por eso una corrección no puede introducir códigos curriculares ajenos ni saltarse cobertura PDA. Cada versión corregida se reaudita antes de cualquier aprobación.
 
 ## Renderer futuro
 

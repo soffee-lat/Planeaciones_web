@@ -10,6 +10,7 @@ use App\Models\OutboxEvent;
 use App\Models\PlanningRequest;
 use App\Services\AI\ManualGenerationPackageBuilder;
 use App\Services\AI\ManualAuditPackageBuilder;
+use App\Services\AI\ManualCorrectionPackageBuilder;
 use App\Services\AI\RequestBlockManager;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -19,6 +20,7 @@ final class ProcessOutboxEvent
     public function __construct(
         private ManualGenerationPackageBuilder $manualPackageBuilder,
         private ManualAuditPackageBuilder $manualAuditPackageBuilder,
+        private ManualCorrectionPackageBuilder $manualCorrectionPackageBuilder,
         private RequestBlockManager $blocks,
     ) {}
 
@@ -67,6 +69,7 @@ final class ProcessOutboxEvent
         match ($event->type) {
             OutboxEventType::PlanningGenerationRequested => $this->handleGenerationRequested($event),
             OutboxEventType::PlanningAuditRequested => $this->handleAuditRequested($event),
+            OutboxEventType::PlanningCorrectionRequested => $this->handleCorrectionRequested($event),
         };
     }
 
@@ -108,6 +111,29 @@ final class ProcessOutboxEvent
         }
 
         $this->manualAuditPackageBuilder->build($execution);
+    }
+
+
+    private function handleCorrectionRequested(OutboxEvent $event): void
+    {
+        $executionId = (int) ($event->payload['ai_execution_id'] ?? 0);
+        $requestId = (int) ($event->payload['request_id'] ?? 0);
+        $sourceVersionId = (int) ($event->payload['source_version_id'] ?? 0);
+        $round = (int) ($event->payload['correction_round'] ?? 0);
+        if ($executionId < 1 || $requestId < 1 || $sourceVersionId < 1 || $round < 1 || $requestId !== (int) $event->aggregate_id) {
+            throw new AiPipelineException('AI_CORRECTION_OUTBOX_PAYLOAD_INVALID');
+        }
+
+        $execution = AiExecution::query()->find($executionId);
+        if (! $execution
+            || $execution->request_id !== $requestId
+            || $execution->stage !== AiExecutionStage::Correction
+            || (int) ($execution->input_manifest['source_version_id'] ?? 0) !== $sourceVersionId
+            || (int) ($execution->input_manifest['correction_round'] ?? 0) !== $round) {
+            throw new AiPipelineException('AI_CORRECTION_OUTBOX_EXECUTION_MISMATCH');
+        }
+
+        $this->manualCorrectionPackageBuilder->build($execution);
     }
 
     private function markPublished(OutboxEvent $claimed): void
@@ -161,7 +187,9 @@ final class ProcessOutboxEvent
                         'error_code' => $errorCode,
                         'sanitized_error' => $this->stageForEvent($event) === AiExecutionStage::Audit
                             ? 'audit_dispatch_failed'
-                            : 'generation_dispatch_failed',
+                            : ($this->stageForEvent($event) === AiExecutionStage::Correction
+                                ? 'correction_dispatch_failed'
+                                : 'generation_dispatch_failed'),
                     ])->save();
                 }
             }
@@ -184,6 +212,7 @@ final class ProcessOutboxEvent
         return match ($event->type) {
             OutboxEventType::PlanningGenerationRequested => AiExecutionStage::Generation,
             OutboxEventType::PlanningAuditRequested => AiExecutionStage::Audit,
+            OutboxEventType::PlanningCorrectionRequested => AiExecutionStage::Correction,
         };
     }
 }
