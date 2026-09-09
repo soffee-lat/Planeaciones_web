@@ -14,6 +14,15 @@ Para evitarlo, todo comando PHP debe pasar por el envoltorio [`tools/php.ps1`](t
 
 ### Ejemplos de ejecución
 
+Si la instancia aislada está detenida, arrancar **el clúster existente** desde la raíz del repositorio:
+
+```powershell
+& .runtime/postgresql/pgsql/bin/pg_ctl.exe -D .runtime/pgdata -l .runtime/postgresql.log -w start
+& .runtime/postgresql/pgsql/bin/pg_isready.exe -h 127.0.0.1 -p 55432
+```
+
+`.runtime/pgdata/postgresql.conf` fija `127.0.0.1:55432`; no es Docker ni un túnel. `.env.testing` usa `planeaciones_test` y `tests/TestCase.php` exige PostgreSQL con nombre terminado en `_test`. No sustituir el puerto por 5432 ni inicializar otro clúster para resolver una instancia detenida.
+
 Pruebas (suite completa):
 
 ```powershell
