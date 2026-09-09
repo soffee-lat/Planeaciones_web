@@ -364,11 +364,13 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
   - 4A no cambia estados del pipeline, no consume reservas, no registra adapter LLM y no realiza HTTP externo.
   - Contrato curricular: proveedor solo referencia códigos; textos/coverage se ensamblan desde `RequestInputVersion` congelado.
 
-- [ ] **Subfase 4B — arranque transaccional y outbox manual.** Implementación preparada sobre `ceb4ea8`; verificación local pendiente antes de marcar `[x]`.
+- [x] **Subfase 4B — arranque transaccional y outbox manual.** Commit `81b7da0`, verificado localmente sobre PostgreSQL/Laravel antes del cierre.
   - `DispatchPlanningGeneration`: única transición nueva `LISTA_PARA_PROCESAR → GENERACION_IA`, `RequestStateEvent` de sistema, `AiExecution` generation/manual y `outbox_events` en la misma transacción. Consume **solo** la reserva `planning`; `human_review` permanece `reserved`. Repetición devuelve la misma ejecución y no duplica consumo/evento/outbox.
   - `request_blocks` materializa bloqueo técnico separado del estado; `outbox_events` tiene event_key único, lease recuperable, intentos y payload inmutable; `ai_manual_packages` registra el paquete privado exacto por ejecución y es inmutable. Un constraint trigger diferido impide que SQL directo coloque una solicitud autorizada en `GENERACION_IA` o estados posteriores sin consumo `planning`, `AiExecution`, evento `LISTA_PARA_PROCESAR→GENERACION_IA` y outbox coherentes.
   - `ai:process-outbox` reclama eventos pendientes, renderiza el PromptVersion publicado, escribe paquete JSON en disco privado fuera del lock de BD, cambia ejecución a `waiting_manual` y publica el evento. Error técnico mantiene `GENERACION_IA`, abre `ai_failed` sanitizado y deja evento reintentable.
   - `AI_MODE=api` sigue rechazado explícitamente (`AI_API_PROVIDER_NOT_CONFIGURED`): no hay proveedor HTTP, tokens, modelo ficticio, resultado IA, DocumentVersion ni auditoría. Integración API continúa reservada para Fase 7.
+  - Verificación de cierre: `PlanningRequestStateMachineTest` **2 tests / 5 assertions**, `PlanningGenerationDispatchTest` **11 / 55**, `ManualGenerationOutboxTest` **9 / 54**, `PlanningGenerationIntegrityTest` **3 / 14**, `PlanningCommercialIntegrityTest` **44 / 146** y suite completa **356 tests / 1227 assertions**, todos sin fallos. `git diff --check` limpio.
+  - Durante la validación local se corrigió una falsa divergencia de `input_manifest` causada únicamente por el orden de claves de PostgreSQL JSONB; la comparación usa ahora hash de `CanonicalJson`, conservando igualdad semántica sin debilitar el manifest.
 
 - [ ] Completar máquina de estados/bloqueos/eventos para las etapas posteriores a generación y outbox con workers/scheduler.
 - [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B); importación del resultado manual sigue pendiente.
