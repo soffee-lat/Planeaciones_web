@@ -146,7 +146,7 @@ Pruebas dirigidas de 5A:
 
 ### Fase 5B — revisión humana y checklist
 
-Candidato sobre `365301a`. `StartHumanReview` congela la versión documental y la versión de checklist; `SaveHumanReview` persiste criterios/comentarios; `ApproveHumanReview` solo aprueba con todos los criterios obligatorios en `true`, completa la asignación y registra aprobación humana exacta. El panel `/review` muestra únicamente los trabajos asignados y la versión canónica necesaria para revisar.
+Cerrada en `phase-5b-complete` sobre la base `365301a`. `StartHumanReview` congela la versión documental y la versión de checklist; `SaveHumanReview` persiste criterios/comentarios; `ApproveHumanReview` solo aprueba con todos los criterios obligatorios en `true`, completa la asignación y registra aprobación humana exacta. El panel `/review` muestra únicamente los trabajos asignados y la versión canónica necesaria para revisar. Evidencia local: **466 tests / 1634 assertions**, sin fallos.
 
 Pruebas dirigidas de 5B:
 

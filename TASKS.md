@@ -414,11 +414,12 @@ Salida: recorrido reproducible con fake/manual hasta aprobación automática o c
   - `ReassignReviewer` exige admin+motivo, conserva ciclo/historial, toma nueva tarifa snapshot y no vuelve a consumir cupo humano. Si no hay reemplazo viable conserva la asignación actual y abre `no_reviewer`.
   - PostgreSQL protege una asignación activa por solicitud, identidad/historial, grado exacto, disponibilidad, rol/estado del revisor, consumo humano, aprobación AI vigente, tarifa/unidades y límites `max_load`/`daily_max`.
   - Evidencia local: `ReviewerAssignmentTest` 10/46, `ReviewerAssignmentIntegrityTest` 8/16, concurrencia real 1/9; regresiones 4A–4F/comerciales verdes; suite **451 tests / 1592 assertions**.
-- [ ] **Subfase 5B — ejecución de revisión y checklist versionado.** Candidato sobre `365301a`; pendiente verificación local PostgreSQL/PHPUnit.
+- [x] **Subfase 5B — ejecución de revisión y checklist versionado.** Verificada sobre `365301a`; cierre etiquetado como `phase-5b-complete`.
   - Bootstrap `standard` v1 con 15 criterios obligatorios y tablas `review_checklist_versions`, `review_checklist_items`, `reviews`, `review_checklist_responses`.
   - `StartHumanReview` congela `DocumentVersion` + checklist publicado sobre la asignación activa; `SaveHumanReview` guarda respuestas y comentarios por sección; `ApproveHumanReview` exige todos los obligatorios en `true`, crea `Approval(kind=human)`, completa la asignación y mueve `REVISION_HUMANA → APROBADA` con evento exacto.
   - PostgreSQL vuelve verificable `approvals.review_id`, congela checklist publicado/review histórico/respuestas terminales y evita aprobación humana fabricada o sin evento de estado.
   - `/review` agrega recurso de revisiones asignadas con versión canónica mínima, inicio, guardado de checklist y aprobación; no expone pagos, prompts ni datos de cuenta del cliente.
+  - Evidencia local: `ReviewChecklistVersionTest` **3 / 8**, `HumanReviewExecutionTest` **7 / 29**, `HumanReviewIntegrityTest` **5 / 5**; regresiones 5A, Fase 4 y hardening comercial verdes; rutas Filament `/review` registradas; suite completa **466 tests / 1634 assertions**, sin fallos. `git diff --check` limpio.
 - [ ] Corrección/rechazo/escalamiento, nueva versión y auditoría posterior.
 - [ ] Honorarios tarifa×U por ciclo aprobado, liquidación y métricas propias; correcciones cubiertas sin doble pago.
 - [ ] Probar checklist incompleto, asignación concurrente, revocación y pago único por trabajo.
