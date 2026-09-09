@@ -10,6 +10,14 @@ Contratos versionados en `resources/schemas/ai/`; decisión y reglas completas e
 
 La validación v1 combina JSON Schema con invariantes PHP: IDs/secuencias de sesión, inicio-desarrollo-cierre, suma de minutos, instrumentos y referencias curriculares contra el snapshot. `date` de sesión permanece nullable y las unidades comerciales no equivalen al número de sesiones.
 
+### Materialización Fase 4B — arranque manual
+
+`DispatchPlanningGeneration` materializa únicamente `LISTA_PARA_PROCESAR → GENERACION_IA`. Bajo lock de `PlanningRequest` valida autorización comercial, PromptVersion generation activa/publicada y snapshot vigente; consume una sola vez la reserva `planning`, crea `AiExecution` pending/manual, `RequestStateEvent` de sistema y `outbox_events` con `event_key` único dentro de la misma transacción. La reserva `human_review` no se consume al generar: sigue reservada hasta la etapa de revisión.
+
+El outbox no llama una API. `ai:process-outbox` reclama eventos mediante lease, reconstruye `GenerationInput` desde snapshots inmutables y comprueba hashes del manifest. En modo manual renderiza el prompt exacto y crea un paquete JSON privado versionado por `AiExecution`; solo entonces la ejecución queda `waiting_manual`. La escritura de bytes se hace fuera de la transacción que persiste el paquete para no mantener locks durante I/O. Repetir dispatch, claim o package build es idempotente.
+
+Fallo técnico no cambia la solicitud a un estado ficticio de error ni libera unidades ya consumidas: el evento queda reintentable, se abre `request_blocks(code=ai_failed, stage=generation)` con detalle sanitizado y el cliente continúa viendo un estado público de preparación. Al procesarse correctamente el evento se resuelve ese bloqueo. `AI_MODE=api` falla antes de consumir derechos mientras no exista adapter real; integración HTTP permanece en Fase 7.
+
 GenerationService.generate(GenerationInput): GenerationResult; AuditService.audit(AuditInput): AuditResult; CorrectionService.correct(CorrectionInput): CorrectionResult; DocumentAnalysisService.analyze(DocumentInput): AnalysisResult. Servicios orquestan validación, prompts y persistencia mediante AiProvider adapter; nunca llamar proveedor desde controlador o componente Filament. DocumentRenderer es contrato separado: generación de contenido no es renderizado de DOCX.
 
 DTO de entrada: request_id, input_revision, perfil pedagógico minimizado, datos variables, snapshot curricular textual confirmado, planning_units y segmentos, manifest de archivos limpios, prompt_version_id, output_schema_version, correlation_id y operation_key. Corrección añade source_version_id, section_keys y observaciones. Salida: contenido estructurado/patch validado, referencias, alertas y metadatos de uso; no HTML ejecutable ni llamadas a herramientas arbitrarias.

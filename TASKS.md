@@ -359,15 +359,21 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
 
 ## Fase 4 — Pipeline vertical manual
 
-- [ ] **Subfase 4A — contratos canónicos y prompts.** Implementación preparada sobre `834cc40`: schemas `GeneratedPlanDraftV1`/`CanonicalPlanV1`, DTOs, validadores, `CanonicalPlanAssembler`, contratos de servicios, PromptTemplate/PromptVersion, AIExecution mínimo y administración `/admin`. Verificación real PostgreSQL/Filament pendiente de ejecutar en el repositorio local antes de marcar `[x]`; no se atribuyen tests no ejecutados.
-  - Evidencia estática disponible: archivos PHP nuevos/modificados pasan `php -l` en el entorno de preparación; schemas/ejemplo se incluyen versionados.
-  - 4A no cambia `PlanningRequest`, no consume reservas, no registra adapter LLM y no realiza HTTP externo.
+- [x] **Subfase 4A — contratos canónicos y prompts.** Commit `ceb4ea8`: schemas `GeneratedPlanDraftV1`/`CanonicalPlanV1`, DTOs, validadores, `CanonicalPlanAssembler`, contratos de servicios, PromptTemplate/PromptVersion, AIExecution mínimo y administración `/admin`.
+  - Verificación local PostgreSQL/Laravel ejecutada tras aplicar el patch: `GeneratedPlanDraftValidatorTest` **10 tests / 15 assertions**, `PromptRendererTest` **4 / 5**, `tests/Feature/AI` **36 / 77** y suite completa **331 tests / 1099 assertions**, todos sin fallos. `git diff --check` limpio antes del commit.
+  - 4A no cambia estados del pipeline, no consume reservas, no registra adapter LLM y no realiza HTTP externo.
   - Contrato curricular: proveedor solo referencia códigos; textos/coverage se ensamblan desde `RequestInputVersion` congelado.
 
-- [ ] Máquina de estados/bloqueos/eventos y outbox con recuperación.
-- [ ] PromptTemplate/PromptVersion, contratos IA y modo manual.
+- [ ] **Subfase 4B — arranque transaccional y outbox manual.** Implementación preparada sobre `ceb4ea8`; verificación local pendiente antes de marcar `[x]`.
+  - `DispatchPlanningGeneration`: única transición nueva `LISTA_PARA_PROCESAR → GENERACION_IA`, `RequestStateEvent` de sistema, `AiExecution` generation/manual y `outbox_events` en la misma transacción. Consume **solo** la reserva `planning`; `human_review` permanece `reserved`. Repetición devuelve la misma ejecución y no duplica consumo/evento/outbox.
+  - `request_blocks` materializa bloqueo técnico separado del estado; `outbox_events` tiene event_key único, lease recuperable, intentos y payload inmutable; `ai_manual_packages` registra el paquete privado exacto por ejecución y es inmutable. Un constraint trigger diferido impide que SQL directo coloque una solicitud autorizada en `GENERACION_IA` o estados posteriores sin consumo `planning`, `AiExecution`, evento `LISTA_PARA_PROCESAR→GENERACION_IA` y outbox coherentes.
+  - `ai:process-outbox` reclama eventos pendientes, renderiza el PromptVersion publicado, escribe paquete JSON en disco privado fuera del lock de BD, cambia ejecución a `waiting_manual` y publica el evento. Error técnico mantiene `GENERACION_IA`, abre `ai_failed` sanitizado y deja evento reintentable.
+  - `AI_MODE=api` sigue rechazado explícitamente (`AI_API_PROVIDER_NOT_CONFIGURED`): no hay proveedor HTTP, tokens, modelo ficticio, resultado IA, DocumentVersion ni auditoría. Integración API continúa reservada para Fase 7.
+
+- [ ] Completar máquina de estados/bloqueos/eventos para las etapas posteriores a generación y outbox con workers/scheduler.
+- [x] PromptTemplate/PromptVersion, contratos IA y modo manual de preparación de paquete (4A/4B); importación del resultado manual sigue pendiente.
 - [ ] Document/DocumentVersion, snapshot curricular confirmado y cobertura de todos los segmentos; auditoría y corrección por sección.
-- [ ] Mapper de estados /app sin metadatos de proveedor/prompts/tokens/ejecuciones.
+- [x] Mapper de estados `/app` sin metadatos de proveedor/prompts/tokens/ejecuciones para los estados ya declarados.
 - [ ] Probar ambos itinerarios, saltos ilegales, duplicados y versiones inmutables.
 
 Salida: recorrido reproducible con fake/manual hasta aprobación automática o cola de revisión.

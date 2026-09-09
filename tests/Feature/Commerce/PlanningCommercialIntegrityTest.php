@@ -187,18 +187,17 @@ class PlanningCommercialIntegrityTest extends PedagogyTestCase
         $this->assertSame((array) $reservation, (array) DB::table('usage_reservations')->first());
     }
 
-    public function test_consumed_reservations_and_later_status_remain_commercially_valid(): void
+    public function test_consumed_reservations_remain_commercially_valid_before_pipeline_transition(): void
     {
         $request = $this->confirm($this->draft(14));
         $this->period($request, ['human_review_required' => true, 'human_review_limit' => 8]);
         $this->authorize($request);
 
-        DB::transaction(function () use ($request): void {
+        DB::transaction(function (): void {
             DB::table('usage_reservations')->update(['status' => 'consumed', 'consumed_at' => now()]);
-            DB::table('planning_requests')->where('id', $request->id)->update(['status' => 'GENERACION_IA']);
         });
 
-        $this->assertSame(PlanningRequestStatus::GENERACION_IA, $request->fresh()->status);
+        $this->assertSame(PlanningRequestStatus::LISTA_PARA_PROCESAR, $request->fresh()->status);
         $this->assertSame(['consumed', 'consumed'], DB::table('usage_reservations')->orderBy('id')->pluck('status')->all());
     }
 
@@ -252,7 +251,6 @@ class PlanningCommercialIntegrityTest extends PedagogyTestCase
         $this->authorize($request);
 
         DB::table('subscription_periods')->where('id', $period->id)->update(['status' => 'ended']);
-        DB::table('planning_requests')->where('id', $request->id)->update(['status' => 'GENERACION_IA']);
 
         $this->assertDatabaseHas('subscription_periods', ['id' => $period->id, 'status' => 'ended']);
         $this->assertSame($period->entitlement_snapshot, $request->fresh()->calculation_snapshot['entitlements']);

@@ -79,4 +79,9 @@ class AiExecution extends Model
     {
         return $this->belongsTo(PromptVersion::class, 'prompt_version_id');
     }
+
+    public function manualPackage(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AiManualPackage::class, 'ai_execution_id');
+    }
 }

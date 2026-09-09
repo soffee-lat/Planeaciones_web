@@ -9,7 +9,7 @@ Estados persistidos con enum PHP en español. Solo TransitionRequest y acciones 
 | BORRADOR | ESPERANDO_INFORMACION / ESPERANDO_PAGO / LISTA_PARA_PROCESAR | Cliente envía; validación de completitud y derechos |
 | ESPERANDO_INFORMACION | ESPERANDO_PAGO / LISTA_PARA_PROCESAR | Cliente completa; reevaluar ambos bloqueos |
 | ESPERANDO_PAGO | ESPERANDO_INFORMACION / LISTA_PARA_PROCESAR | Pago confirmado y reevaluación, sistema |
-| LISTA_PARA_PROCESAR | GENERACION_IA | Snapshot, formato listo y reserva de cupos válidos, job |
+| LISTA_PARA_PROCESAR | GENERACION_IA | Snapshot vigente, prompt/contrato listo y reserva de cupos válida, sistema |
 | GENERACION_IA | AUDITORIA_IA | Resultado estructurado válido de entrada vigente |
 | AUDITORIA_IA | APROBADA | Auditoría pasa, plan sin revisión humana; aprobación AI exacta |
 | AUDITORIA_IA | REVISION_HUMANA | Auditoría pasa, plan exige humano; asignar o bloquear sin capacidad |
@@ -36,6 +36,8 @@ Rechazar/escalar deja REVISION_HUMANA con bloqueo y decisión registrada. Admini
 Completitud: propietario verificado, grupo activo, grado válido del catálogo, fechas, proyecto/tema, selecciones curriculares compatibles y confirmadas, evaluación confirmada y formato utilizable; distinguir campo opcional de declaración explícita no aplicable. No inventar contenido faltante. Mostrar todas las causas; priorizar ESPERANDO_INFORMACION si faltan datos y pago simultáneamente.
 
 Enviar congela perfil, datos variables, catálogo textual completo seleccionado, cálculo comercial, segmentos, versión de formato, manifest y derechos; valida plan activo/periodo pagado. Reservar planning_units unidades de planeación y, si human_review_required, planning_units unidades de revisión humana en una transacción con bloqueo de periodo. Sin cupo, mostrar bloqueo de derechos en ESPERANDO_PAGO con explicación de que falta plan/cupo, no pago fallido ficticio. No iniciar pipeline. Cambios de perfil no alteran solicitudes enviadas.
+
+Fase 4B materializa el primer salto del pipeline. Al despachar `LISTA_PARA_PROCESAR → GENERACION_IA`, se consume la reserva `planning` dentro de la misma transacción que crea ejecución, evento de estado y outbox. Una reserva `human_review` ya tomada permanece `reserved`; no se consume por anticipado. En modo manual el outbox genera después un paquete privado y deja la ejecución `waiting_manual`. Error al preparar ese paquete conserva `GENERACION_IA`, abre bloqueo técnico y permite reintentar sin segundo consumo.
 
 Consumir todas las planning_units reservadas al comenzar primera generación; consumir las unidades humanas reservadas al asignar primer ciclo humano. Cancelar antes de inicio libera reservas. Reintentos, correcciones internas y reasignaciones no vuelven a cobrar cupo. Fallo definitivo administrativo puede restituir cupo con acción auditada; estado released una sola vez. Reserva de corrección cliente se consume al iniciar corrección; fallo definitivo admite restitución auditada. Si hay revisión incluida, las vueltas internas del ciclo no gastan otro cupo humano.
 

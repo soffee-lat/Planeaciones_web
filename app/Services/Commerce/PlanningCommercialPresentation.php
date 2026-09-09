@@ -47,8 +47,19 @@ class PlanningCommercialPresentation
         return match ($request->status) {
             PlanningRequestStatus::BORRADOR => 'Borrador',
             PlanningRequestStatus::ESPERANDO_PAGO => 'Pendiente de activar',
-            PlanningRequestStatus::LISTA_PARA_PROCESAR => 'Preparando',
-            default => 'Consulta el seguimiento',
+            PlanningRequestStatus::LISTA_PARA_PROCESAR,
+            PlanningRequestStatus::GENERACION_IA,
+            PlanningRequestStatus::AUDITORIA_IA,
+            PlanningRequestStatus::CORRECCION_IA,
+            PlanningRequestStatus::APROBADA,
+            PlanningRequestStatus::GENERANDO_DOCUMENTO,
+            PlanningRequestStatus::LISTA_PARA_ENTREGAR => 'Preparando',
+            PlanningRequestStatus::REVISION_HUMANA => 'En revisión',
+            PlanningRequestStatus::ESPERANDO_INFORMACION => 'Necesitamos información',
+            PlanningRequestStatus::ENTREGADA,
+            PlanningRequestStatus::COMPLETADA => 'Lista para descargar',
+            PlanningRequestStatus::CORRECCION_SOLICITADA => 'Corrección solicitada',
+            PlanningRequestStatus::CANCELADA => 'Cancelada',
         };
     }
 }

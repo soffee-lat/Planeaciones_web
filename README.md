@@ -36,6 +36,30 @@ Pruebas específicas de contratos IA / Fase 4A:
 .\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI --do-not-cache-result
 ```
 
+Pruebas específicas del arranque manual / Fase 4B:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/PlanningRequestStateMachineTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationDispatchTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualGenerationOutboxTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationIntegrityTest.php --do-not-cache-result
+```
+
+Iniciar manualmente una solicitud ya autorizada (operación interna) y, opcionalmente, preparar su paquete en el mismo comando. Requiere que `/admin` tenga activa una `PromptVersion` de categoría `generation` con key `planning.generation` y el schema versionado de `resources/schemas/ai/generated_plan_draft_v1.schema.json`:
+
+```powershell
+.\tools\php.ps1 artisan ai:dispatch-generation 123
+.\tools\php.ps1 artisan ai:dispatch-generation 123 --process-outbox
+```
+
+Procesar/reintentar outbox manual pendiente:
+
+```powershell
+.\tools\php.ps1 artisan ai:process-outbox --limit=25
+```
+
+`AI_MODE=manual` es el único modo operacional de Fase 4B. Los paquetes se guardan en el disco privado (`storage/app/private/ai/manual/...`) y no se publican mediante `storage:link`. `AI_MODE=api` permanece bloqueado hasta integrar y verificar un proveedor real.
+
 Los contratos versionados viven en `resources/schemas/ai/` y su explicación en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
 
 Un solo archivo o filtro:

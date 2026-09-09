@@ -3,12 +3,10 @@
 namespace App\Enums;
 
 /**
- * Estados de una PlanningRequest. Solo BORRADOR y ESPERANDO_PAGO se
- * implementan en la Subfase 2C: la solicitud nace en BORRADOR y, al
- * confirmar el snapshot, transita a ESPERANDO_PAGO porque el módulo
- * comercial (planes, suscripciones, reservas) aún no existe. Los demás
- * estados están declarados para respetar la máquina de estados de
- * WORKFLOWS.md pero NO tienen transiciones implementadas todavía.
+ * Estados de una PlanningRequest. Las transiciones se materializan por fases
+ * mediante Actions de dominio; desde Fase 4B el arranque del pipeline usa
+ * PlanningRequestStateMachine y conserva RequestStateEvent. Declarar un valor
+ * aquí no autoriza por sí mismo una transición.
  */
 enum PlanningRequestStatus: string
 {
