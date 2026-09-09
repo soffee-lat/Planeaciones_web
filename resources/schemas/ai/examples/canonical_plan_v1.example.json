@@ -1,0 +1,165 @@
+{
+  "schema_version": "canonical_plan_v1",
+  "source": {
+    "planning_request_id": 101,
+    "input_version_id": 3,
+    "input_revision": 2,
+    "selection_revision": 4,
+    "curriculum_checksum": "sha256:EXAMPLE",
+    "commercial_snapshot_version": 1,
+    "generation_contract_version": "generated_plan_draft_v1"
+  },
+  "planning": {
+    "title": "Exploramos y comunicamos lo que aprendemos",
+    "project_name": null,
+    "topic": "Tema confirmado por la persona docente",
+    "planning_type": "didactic_sequence",
+    "starts_on": "2026-09-07",
+    "ends_on": "2026-09-11",
+    "session_minutes": 50,
+    "session_count": 1
+  },
+  "context": {
+    "school_name": "Escuela de ejemplo",
+    "group_name": "2.º A",
+    "student_count": 25,
+    "general_level": "heterogéneo",
+    "group_characteristics": ["Participación activa en actividades orales"],
+    "available_materials": ["hojas", "colores", "pizarrón"],
+    "events_or_constraints": [],
+    "teacher_observations": null
+  },
+  "curricular_alignment": {
+    "curriculum": {
+      "code": "MX-NEM-PRIMARY",
+      "name": "Currículo ensamblado desde snapshot",
+      "version": "2024-v1",
+      "checksum": "sha256:EXAMPLE"
+    },
+    "phase": {"code": "F3", "name": "Fase 3"},
+    "grade": {"code": "G2", "name": "Segundo grado"},
+    "fields": [{"code": "LEN", "name": "Lenguajes"}],
+    "contents": [{
+      "code": "F3-LEN-CXXX",
+      "title": "Contenido congelado de ejemplo",
+      "full_text": "TEXTO_CURRICULAR_PROVENIENTE_DEL_SNAPSHOT",
+      "field_code": "LEN"
+    }],
+    "pdas": [{
+      "code": "F3-G2-LEN-CXXX-P01",
+      "full_text": "PDA_PROVENIENTE_DEL_SNAPSHOT",
+      "content_code": "F3-LEN-CXXX",
+      "grade_code": "G2"
+    }],
+    "articulating_axes": [{"code": "AX-EXAMPLE", "name": "Eje confirmado"}],
+    "coverage": [{"pda_code": "F3-G2-LEN-CXXX-P01", "session_ids": ["S01"]}]
+  },
+  "pedagogical_design": {
+    "purpose": "Favorecer un aprendizaje contextualizado mediante exploración, diálogo y producción.",
+    "problem_or_interest": null,
+    "scenario": "Aula",
+    "learning_goals": ["Expresar y organizar ideas a partir del trabajo realizado."],
+    "methodology": {
+      "name": "Secuencia didáctica",
+      "rationale": "Organiza progresivamente las actividades sin atribuir una metodología no solicitada.",
+      "phases": []
+    },
+    "transversal_connections": []
+  },
+  "sessions": [{
+    "id": "S01",
+    "sequence": 1,
+    "date": null,
+    "title": "Recuperamos saberes, exploramos y comunicamos",
+    "estimated_minutes": 50,
+    "methodology_phase": null,
+    "specific_goal": "Recuperar saberes previos y aplicar lo trabajado en una producción breve.",
+    "field_codes": ["LEN"],
+    "content_codes": ["F3-LEN-CXXX"],
+    "pda_codes": ["F3-G2-LEN-CXXX-P01"],
+    "axis_codes": ["AX-EXAMPLE"],
+    "moments": [
+      {
+        "type": "inicio",
+        "minutes": 10,
+        "activities": [{
+          "instruction": "Presentar una situación breve vinculada con el tema y recuperar ideas del grupo.",
+          "teacher_action": "Formula preguntas abiertas y registra ideas clave.",
+          "student_action": "Comparte experiencias y escucha aportaciones.",
+          "organization": "whole_group",
+          "materials": ["pizarrón"],
+          "expected_evidence": ["Participaciones orales relacionadas con el tema"],
+          "assessment_checks": ["Identifica ideas previas pertinentes"]
+        }]
+      },
+      {
+        "type": "desarrollo",
+        "minutes": 30,
+        "activities": [{
+          "instruction": "Realizar una actividad guiada de exploración y producción.",
+          "teacher_action": "Acompaña, pregunta y ofrece apoyos cuando son necesarios.",
+          "student_action": "Resuelve la actividad, conversa y produce una evidencia.",
+          "organization": "small_groups",
+          "materials": ["hojas", "colores"],
+          "expected_evidence": ["Producción del equipo"],
+          "assessment_checks": ["Explica sus decisiones durante la actividad"]
+        }]
+      },
+      {
+        "type": "cierre",
+        "minutes": 10,
+        "activities": [{
+          "instruction": "Socializar hallazgos y recuperar qué cambió respecto de las ideas iniciales.",
+          "teacher_action": "Facilita la puesta en común y retroalimenta.",
+          "student_action": "Comparte conclusiones y formula una idea de cierre.",
+          "organization": "whole_group",
+          "materials": [],
+          "expected_evidence": ["Conclusión oral"],
+          "assessment_checks": ["Relaciona la conclusión con la actividad realizada"]
+        }]
+      }
+    ],
+    "formative_assessment": {
+      "criteria": ["Participa y comunica ideas relacionadas con la meta de la sesión."],
+      "evidence": ["Participación oral", "Producción del equipo"],
+      "instrument_ids": ["I01"],
+      "feedback_strategy": "Retroalimentación oral específica durante la actividad y el cierre."
+    },
+    "differentiation": {
+      "support": ["Dar instrucciones breves por pasos cuando sea necesario."],
+      "challenge": ["Pedir una justificación adicional a quienes concluyan anticipadamente."],
+      "accessibility": []
+    },
+    "homework_or_extension": null,
+    "teacher_notes": null
+  }],
+  "assessment_plan": {
+    "approach": "formative",
+    "diagnostic": "Recuperación oral de ideas previas al inicio.",
+    "ongoing": "Observación del proceso con retroalimentación inmediata.",
+    "closure": "Autoevaluación oral y revisión de la evidencia final.",
+    "instruments": [{
+      "id": "I01",
+      "type": "checklist",
+      "name": "Lista de cotejo del proceso",
+      "purpose": "Registrar evidencias observables relacionadas con la meta de la sesión.",
+      "criteria": [
+        "Participa con ideas relacionadas con el tema.",
+        "Aplica lo trabajado en una producción.",
+        "Explica su proceso o resultado."
+      ],
+      "applies_to_sessions": ["S01"],
+      "scale": ["Sí", "En proceso", "Requiere apoyo"]
+    }]
+  },
+  "resources": {
+    "physical_materials": ["hojas", "colores", "pizarrón"],
+    "digital_resources": [],
+    "provided_references": []
+  },
+  "adaptation_notes": {
+    "based_on_group_profile": ["Se incorporan momentos de participación oral por la característica declarada del grupo."],
+    "assumptions": ["No se asigna fecha específica de sesión porque el input de ejemplo no define calendario de clase."],
+    "missing_information": []
+  }
+}

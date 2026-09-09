@@ -29,6 +29,15 @@ Pruebas (suite completa):
 .\tools\php.ps1 vendor/phpunit/phpunit/phpunit --testdox
 ```
 
+Pruebas específicas de contratos IA / Fase 4A:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/GeneratedPlanDraftValidatorTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI --do-not-cache-result
+```
+
+Los contratos versionados viven en `resources/schemas/ai/` y su explicación en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
+
 Un solo archivo o filtro:
 
 ```powershell

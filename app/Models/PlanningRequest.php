@@ -173,6 +173,11 @@ class PlanningRequest extends Model
         return $this->hasMany(RequestStateEvent::class, 'request_id');
     }
 
+    public function aiExecutions(): HasMany
+    {
+        return $this->hasMany(AiExecution::class, 'request_id');
+    }
+
     public function isDraft(): bool
     {
         return $this->status === PlanningRequestStatus::BORRADOR;

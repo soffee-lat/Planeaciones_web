@@ -22,6 +22,8 @@ class AdminPanelProvider extends BasePanelProvider {
                 \App\Filament\Resources\Payments\PaymentResource::class,
                 \App\Filament\Resources\Refunds\RefundResource::class,
                 \App\Filament\Resources\PaymentEvents\PaymentEventResource::class,
+                \App\Filament\Resources\PromptTemplates\PromptTemplateResource::class,
+                \App\Filament\Resources\PromptVersions\PromptVersionResource::class,
             ]);
     }
 }

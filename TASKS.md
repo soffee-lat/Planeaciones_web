@@ -359,6 +359,11 @@ Esta sección conserva la evidencia del cierre original de 3D. Las guardas de Po
 
 ## Fase 4 — Pipeline vertical manual
 
+- [ ] **Subfase 4A — contratos canónicos y prompts.** Implementación preparada sobre `834cc40`: schemas `GeneratedPlanDraftV1`/`CanonicalPlanV1`, DTOs, validadores, `CanonicalPlanAssembler`, contratos de servicios, PromptTemplate/PromptVersion, AIExecution mínimo y administración `/admin`. Verificación real PostgreSQL/Filament pendiente de ejecutar en el repositorio local antes de marcar `[x]`; no se atribuyen tests no ejecutados.
+  - Evidencia estática disponible: archivos PHP nuevos/modificados pasan `php -l` en el entorno de preparación; schemas/ejemplo se incluyen versionados.
+  - 4A no cambia `PlanningRequest`, no consume reservas, no registra adapter LLM y no realiza HTTP externo.
+  - Contrato curricular: proveedor solo referencia códigos; textos/coverage se ensamblan desde `RequestInputVersion` congelado.
+
 - [ ] Máquina de estados/bloqueos/eventos y outbox con recuperación.
 - [ ] PromptTemplate/PromptVersion, contratos IA y modo manual.
 - [ ] Document/DocumentVersion, snapshot curricular confirmado y cobertura de todos los segmentos; auditoría y corrección por sección.

@@ -58,6 +58,15 @@ La migración `2026_09_16_000001_harden_planning_commercial_integrity.php` compl
 
 ## IA, revisión y costos
 
+### Materialización Fase 4A
+
+`prompt_templates` conserva identidad estable (`key`, `category`, `name`) y `active_version_id`; `prompt_versions` agrega `checksum` SHA-256 a los campos ya especificados. Una vez que un template tiene versiones, `key/category` quedan congelados. Una PromptVersion publicada es inmutable por Eloquent y trigger PostgreSQL; `active_version_id` solo puede apuntar a una versión publicada del mismo template.
+
+`ai_executions` se materializa como frontera de trazabilidad sin ejecutar proveedor: request o futuro format_version, stage/mode, PromptVersion publicada, revisión de entrada, manifest, hash del prompt, operation_key único, estado y metadatos/costos nullable. Las FK a `format_versions`, `files` y `document_versions` se difieren hasta crear esas tablas; no se inventan registros ni costos para suplirlas.
+La identidad de una ejecución (sujeto, stage, mode, prompt, revisión, manifest y operation_key) es inmutable y el registro no se elimina; estado, proveedor/modelo efectivo, tiempos, hashes, errores sanitizados y costos podrán completarse por el pipeline posterior.
+
+Los contratos JSON canónicos no son otra fuente curricular: `GeneratedPlanDraftV1` referencia códigos y `CanonicalPlanV1` copia textos desde `RequestInputVersion`. Ver `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
+
 - prompt_templates: key UNIQUE, category (generation/audit/correction/document_analysis/format_adaptation), name, active_version_id nullable.
 - prompt_versions: template_id, number, body, allowed_variables JSON, output_schema JSON, schema_version, published_at, created_by. UNIQUE(template_id,number); inmutable al publicar.
 - ai_executions: request_id nullable para análisis de formato, format_version_id nullable, stage, mode, provider, model, prompt_version_id, input_revision, input_manifest JSON, rendered_prompt_hash, private_payload_file_id nullable, operation_key UNIQUE, status (pending/waiting_manual/running/succeeded/failed/uncertain), started_at, finished_at, duration_ms, error_code, sanitized_error, estimated_cost, actual_cost nullable, cost_currency, resulting_version_id nullable, audit_report JSON nullable. Exigir request_id o format_version_id. Payload privado para reproducibilidad con retención definida.

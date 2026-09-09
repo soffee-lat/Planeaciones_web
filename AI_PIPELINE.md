@@ -2,6 +2,14 @@
 
 ## Contratos
 
+### Contrato canónico v1
+
+Fase 4A separa deliberadamente la salida generable del proveedor de la autoridad curricular. `GeneratedPlanDraftV1` contiene únicamente diseño pedagógico y referencias por código; no puede aportar textos curriculares oficiales. `CanonicalPlanAssembler` combina ese draft validado con el `RequestInputVersion` congelado y construye `CanonicalPlanV1`. Los textos, códigos, fase, grado, contenidos, PDA y ejes del bloque `curricular_alignment` proceden exclusivamente del snapshot confirmado.
+
+Contratos versionados en `resources/schemas/ai/`; decisión y reglas completas en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`. Cambiar la forma del JSON requiere una nueva versión de contrato. Auditoría, corrección, revisión y renderer futuros reciben el canonical, no la respuesta cruda del proveedor. `curricular_alignment.coverage` se calcula server-side desde las referencias de las sesiones y todo PDA confirmado debe quedar cubierto.
+
+La validación v1 combina JSON Schema con invariantes PHP: IDs/secuencias de sesión, inicio-desarrollo-cierre, suma de minutos, instrumentos y referencias curriculares contra el snapshot. `date` de sesión permanece nullable y las unidades comerciales no equivalen al número de sesiones.
+
 GenerationService.generate(GenerationInput): GenerationResult; AuditService.audit(AuditInput): AuditResult; CorrectionService.correct(CorrectionInput): CorrectionResult; DocumentAnalysisService.analyze(DocumentInput): AnalysisResult. Servicios orquestan validación, prompts y persistencia mediante AiProvider adapter; nunca llamar proveedor desde controlador o componente Filament. DocumentRenderer es contrato separado: generación de contenido no es renderizado de DOCX.
 
 DTO de entrada: request_id, input_revision, perfil pedagógico minimizado, datos variables, snapshot curricular textual confirmado, planning_units y segmentos, manifest de archivos limpios, prompt_version_id, output_schema_version, correlation_id y operation_key. Corrección añade source_version_id, section_keys y observaciones. Salida: contenido estructurado/patch validado, referencias, alertas y metadatos de uso; no HTML ejecutable ni llamadas a herramientas arbitrarias.
