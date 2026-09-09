@@ -130,7 +130,7 @@ Prueba integral verificada de cierre de Fase 4 (4F):
 
 ### Fase 5A — capacidad y asignación humana
 
-Candidato de asignación automática al entrar a `REVISION_HUMANA`, con consumo humano únicamente cuando existe un revisor elegible. Reintento operativo:
+Cerrada en `365301a` / `phase-5a-complete`. Asignación automática al entrar a `REVISION_HUMANA`, con consumo humano únicamente cuando existe un revisor elegible. Evidencia local: **451 tests / 1592 assertions**. Reintento operativo:
 
 ```powershell
 .\tools\php.ps1 artisan review:assign <request_id>
@@ -143,6 +143,20 @@ Pruebas dirigidas de 5A:
 .\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentIntegrityTest.php --do-not-cache-result
 .\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentConcurrencyTest.php --do-not-cache-result
 ```
+
+### Fase 5B — revisión humana y checklist
+
+Candidato sobre `365301a`. `StartHumanReview` congela la versión documental y la versión de checklist; `SaveHumanReview` persiste criterios/comentarios; `ApproveHumanReview` solo aprueba con todos los criterios obligatorios en `true`, completa la asignación y registra aprobación humana exacta. El panel `/review` muestra únicamente los trabajos asignados y la versión canónica necesaria para revisar.
+
+Pruebas dirigidas de 5B:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewChecklistVersionTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewExecutionTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewIntegrityTest.php --do-not-cache-result
+```
+
+5B no implementa todavía `changes_requested/rejected/escalated`; esa rama se abre en 5C para no permitir estados terminales sin integridad completa.
 
 Pruebas específicas de 4C:
 

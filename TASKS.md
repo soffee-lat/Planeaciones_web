@@ -408,13 +408,17 @@ Salida: recorrido reproducible con fake/manual hasta aprobación automática o c
 
 ## Fase 5 — Calidad
 
-- [ ] **Subfase 5A — capacidad y asignación humana.** Candidato sobre `0986501` (`phase-4-complete`); pendiente verificación local PostgreSQL/PHPUnit antes de marcar completo.
+- [x] **Subfase 5A — capacidad y asignación humana.** Cerrada en `365301a` / `phase-5a-complete`.
   - `reviewer_profiles`, `reviewer_grades`, `reviewer_availability` y `review_assignments` materializan capacidad en unidades, tarifa snapshot, grado+versión curricular exactos, ventana de disponibilidad e historial de reasignación.
   - `AssignReviewer` se ejecuta al entrar a `REVISION_HUMANA`: bloquea solicitud/perfiles en orden determinista, calcula carga activa y diaria, consume una sola vez la reserva `human_review` solo si existe candidato y crea una única asignación activa. Sin capacidad conserva la reserva y abre `no_reviewer`.
   - `ReassignReviewer` exige admin+motivo, conserva ciclo/historial, toma nueva tarifa snapshot y no vuelve a consumir cupo humano. Si no hay reemplazo viable conserva la asignación actual y abre `no_reviewer`.
   - PostgreSQL protege una asignación activa por solicitud, identidad/historial, grado exacto, disponibilidad, rol/estado del revisor, consumo humano, aprobación AI vigente, tarifa/unidades y límites `max_load`/`daily_max`.
-  - Pruebas candidatas: dominio, escrituras SQL directas y concurrencia real de dos procesos compitiendo por la última capacidad.
-- [ ] Pantalla de revisión única y checklist configurable versionado.
+  - Evidencia local: `ReviewerAssignmentTest` 10/46, `ReviewerAssignmentIntegrityTest` 8/16, concurrencia real 1/9; regresiones 4A–4F/comerciales verdes; suite **451 tests / 1592 assertions**.
+- [ ] **Subfase 5B — ejecución de revisión y checklist versionado.** Candidato sobre `365301a`; pendiente verificación local PostgreSQL/PHPUnit.
+  - Bootstrap `standard` v1 con 15 criterios obligatorios y tablas `review_checklist_versions`, `review_checklist_items`, `reviews`, `review_checklist_responses`.
+  - `StartHumanReview` congela `DocumentVersion` + checklist publicado sobre la asignación activa; `SaveHumanReview` guarda respuestas y comentarios por sección; `ApproveHumanReview` exige todos los obligatorios en `true`, crea `Approval(kind=human)`, completa la asignación y mueve `REVISION_HUMANA → APROBADA` con evento exacto.
+  - PostgreSQL vuelve verificable `approvals.review_id`, congela checklist publicado/review histórico/respuestas terminales y evita aprobación humana fabricada o sin evento de estado.
+  - `/review` agrega recurso de revisiones asignadas con versión canónica mínima, inicio, guardado de checklist y aprobación; no expone pagos, prompts ni datos de cuenta del cliente.
 - [ ] Corrección/rechazo/escalamiento, nueva versión y auditoría posterior.
 - [ ] Honorarios tarifa×U por ciclo aprobado, liquidación y métricas propias; correcciones cubiertas sin doble pago.
 - [ ] Probar checklist incompleto, asignación concurrente, revocación y pago único por trabajo.

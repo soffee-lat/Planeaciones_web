@@ -62,4 +62,9 @@ class Approval extends Model
     {
         return $this->belongsTo(User::class, 'actor_id');
     }
+
+    public function review(): BelongsTo
+    {
+        return $this->belongsTo(HumanReview::class, 'review_id');
+    }
 }

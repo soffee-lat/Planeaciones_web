@@ -110,7 +110,7 @@ class PlanningCorrectionIntegrityTest extends PedagogyTestCase
         }
     }
 
-    public function test_bd_rechaza_aprobacion_humana_antes_de_fase5(): void
+    public function test_bd_rechaza_aprobacion_humana_con_revision_inexistente(): void
     {
         $scene = $this->succeededAuditScenario(true, [
             'human_review_required' => true,
@@ -130,9 +130,9 @@ class PlanningCorrectionIntegrityTest extends PedagogyTestCase
                     'created_at' => now(),
                 ]);
             });
-            $this->fail('No existe integridad de review/checklist hasta Fase 5.');
+            $this->fail('Una Approval humana no puede referenciar una review inexistente.');
         } catch (\PDOException $e) {
-            $this->assertStringContainsString('HUMAN_APPROVAL_REVIEW_NOT_READY', $e->getMessage());
+            $this->assertStringContainsString('approvals_review_fk', $e->getMessage());
         }
     }
 

@@ -53,4 +53,9 @@ class ReviewerAssignment extends Model
     {
         return $this->belongsTo(User::class, 'ended_by');
     }
+
+    public function review(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(HumanReview::class, 'assignment_id');
+    }
 }

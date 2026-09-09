@@ -198,6 +198,11 @@ class PlanningRequest extends Model
         return $this->hasMany(ReviewerAssignment::class, 'request_id');
     }
 
+    public function humanReviews(): HasMany
+    {
+        return $this->hasMany(HumanReview::class, 'request_id');
+    }
+
     public function isDraft(): bool
     {
         return $this->status === PlanningRequestStatus::BORRADOR;

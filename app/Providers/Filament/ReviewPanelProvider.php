@@ -8,7 +8,8 @@ class ReviewPanelProvider extends BasePanelProvider {
             ->brandName('Planeaciones · Revisión')
             ->colors(['primary' => Color::Indigo])
             
-            ->pages([\App\Filament\Review\Pages\Dashboard::class]);
+            ->pages([\App\Filament\Review\Pages\Dashboard::class])
+            ->resources([\App\Filament\Review\Resources\Assignments\ReviewAssignmentResource::class]);
     }
 }
 

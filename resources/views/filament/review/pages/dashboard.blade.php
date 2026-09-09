@@ -1,7 +1,7 @@
 <x-filament-panels::page>
     <x-filament::section>
         <x-slot name="heading">Hola, {{ auth()->user()->name }}</x-slot>
-        <p>Tu espacio de trabajo está preparado. Aquí podrás consultar los trabajos que se te asignen cuando esté disponible la revisión.</p>
+        <p>Consulta tus trabajos desde “Mis revisiones”. Una asignación activa muestra solo la versión pedagógica necesaria para revisar, su checklist y la fecha límite.</p>
         
     </x-filament::section>
     <x-filament::section>
