@@ -82,6 +82,11 @@ class OperationalNotificationsTest extends PedagogyTestCase
         $this->assertNotNull($first->email_sent_at);
         $this->assertSame(1, $first->email_attempts);
         $this->assertSame(1, DB::table('notifications')->where('notifiable_id', $user->id)->count());
+        // Reproduce la consulta usada por Filament DatabaseNotifications.
+        $this->assertSame(1, DB::table('notifications')
+            ->where('notifiable_id', $user->id)
+            ->whereRaw("data->>'format' = ?", ['filament'])
+            ->count());
         $this->assertSame($first->email_sent_at?->toISOString(), $second->email_sent_at?->toISOString());
         $this->assertSame(1, $second->email_attempts);
     }
