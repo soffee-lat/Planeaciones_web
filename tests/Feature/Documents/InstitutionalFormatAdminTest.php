@@ -6,6 +6,7 @@ use App\Actions\Documents\CreateInstitutionalFormatDraft;
 use App\Actions\Documents\RenderInstitutionalFormatSample;
 use App\Exceptions\DocumentFormatException;
 use App\Models\InstitutionalFormat;
+use App\Services\Documents\OfficeOpenXmlPackage;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesInstitutionalFormatScenario;
 use Tests\Feature\PedagogyTestCase;
@@ -58,11 +59,18 @@ class InstitutionalFormatAdminTest extends PedagogyTestCase
         Storage::fake('private');
         $owner = $this->customer();
         $admin = $this->admin();
-        $bytes = str_replace(
+
+        // Modificamos el XML dentro del paquete y lo reconstruimos para conservar
+        // offsets/CRC válidos. Así probamos la regla de seguridad concreta y no
+        // terminamos rechazando antes el archivo por ZIP corrupto.
+        $package = OfficeOpenXmlPackage::fromBytes($this->institutionalTemplateBytes());
+        $relationships = str_replace(
             'Target="word/document.xml"',
             'Target="https://example.test/document.xml" TargetMode="External"',
-            $this->institutionalTemplateBytes(),
+            $package->get('_rels/.rels'),
         );
+        $package->replace('_rels/.rels', $relationships);
+        $bytes = $package->toBytes();
 
         $this->expectException(DocumentFormatException::class);
         $this->expectExceptionMessage('FORMAT_SOURCE_DOCX_EXTERNAL_RELATIONSHIP');
