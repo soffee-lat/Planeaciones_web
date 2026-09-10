@@ -64,6 +64,12 @@ La migración `2026_09_16_000001_harden_planning_commercial_integrity.php` compl
 - approvals: request_id, version_id, kind (ai/human), ai_execution_id nullable, review_id nullable, actor_id nullable, approved_at. UNIQUE(version_id,kind). AI requiere ejecución de auditoría exitosa; human requiere review aprobada de esa versión.
 - deliveries: request_id, version_id, delivered_at, created_by nullable, idempotency_key UNIQUE. Varias entregas por solicitud para correcciones. delivery_files: PK(delivery_id,file_id), congela archivos exactos. Reenvío no crea versión ni consumo.
 
+### Materialización Fase 6A
+
+- `files`, `institutional_formats`, `format_versions` y `document_version_files` reciben sus tablas/FK reales. `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las referencias `ai_executions.format_version_id/private_payload_file_id` dejan de ser placeholders.
+- Un formato `standard` es global (`owner_id NULL`) y solo puede existir uno no archivado; un formato `institutional` pertenece a un cliente. Publicar una versión institucional exige archivo fuente `clean`, mapping JSON objeto, `validation_report.status=approved` y administrador. Versiones publicadas son inmutables.
+- El selector de formato permite únicamente versiones publicadas de formatos `ready` pertenecientes al cliente o globales. `document_version_files` queda preparado para 6B y exige archivos `result/clean` del mismo request/owner que la `DocumentVersion`.
+
 ## IA, revisión y costos
 
 ### Materialización Fase 4A

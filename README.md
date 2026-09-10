@@ -184,6 +184,12 @@ Pruebas dirigidas:
 
 Evidencia local de cierre: `ReviewerCompensationTest` **9 / 45** y `ReviewerCompensationIntegrityTest` **4 / 6**; regresiones de revisión 5A–5C y hardening comercial verdes; suite completa **491 tests / 1731 assertions**, sin fallos. `git diff --check` limpio. Con 5A–5D, la Fase 5 queda cerrada en capacidad, ejecución, corrección y compensación humana.
 
+### Fase 6A — archivos y formatos
+
+Materializa `files`, `institutional_formats`, `format_versions` y `document_version_files`, conecta `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las FK diferidas de `ai_executions`. `EnsureStandardFormat` publica de forma idempotente el formato estándar v1; `PublishFormatVersion` exige fuente institucional limpia, mapping y muestra aprobada; `PlanningFormatResolver` aplica prioridad explícito → preferencia de grupo → estándar sin permitir formatos de otro docente. Esta subfase **no renderiza aún DOCX/PDF**: deja la base íntegra para 6B.
+
+Evidencia local de cierre: `FormatFoundationTest` **10 / 20**; regresiones de grupos, solicitudes, contratos IA, importación de generación, pipeline E2E y revisión humana verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
+
 Pruebas específicas de 4C:
 
 ```powershell

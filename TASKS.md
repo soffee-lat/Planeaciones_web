@@ -439,6 +439,12 @@ Salida: revisión exacta por versión sin reescribir documentos completos ni exp
 
 ## Fase 6 — Documentos y retención
 
+- [x] **Subfase 6A — archivos privados y catálogo de formatos.** Cerrada sobre base `d7ea7de` con PostgreSQL local.
+  - Crear `files`, `institutional_formats`, `format_versions` y `document_version_files`; conectar FK reales pendientes en grupos, solicitudes y ejecuciones IA.
+  - Publicar `standard-v1` idempotente y resolver formato por prioridad solicitud → perfil → estándar.
+  - Publicación institucional requiere fuente limpia, mapping no vacío, muestra/validación aprobada y actor administrador; versión publicada queda inmutable.
+  - PostgreSQL impide preferir/seleccionar formatos institucionales de otro propietario y deja preparado el vínculo seguro de archivos resultantes.
+  - Evidencia local: `FormatFoundationTest` **10 / 20**; regresiones relacionadas verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
 - [ ] Renderer estándar DOCX/PDF; flujo institucional análisis/mapping/muestra/publicación.
 - [ ] Generación en queue, manifest, entrega privada e historial.
 - [ ] Corrección cliente por ventana/cuota conservando entrega anterior.

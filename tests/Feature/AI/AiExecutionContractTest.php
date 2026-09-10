@@ -11,6 +11,7 @@ use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
 use App\Models\AiExecution;
+use App\Models\FormatVersion;
 use App\Models\PromptVersion;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -27,10 +28,11 @@ class AiExecutionContractTest extends PedagogyTestCase
     public function test_registra_ejecucion_pendiente_sin_llamar_proveedor(): void
     {
         $prompt = $this->publishedPrompt();
+        $formatVersion = FormatVersion::factory()->create();
         $execution = AiExecution::factory()->create([
             'prompt_version_id' => $prompt->id,
             'request_id' => null,
-            'format_version_id' => 77,
+            'format_version_id' => $formatVersion->id,
             'stage' => AiExecutionStage::DocumentAnalysis->value,
             'mode' => AiExecutionMode::Manual->value,
             'status' => AiExecutionStatus::Pending->value,
@@ -49,12 +51,13 @@ class AiExecutionContractTest extends PedagogyTestCase
     public function test_bd_rechaza_ejecucion_con_prompt_borrador(): void
     {
         $draft = PromptVersion::factory()->create();
+        $formatVersion = FormatVersion::factory()->create();
 
         $this->expectException(QueryException::class);
         $this->expectExceptionMessage('AI_EXECUTION_PROMPT_VERSION_NOT_PUBLISHED');
         AiExecution::factory()->create([
             'prompt_version_id' => $draft->id,
-            'format_version_id' => 1,
+            'format_version_id' => $formatVersion->id,
         ]);
     }
 

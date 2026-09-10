@@ -62,6 +62,7 @@ class PlanningRequest extends Model
         'input_revision',
         'input_snapshot',
         'current_version_id',
+        'format_version_id',
         'lock_version',
     ];
 
@@ -176,6 +177,11 @@ class PlanningRequest extends Model
     public function aiExecutions(): HasMany
     {
         return $this->hasMany(AiExecution::class, 'request_id');
+    }
+
+    public function formatVersion(): BelongsTo
+    {
+        return $this->belongsTo(FormatVersion::class, 'format_version_id');
     }
 
     public function document(): \Illuminate\Database\Eloquent\Relations\HasOne

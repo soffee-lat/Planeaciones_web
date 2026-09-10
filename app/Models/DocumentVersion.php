@@ -6,6 +6,7 @@ use App\Enums\DocumentVersionStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use RuntimeException;
 
 class DocumentVersion extends Model
@@ -64,5 +65,10 @@ class DocumentVersion extends Model
     public function aiExecution(): BelongsTo
     {
         return $this->belongsTo(AiExecution::class, 'ai_execution_id');
+    }
+
+    public function outputFiles(): HasMany
+    {
+        return $this->hasMany(DocumentVersionFile::class, 'version_id');
     }
 }

@@ -6,6 +6,7 @@ use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
 use App\Models\AiExecution;
+use App\Models\FormatVersion;
 use App\Models\PromptVersion;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,7 +19,7 @@ class AiExecutionFactory extends Factory
     {
         return [
             'request_id' => null,
-            'format_version_id' => 1,
+            'format_version_id' => FormatVersion::factory(),
             'stage' => AiExecutionStage::Generation->value,
             'mode' => AiExecutionMode::Manual->value,
             'provider' => null,

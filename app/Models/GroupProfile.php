@@ -76,6 +76,11 @@ class GroupProfile extends Model
         return $this->belongsTo(Group::class);
     }
 
+    public function preferredFormat(): BelongsTo
+    {
+        return $this->belongsTo(InstitutionalFormat::class, 'preferred_format_id');
+    }
+
     public function isSufficient(): bool
     {
         foreach (self::REQUIRED_FOR_COMPLETENESS as $field) {

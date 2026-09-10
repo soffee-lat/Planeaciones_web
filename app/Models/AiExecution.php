@@ -95,6 +95,16 @@ class AiExecution extends Model
         return $this->belongsTo(PlanningRequest::class, 'request_id');
     }
 
+    public function formatVersion(): BelongsTo
+    {
+        return $this->belongsTo(FormatVersion::class, 'format_version_id');
+    }
+
+    public function privatePayloadFile(): BelongsTo
+    {
+        return $this->belongsTo(StoredFile::class, 'private_payload_file_id');
+    }
+
     public function promptVersion(): BelongsTo
     {
         return $this->belongsTo(PromptVersion::class, 'prompt_version_id');
