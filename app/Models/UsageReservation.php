@@ -47,6 +47,11 @@ class UsageReservation extends Model
         return $this->belongsTo(PlanningRequest::class);
     }
 
+    public function correctionRequest(): BelongsTo
+    {
+        return $this->belongsTo(CorrectionRequest::class, 'correction_request_id');
+    }
+
     public function isReserved(): bool
     {
         return $this->status === UsageReservationStatus::Reserved;

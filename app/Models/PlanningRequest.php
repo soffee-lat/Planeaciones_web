@@ -199,6 +199,11 @@ class PlanningRequest extends Model
         return $this->hasMany(PlanningDelivery::class, 'request_id')->orderByDesc('delivered_at');
     }
 
+    public function correctionRequests(): HasMany
+    {
+        return $this->hasMany(CorrectionRequest::class, 'request_id')->orderByDesc('requested_at');
+    }
+
     public function blocks(): HasMany
     {
         return $this->hasMany(RequestBlock::class, 'request_id');

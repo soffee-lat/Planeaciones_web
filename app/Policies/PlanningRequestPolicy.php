@@ -62,6 +62,16 @@ class PlanningRequestPolicy
         return $this->isActiveCustomer($user) && $request->owner_id === $user->id;
     }
 
+    public function requestCorrection(User $user, PlanningRequest $request): bool
+    {
+        return $this->isActiveCustomer($user) && $request->owner_id === $user->id;
+    }
+
+    public function manageCorrection(User $user, PlanningRequest $request): bool
+    {
+        return $this->isAdmin($user);
+    }
+
     public function delete(User $user, PlanningRequest $request): bool
     {
         // Solo borradores propios pueden borrarse; una vez confirmada, se

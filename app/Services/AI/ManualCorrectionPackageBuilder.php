@@ -89,6 +89,7 @@ final class ManualCorrectionPackageBuilder
                 'canonical_plan' => $input->canonicalPlan->toArray(),
                 'audit_execution_id' => $input->sourceAuditExecutionId,
                 'review_id' => $input->sourceReviewId,
+                'correction_request_id' => $input->sourceCorrectionRequestId,
                 'source_audit_report_sha256' => $sourceAuditReportHash,
                 'review_payload_sha256' => $execution->input_manifest['source_review_payload_hash'] ?? null,
                 'audit_report_sha256' => $input->sourceKind === 'audit' ? $sourceAuditReportHash : $correctionReportHash,

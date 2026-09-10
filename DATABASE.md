@@ -53,6 +53,14 @@ La migración `2026_09_16_000001_harden_planning_commercial_integrity.php` compl
 - La asignación que pidió cambios termina con `ended_reason=human_review_changes_requested`; una reauditoría aprobada crea otra asignación del mismo `cycle`. `ConsumePlanningReservation` sigue siendo idempotente, por lo que no aparece una segunda reserva ni un segundo consumo humano.
 - `escalated` y `rejected` no cambian el estado de la solicitud: terminan la review, cancelan la asignación y requieren un `request_blocks(code=human_review_attention, stage=human_review)` abierto. El asignador normal se niega a crear otra asignación mientras ese bloqueo siga abierto.
 
+### Materialización Fase 6D
+
+- `correction_requests` materializa por primera vez las correcciones del cliente: referencia la entrega y `DocumentVersion` fuente, congela motivo/descripción/`section_keys`, solicitante y responsable, y registra la versión hija resultante al resolverse. Un índice único parcial impide más de una corrección `requested|accepted|processing` por solicitud.
+- `usage_reservations.correction_request_id` queda enlazado por FK real. Una ronda cliente usa `resource=client_correction`, `quantity=1` y se cuenta por `planning_request_id`; no consume límites del periodo de suscripción. La reserva conserva el `subscription_period_id` histórico de la solicitud y puede consumirse aunque ese periodo ya haya expirado, siempre que la corrección se hubiera solicitado dentro de su ventana contractual.
+- La ventana se calcula desde la primera entrega publicada usando `calculation_snapshot.entitlements.correction_window_days`; reentregas posteriores no reinician ni extienden ese derecho. `correction_limit_snapshot` es el máximo de rondas cliente para esa solicitud.
+- `correction_input_manifest_v1_is_valid()` amplía `source_kind` a `audit|human_review|client`. Para cliente exige `source_correction_request_id` y `source_correction_payload_hash`, audit aprobado de la versión fuente, reserva consumida y evento causal `CORRECCION_SOLICITADA → CORRECCION_IA`.
+- El resultado cliente reutiliza el mismo importador/corrector canónico: solo permite raíces mutables declaradas, crea una `DocumentVersion.parent_version_id` hija y siempre despacha una nueva auditoría. `correction_requests` terminales y su identidad son inmutables en PostgreSQL.
+
 ## Archivos, formatos y documentos
 
 - files: owner_id, request_id nullable, category (institutional_format/book/material/previous_plan/evidence/result/other), disk, path UNIQUE, original_name, detected_mime, size_bytes, sha256, scan_status, retention_until nullable, purged_at nullable, uploaded_by, created_at. Cuarentena no descargable ni consumible; purga elimina bytes, no historial.

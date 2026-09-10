@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Queue;
 trait CreatesRenderedPlanningScenario
 {
     /** @return array{request:\App\Models\PlanningRequest,version:\App\Models\DocumentVersion,run:\App\Models\DocumentRenderRun} */
-    protected function renderedPlanningScene(string $prefix = 'documents/delivery-test'): array
+    protected function renderedPlanningScene(string $prefix = 'documents/delivery-test', array $planLimits = []): array
     {
         config([
             'documents.disk' => 'private',
@@ -21,7 +21,7 @@ trait CreatesRenderedPlanningScenario
         ]);
         Queue::fake();
 
-        $scene = $this->succeededAuditScenario(true);
+        $scene = $this->succeededAuditScenario(true, $planLimits);
         $request = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
         $this->assertSame(PlanningRequestStatus::APROBADA, $request->status);
         $run = app(DispatchDocumentRendering::class)->execute($request);

@@ -4,7 +4,10 @@ namespace App\Filament\Resources\PlanningRequests;
 
 use App\Filament\Resources\PlanningRequests\Pages\ListPlanningRequests;
 use App\Filament\Resources\PlanningRequests\Pages\ViewPlanningRequest;
+use App\Enums\CorrectionRequestStatus;
+use App\Enums\CorrectionRequestType;
 use App\Models\PlanningRequest;
+use App\Services\Planning\ClientCorrectionPolicy;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
@@ -52,7 +55,35 @@ class PlanningRequestResource extends Resource
                     ->state(fn (PlanningRequest $record): string => $record->calculation_snapshot ? json_encode($record->calculation_snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : 'Pendiente de autorizar')
                     ->extraAttributes(['class' => 'whitespace-pre-wrap break-all'])->columnSpanFull(),
             ])->columns(2)->columnSpanFull(),
+            Section::make('Corrección solicitada por el cliente')->schema([
+                TextEntry::make('client_correction_reason')->label('Motivo')
+                    ->state(function (PlanningRequest $record): ?string {
+                        $correction = static::pendingClientCorrection($record);
+                        return $correction ? (ClientCorrectionPolicy::REASONS[$correction->reason] ?? $correction->reason) : null;
+                    }),
+                TextEntry::make('client_correction_sections')->label('Secciones')
+                    ->state(function (PlanningRequest $record): string {
+                        $keys = static::pendingClientCorrection($record)?->section_keys ?? [];
+                        return collect($keys)->map(fn ($key) => ClientCorrectionPolicy::SECTION_OPTIONS[$key] ?? $key)->implode(', ');
+                    }),
+                TextEntry::make('client_correction_description')->label('Solicitud')
+                    ->state(fn (PlanningRequest $record): ?string => static::pendingClientCorrection($record)?->description)
+                    ->columnSpanFull(),
+                TextEntry::make('client_correction_requested_at')->label('Solicitada')
+                    ->state(fn (PlanningRequest $record) => static::pendingClientCorrection($record)?->requested_at)
+                    ->dateTime('d/m/Y H:i'),
+            ])->columns(2)->columnSpanFull()
+                ->visible(fn (PlanningRequest $record): bool => static::pendingClientCorrection($record) !== null),
         ]);
+    }
+
+    private static function pendingClientCorrection(PlanningRequest $record): ?\App\Models\CorrectionRequest
+    {
+        return $record->correctionRequests()
+            ->where('type', CorrectionRequestType::Client->value)
+            ->where('status', CorrectionRequestStatus::Requested->value)
+            ->latest('id')
+            ->first();
     }
 
     public static function getPages(): array

@@ -5,12 +5,14 @@ namespace App\Actions\AI;
 use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
+use App\Enums\CorrectionRequestStatus;
 use App\Enums\DocumentVersionStatus;
 use App\Enums\OutboxEventType;
 use App\Enums\PlanningRequestStatus;
 use App\Exceptions\AiPipelineException;
 use App\Models\AiExecution;
 use App\Models\AiManualPackage;
+use App\Models\CorrectionRequest;
 use App\Models\Document;
 use App\Models\DocumentVersion;
 use App\Models\OutboxEvent;
@@ -149,6 +151,25 @@ final class ImportManualCorrectionResult
                 'cost_currency' => $costCurrency,
                 'resulting_version_id' => $version->id,
             ])->save();
+
+            if ($input->sourceKind === 'client') {
+                $clientCorrection = CorrectionRequest::query()
+                    ->whereKey($input->sourceCorrectionRequestId)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $clientCorrection
+                    || $clientCorrection->status !== CorrectionRequestStatus::Processing
+                    || (int) $clientCorrection->request_id !== (int) $request->id
+                    || (int) $clientCorrection->source_version_id !== (int) $sourceVersion->id) {
+                    throw new AiPipelineException('AI_CLIENT_CORRECTION_SOURCE_REQUEST_STALE');
+                }
+                $clientCorrection->forceFill([
+                    'status' => CorrectionRequestStatus::Resolved->value,
+                    'resolved_at' => now(),
+                    'resolution' => 'correction_applied_reaudit_pending',
+                    'resulting_version_id' => $version->id,
+                ])->save();
+            }
 
             $correlationId = strtolower(trim((string) ($locked->input_manifest['correlation_id'] ?? '')));
             if (! Str::isUuid($correlationId)) {

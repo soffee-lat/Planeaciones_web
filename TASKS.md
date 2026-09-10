@@ -451,12 +451,18 @@ Salida: revisión exacta por versión sin reescribir documentos completos ni exp
   - PostgreSQL exige autorización comercial, versión actual, `document_render_run` coherente y artefactos reales antes de aceptar estados de render/entrega; el hardening documental no oculta `AUTHORIZATION_REQUIRED` de Fase 3.
   - Evidencia local: `DocumentRenderingTest` **9 / 63**, `DocumentRenderingIntegrityTest` **4 / 8**; regresiones críticas verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio.
 - [ ] Flujo institucional de análisis/mapping/muestra/publicación con renderer explícito.
-- [ ] **Subfase 6C — entrega privada, historial y retención.** Candidato sobre `2569b3d`.
+- [x] **Subfase 6C — entrega privada, historial y retención.** Cerrada sobre `2569b3d`; tag `phase-6c-complete`.
   - `PublishPlanningDelivery` congela `request + DocumentVersion + DocumentRenderRun + DOCX/PDF`, crea `delivery_files`, extiende retención configurable y materializa `LISTA_PARA_ENTREGAR → ENTREGADA`.
   - Descarga por controlador autenticado y pertenencia exacta; cada descarga crea historial append-only, sin exponer storage público ni enlaces permanentes.
   - `documents:purge-expired` elimina únicamente bytes vencidos y conserva `files`, `deliveries`, `delivery_files` y `delivery_downloads` para trazabilidad.
   - PostgreSQL impide entregar sin versión/run/archivos/evento coherentes, acortar retención o mutar historial de entrega.
-- [ ] Corrección cliente por ventana/cuota conservando entrega anterior.
+  - Evidencia local: `PrivateDeliveryTest` **8 / 55**, `PrivateDeliveryIntegrityTest` **4 / 13**; suite completa **526 tests / 1890 assertions**, sin fallos. `git diff --check` limpio.
+- [ ] **Subfase 6D — corrección del cliente por ventana/cuota conservando entrega anterior.** Candidato en `phase-6d-client-corrections` sobre `b5e141b`.
+  - Materializar `correction_requests` con una sola corrección abierta por solicitud, historial terminal inmutable y vínculo explícito a la versión entregada/fuente.
+  - Solicitud del docente valida ownership, entrega vigente, ventana contractual congelada y rondas disponibles; retirar o rechazar vuelve al estado previo sin consumir ronda.
+  - Aceptación administrativa reserva/consume `client_correction=1` contra el periodo histórico aunque la suscripción ya haya expirado, y entra al pipeline existente como `source_kind=client`.
+  - El resultado crea `DocumentVersion` hija, resuelve la solicitud de corrección y obliga `CORRECCION_IA → AUDITORIA_IA`; la entrega anterior permanece disponible y una entrega posterior será independiente.
+  - Añadir acciones `/app` y administración más pruebas funcionales/de integridad PostgreSQL antes de marcar 6D cerrada.
 - [ ] Notificaciones internas/email y renovación próxima deduplicadas.
 - [ ] Probar render fallido, formato pendiente, descarga ajena, corrección tras expiración y email fallido.
 - [ ] Verificar visualmente DOCX/PDF de muestras y navegación cliente/revisor.

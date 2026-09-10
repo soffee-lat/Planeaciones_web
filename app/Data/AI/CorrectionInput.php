@@ -14,6 +14,7 @@ final readonly class CorrectionInput
         public int $sourceAuditExecutionId,
         public string $sourceKind,
         public ?int $sourceReviewId,
+        public ?int $sourceCorrectionRequestId,
         public int $correctionRound,
         public CanonicalPlan $canonicalPlan,
         public array $sectionKeys,

@@ -115,7 +115,7 @@ Ejemplo puramente ilustrativo, no seeder comercial: M=7, D=7 → U=1; D=8 → U=
 
 Reserva conjunta exige saldo de U unidades de cada recurso necesario en un solo periodo; no tomar saldo de dos periodos ni acumular remanentes. Si no alcanza, mantener borrador/espera comercial y proponer acortar fechas o contratar/renovar según disponibilidad, sin enviar automáticamente. Propuesta no consume; primera generación consume U una sola vez; cancelación previa libera U; reintento no suma. El cálculo congelado prevalece aunque se publique otro plan.
 
-Un período educativo puede cruzar fechas del periodo de facturación: el derecho se evalúa al envío, U completo se carga al periodo activo y queda congelado. Correcciones conservan fechas y unidades originales. Contenido nuevo o ampliación de periodo requiere nueva solicitud. Si hay edición de fechas antes de generar, cancelar/liberar reserva y volver a confirmar/reservar atómicamente; nunca cambiar la cantidad sin validarla y mostrarla.
+Un período educativo puede cruzar fechas del periodo de facturación: el derecho se evalúa al envío, U completo se carga al periodo activo y queda congelado. Correcciones conservan fechas y unidades originales. La ventana contractual de corrección comienza con la primera entrega publicada y no se reinicia con reentregas; una corrección solicitada dentro de esa ventana conserva su derecho aunque el periodo/suscripción expire antes de que administración la procese. Contenido nuevo o ampliación de periodo requiere nueva solicitud. Si hay edición de fechas antes de generar, cancelar/liberar reserva y volver a confirmar/reservar atómicamente; nunca cambiar la cantidad sin validarla y mostrarla.
 
 ## Presentación de estados /app
 
