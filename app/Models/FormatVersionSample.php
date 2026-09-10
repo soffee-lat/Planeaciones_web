@@ -38,7 +38,11 @@ class FormatVersionSample extends Model
                     throw new RuntimeException('FORMAT_SAMPLE_IDENTITY_IMMUTABLE');
                 }
             }
-            $before = $model->getOriginal('status');
+
+            // getOriginal() may return the enum-cast value in current Laravel;
+            // use the raw persisted value so pending -> terminal remains the
+            // only mutable review transition.
+            $before = $model->getRawOriginal('status');
             if ($before !== FormatSampleStatus::Pending->value && $model->isDirty()) {
                 throw new RuntimeException('FORMAT_SAMPLE_TERMINAL_IMMUTABLE');
             }
