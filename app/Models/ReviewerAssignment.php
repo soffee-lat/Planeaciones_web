@@ -6,6 +6,7 @@ use App\Enums\ReviewAssignmentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ReviewerAssignment extends Model
 {
@@ -54,8 +55,13 @@ class ReviewerAssignment extends Model
         return $this->belongsTo(User::class, 'ended_by');
     }
 
-    public function review(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function review(): HasOne
     {
         return $this->hasOne(HumanReview::class, 'assignment_id');
+    }
+
+    public function workItem(): HasOne
+    {
+        return $this->hasOne(ReviewerWorkItem::class, 'assignment_id');
     }
 }

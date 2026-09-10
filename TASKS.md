@@ -427,8 +427,13 @@ Salida: recorrido reproducible con fake/manual hasta aprobación automática o c
   - `escalated` y `rejected` son decisiones terminales de review que cancelan la asignación y abren `human_review_attention`; no cancelan la solicitud ni permiten reasignación automática mientras el bloqueo siga abierto.
   - PostgreSQL extiende la integridad de reviews y del manifest de corrección para distinguir origen `audit` vs `human_review`; no se debilita el alcance inmutable de currículo/contexto.
   - Evidencia local: `HumanReviewDecisionTest` **8 / 41**, `HumanReviewDecisionIntegrityTest` **4 / 5**; regresiones 5A/5B, ruteo/corrección de Fase 4 y hardening comercial verdes; suite completa **478 tests / 1680 assertions**, sin fallos. `git diff --check` limpio.
-- [ ] Honorarios tarifa×U por ciclo aprobado, liquidación y métricas propias; correcciones cubiertas sin doble pago.
-- [ ] Probar checklist incompleto, asignación concurrente, revocación y pago único por trabajo.
+- [x] **Subfase 5D — honorarios, liquidaciones y métricas del revisor.** Verificada sobre `0570f84`.
+  - `ApproveHumanReview` materializa un `reviewer_work_item` único por `request_id + cycle` usando exclusivamente `rate_snapshot_minor × units_snapshot` de la asignación final aprobada; cambios posteriores de tarifa, reintentos y correcciones del mismo ciclo no crean otro honorario.
+  - `reviewer_settlements` agrupa trabajos aprobados del mismo revisor+moneda; administración aprueba y marca pago con referencia idempotente. El pago actualiza todos los trabajos del settlement en la misma transacción.
+  - PostgreSQL congela identidad/monto de trabajos, impide mezclar revisor o moneda, exige review+asignación+Approval humana coherentes y vuelve inmutables trabajo/liquidación pagados.
+  - `ReviewerMetricsService` expone carga activa, trabajos por liquidar/pagados y montos por moneda; `/review` muestra solo métricas propias, sin margen ni costos del cliente.
+  - Evidencia local: `ReviewerCompensationTest` **9 / 45**, `ReviewerCompensationIntegrityTest` **4 / 6**; regresiones 5A–5C y hardening comercial verdes; suite completa **491 tests / 1731 assertions**, sin fallos. `git diff --check` limpio.
+- [x] Probar checklist incompleto, asignación concurrente, reasignación/cancelación operativa y pago único por trabajo; cobertura distribuida entre 5A–5D.
 
 Salida: revisión exacta por versión sin reescribir documentos completos ni exponer datos comerciales.
 

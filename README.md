@@ -171,6 +171,19 @@ Pruebas dirigidas:
 
 Evidencia local de cierre: `HumanReviewDecisionTest` **8 / 41** y `HumanReviewDecisionIntegrityTest` **4 / 5**; regresiones de revisión 5A/5B, ruteo/corrección de Fase 4 y hardening comercial verdes; suite completa **478 tests / 1680 assertions**, sin fallos. `git diff --check` limpio.
 
+### Fase 5D — honorarios y liquidaciones
+
+La aprobación humana crea un único trabajo pagable por ciclo con la tarifa y unidades congeladas en la asignación. `CreateReviewerSettlement`, `ApproveReviewerSettlement` y `MarkReviewerSettlementPaid` agrupan, autorizan y liquidan esos trabajos sin nómina ni transferencia automática. Las correcciones y reasignaciones no generan un segundo honorario por sí solas. El panel `/review` muestra al revisor su carga y sus importes por liquidar/pagados, sin exponer margen comercial.
+
+Pruebas dirigidas:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerCompensationTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerCompensationIntegrityTest.php --do-not-cache-result
+```
+
+Evidencia local de cierre: `ReviewerCompensationTest` **9 / 45** y `ReviewerCompensationIntegrityTest` **4 / 6**; regresiones de revisión 5A–5C y hardening comercial verdes; suite completa **491 tests / 1731 assertions**, sin fallos. `git diff --check` limpio. Con 5A–5D, la Fase 5 queda cerrada en capacidad, ejecución, corrección y compensación humana.
+
 Pruebas específicas de 4C:
 
 ```powershell

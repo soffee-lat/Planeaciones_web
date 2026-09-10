@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class HumanReview extends Model
 {
@@ -68,5 +69,10 @@ class HumanReview extends Model
     public function responses(): HasMany
     {
         return $this->hasMany(ReviewChecklistResponse::class, 'review_id');
+    }
+
+    public function workItem(): HasOne
+    {
+        return $this->hasOne(ReviewerWorkItem::class, 'review_id');
     }
 }

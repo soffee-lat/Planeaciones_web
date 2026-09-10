@@ -47,4 +47,14 @@ class ReviewerProfile extends Model
     {
         return $this->hasMany(ReviewerAssignment::class, 'reviewer_id', 'user_id');
     }
+
+    public function workItems(): HasMany
+    {
+        return $this->hasMany(ReviewerWorkItem::class, 'reviewer_id', 'user_id');
+    }
+
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(ReviewerSettlement::class, 'reviewer_id', 'user_id');
+    }
 }

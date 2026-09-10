@@ -18,7 +18,10 @@ use Illuminate\Support\Str;
 
 final class ApproveHumanReview
 {
-    public function __construct(private PlanningRequestStateMachine $stateMachine) {}
+    public function __construct(
+        private PlanningRequestStateMachine $stateMachine,
+        private RecordReviewerWorkItem $recordWorkItem,
+    ) {}
 
     public function execute(HumanReview $review, User $actor, ?string $correlationId = null): PlanningRequest
     {
@@ -45,6 +48,7 @@ final class ApproveHumanReview
                 && $request->status === PlanningRequestStatus::APROBADA
                 && $existing
                 && (int) $existing->review_id === (int) $locked->id) {
+                $this->recordWorkItem->execute($locked);
                 return $request->fresh();
             }
 
@@ -112,6 +116,8 @@ final class ApproveHumanReview
                 'reason' => 'human_review_approved',
                 'correlation_id' => $correlationId,
             ]);
+
+            $this->recordWorkItem->execute($locked);
 
             return $request->fresh();
         }, attempts: 3);
