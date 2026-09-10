@@ -9,3 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('documents:purge-expired')->dailyAt('03:20')->withoutOverlapping();
+Schedule::command('notifications:queue-renewals')
+    ->dailyAt('08:10')
+    ->timezone((string) config('operational_notifications.business_timezone', 'America/Mexico_City'))
+    ->withoutOverlapping();
+Schedule::command('notifications:process-operational')->everyMinute()->withoutOverlapping();
