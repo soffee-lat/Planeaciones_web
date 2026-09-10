@@ -55,7 +55,7 @@ class PlanningCorrectionIntegrityTest extends PedagogyTestCase
         $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $scene['request']->fresh()->status);
     }
 
-    public function test_bd_rechaza_correccion_si_auditoria_paso(): void
+    public function test_bd_rechaza_correccion_directa_sin_execution_aunque_auditoria_paso(): void
     {
         $scene = $this->succeededAuditScenario(true);
 
@@ -65,9 +65,9 @@ class PlanningCorrectionIntegrityTest extends PedagogyTestCase
                     'status' => PlanningRequestStatus::CORRECCION_IA->value,
                 ]);
             });
-            $this->fail('Una auditoría aprobada no debe entrar a corrección interna.');
+            $this->fail('CORRECCION_IA requiere una ejecución de corrección aun cuando la auditoría fuente haya aprobado.');
         } catch (\PDOException $e) {
-            $this->assertStringContainsString('AI_CORRECTION_REQUIRES_FAILED_AUDIT', $e->getMessage());
+            $this->assertStringContainsString('AI_CORRECTION_EXECUTION_REQUIRED', $e->getMessage());
         }
     }
 

@@ -45,7 +45,15 @@ final class AssignReviewer
                 return $existing;
             }
 
-            $candidate = $this->capacity->eligibleLocked($fresh)->first();
+            $candidates = $this->capacity->eligibleLocked($fresh);
+            $preferredReviewerId = ReviewerAssignment::query()
+                ->where('request_id', $fresh->id)
+                ->where('ended_reason', 'human_review_changes_requested')
+                ->orderByDesc('id')
+                ->value('reviewer_id');
+            $candidate = $preferredReviewerId
+                ? ($candidates->first(fn (array $row): bool => (int) $row['profile']->user_id === (int) $preferredReviewerId) ?? $candidates->first())
+                : $candidates->first();
             if (! $candidate) {
                 $this->blocks->open($fresh, 'no_reviewer', 'human_review', [
                     'planning_units' => (int) $fresh->planning_units,
@@ -100,6 +108,7 @@ final class AssignReviewer
     private function assertRequestReady(PlanningRequest $request): void
     {
         if ($request->status !== PlanningRequestStatus::REVISION_HUMANA
+            || $request->blocks()->where('code', 'human_review_attention')->where('stage', 'human_review')->whereNull('resolved_at')->exists()
             || ! $request->human_review_required_snapshot
             || (int) $request->planning_units <= 0) {
             throw new ReviewerAssignmentException('REVIEW_ASSIGNMENT_REQUEST_NOT_READY');

@@ -45,6 +45,14 @@ La migración `2026_09_16_000001_harden_planning_commercial_integrity.php` compl
 - outbox_events: event_key UNIQUE, type, aggregate_id, payload mínimo, published_at, attempts, available_at. Se crea en la misma transacción de negocio.
 - notification_deliveries: event_key, recipient_id, channel, status, sent_at, error_code. UNIQUE(event_key,recipient_id,channel). Tablas técnicas Laravel notifications, jobs, failed_jobs, sesiones y resets.
 
+
+### Materialización Fase 5C
+
+- Las correcciones originadas por revisión humana reutilizan `ai_executions.stage=correction` y el mismo schema de salida, pero el `input_manifest` distingue `source_kind=audit|human_review`. Para origen humano congela además `source_review_id` y `source_review_payload_hash`; también conserva el audit aprobado de la versión fuente para demostrar que la corrección nace después de QA automática, no en sustitución de ella.
+- `correction_input_manifest_v1_is_valid()` mantiene compatibilidad con manifests 4E sin `source_kind` (se interpretan como `audit`) y exige review/hash cuando el origen es humano. `planning_post_audit_routing_integrity_check()` admite `CORRECCION_IA` desde audit fallido o desde review `changes_requested`, con evento causal distinto.
+- La asignación que pidió cambios termina con `ended_reason=human_review_changes_requested`; una reauditoría aprobada crea otra asignación del mismo `cycle`. `ConsumePlanningReservation` sigue siendo idempotente, por lo que no aparece una segunda reserva ni un segundo consumo humano.
+- `escalated` y `rejected` no cambian el estado de la solicitud: terminan la review, cancelan la asignación y requieren un `request_blocks(code=human_review_attention, stage=human_review)` abierto. El asignador normal se niega a crear otra asignación mientras ese bloqueo siga abierto.
+
 ## Archivos, formatos y documentos
 
 - files: owner_id, request_id nullable, category (institutional_format/book/material/previous_plan/evidence/result/other), disk, path UNIQUE, original_name, detected_mime, size_bytes, sha256, scan_status, uploaded_by, created_at. Cuarentena no descargable ni consumible.
@@ -114,7 +122,7 @@ Los contratos JSON canónicos no son otra fuente curricular: `GeneratedPlanDraft
 - review_assignments: request_id, reviewer_id, cycle, status (assigned/in_progress/completed/reassigned/cancelled), due_at, assigned_at, ended_at, rate_snapshot_minor (tarifa por unidad), units_snapshot, total_fee_minor, currency. Una activa por solicitud, bajo bloqueo. Conserva historial al reasignar.
 - review_checklist_versions: `key`, `version`, `name`, `status=draft|published`, `published_at`, `created_by`; UNIQUE(key,version). Una versión publicada y sus items son inmutables.
 - review_checklist_items: `checklist_version_id`, `key`, `label`, `description`, `required`, `sort_order`; UNIQUE(checklist_version_id,key). 5B bootstrappea `standard` v1 con 15 criterios obligatorios.
-- reviews: una por `review_assignments.id`, congela `request_id`, `version_id`, `checklist_version_id`, `reviewer_id`, `status=in_progress|approved`, tiempos y comentarios por sección. La aprobación terminal exige checklist completo y `Approval(kind=human)` exacto.
+- reviews: una por `review_assignments.id`, congela `request_id`, `version_id`, `checklist_version_id`, `reviewer_id`, `status=in_progress|approved|changes_requested|escalated|rejected`, tiempos y comentarios por sección. `approved` exige checklist completo y `Approval(kind=human)` exacto; `changes_requested` exige corrección/outbox/evento vinculados a esa review; `escalated|rejected` exigen asignación cancelada y bloqueo `human_review_attention` abierto.
 - review_checklist_responses: fila por `review_id + checklist_item_id`, `passed` boolean y comentario opcional; editables solo mientras la review está `in_progress`.
 - reviewer_work_items: review_id UNIQUE, assignment_id UNIQUE, reviewer_id, rate_minor (por unidad), quantity, total_minor, currency, status (pending/approved/paid), approved_at, paid_at, settlement_id nullable. Un trabajo pagable por ciclo aprobado, no por cada vuelta interna.
 - reviewer_settlements: reviewer_id, currency, status, reference, approved_by, paid_at. Total deriva de trabajos; idempotencia al marcar pagado. Sin nómina ni transferencia automática.

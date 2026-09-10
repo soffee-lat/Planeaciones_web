@@ -22,6 +22,10 @@ return [
         'cost_currency' => env('AI_INTERNAL_CORRECTION_COST_CURRENCY'),
     ],
 
+    'human_review_correction' => [
+        'max_rounds' => (int) env('AI_HUMAN_REVIEW_CORRECTION_MAX_ROUNDS', 3),
+    ],
+
     'outbox' => [
         'lease_seconds' => (int) env('AI_OUTBOX_LEASE_SECONDS', 120),
         'retry_seconds' => (int) env('AI_OUTBOX_RETRY_SECONDS', 30),

@@ -158,6 +158,19 @@ Pruebas dirigidas de 5B:
 
 5B no implementa todavía `changes_requested/rejected/escalated`; esa rama se abre en 5C para no permitir estados terminales sin integridad completa.
 
+### Fase 5C — corrección y decisiones humanas
+
+5C separa tres decisiones del revisor. `changes_requested` solo permite corregir secciones mutables con observaciones explícitas y reutiliza el pipeline `correction → audit`; `escalated` y `rejected` detienen la asignación y abren atención administrativa sin cancelar la solicitud. Una corrección aprobada por la auditoría vuelve a `REVISION_HUMANA`, intenta conservar al revisor anterior y crea una revisión nueva sin heredar checklist/respuestas.
+
+Pruebas dirigidas:
+
+```powershell
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewDecisionTest.php --do-not-cache-result
+.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewDecisionIntegrityTest.php --do-not-cache-result
+```
+
+Evidencia local de cierre: `HumanReviewDecisionTest` **8 / 41** y `HumanReviewDecisionIntegrityTest` **4 / 5**; regresiones de revisión 5A/5B, ruteo/corrección de Fase 4 y hardening comercial verdes; suite completa **478 tests / 1680 assertions**, sin fallos. `git diff --check` limpio.
+
 Pruebas específicas de 4C:
 
 ```powershell

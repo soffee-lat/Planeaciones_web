@@ -6,10 +6,14 @@ use App\Data\AI\CorrectionInput;
 use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
+use App\Enums\HumanReviewStatus;
 use App\Enums\PlanningRequestStatus;
 use App\Exceptions\AiPipelineException;
+use App\Exceptions\HumanReviewException;
 use App\Models\AiExecution;
 use App\Models\DocumentVersion;
+use App\Models\HumanReview;
+use App\Services\Review\HumanReviewCorrectionPolicy;
 use App\Support\AI\CanonicalJson;
 use Illuminate\Support\Str;
 
@@ -19,6 +23,7 @@ final class CorrectionInputBuilder
         private CanonicalPlanValidator $canonicalValidator,
         private AuditResultValidator $auditResultValidator,
         private InternalCorrectionPolicy $correctionPolicy,
+        private HumanReviewCorrectionPolicy $humanReviewCorrectionPolicy,
     ) {}
 
     public function rebuildForExecution(AiExecution $execution): CorrectionInput
@@ -38,15 +43,19 @@ final class CorrectionInputBuilder
         }
 
         $manifest = $execution->input_manifest;
+        $sourceKind = (string) ($manifest['source_kind'] ?? 'audit');
         $sourceVersionId = (int) ($manifest['source_version_id'] ?? 0);
         $sourceContentHash = (string) ($manifest['source_content_hash'] ?? '');
         $sourceAuditExecutionId = (int) ($manifest['source_audit_execution_id'] ?? 0);
         $sourceAuditReportHash = (string) ($manifest['source_audit_report_hash'] ?? '');
+        $sourceReviewId = isset($manifest['source_review_id']) ? (int) $manifest['source_review_id'] : null;
+        $sourceReviewPayloadHash = (string) ($manifest['source_review_payload_hash'] ?? '');
         $round = (int) ($manifest['correction_round'] ?? 0);
         $sectionKeys = $manifest['section_keys'] ?? null;
         $correlationId = strtolower(trim((string) ($manifest['correlation_id'] ?? '')));
 
-        if ($sourceVersionId < 1
+        if (! in_array($sourceKind, ['audit', 'human_review'], true)
+            || $sourceVersionId < 1
             || $sourceAuditExecutionId < 1
             || $round < 1
             || preg_match('/^[0-9a-f]{64}$/', $sourceContentHash) !== 1
@@ -54,6 +63,10 @@ final class CorrectionInputBuilder
             || ! is_array($sectionKeys)
             || $sectionKeys === []
             || ! Str::isUuid($correlationId)) {
+            throw new AiPipelineException('AI_CORRECTION_INPUT_MANIFEST_INVALID');
+        }
+        if ($sourceKind === 'human_review'
+            && (($sourceReviewId ?? 0) < 1 || preg_match('/^[0-9a-f]{64}$/', $sourceReviewPayloadHash) !== 1)) {
             throw new AiPipelineException('AI_CORRECTION_INPUT_MANIFEST_INVALID');
         }
 
@@ -76,16 +89,42 @@ final class CorrectionInputBuilder
             || $audit->stage !== AiExecutionStage::Audit
             || $audit->status !== AiExecutionStatus::Succeeded
             || ! is_array($audit->audit_report)
-            || ($audit->audit_report['passed'] ?? null) !== false
             || (int) ($audit->input_manifest['source_version_id'] ?? 0) !== $sourceVersionId
             || CanonicalJson::hash($audit->audit_report) !== $sourceAuditReportHash) {
             throw new AiPipelineException('AI_CORRECTION_SOURCE_AUDIT_STALE');
         }
 
-        $auditResult = $this->auditResultValidator->validate($audit->audit_report);
-        if ($this->correctionPolicy->sectionKeys($auditResult) !== $sectionKeys) {
-            throw new AiPipelineException('AI_CORRECTION_SCOPE_MANIFEST_MISMATCH');
+        if ($sourceKind === 'audit') {
+            if (($audit->audit_report['passed'] ?? null) !== false) {
+                throw new AiPipelineException('AI_CORRECTION_SOURCE_AUDIT_STALE');
+            }
+            $auditResult = $this->auditResultValidator->validate($audit->audit_report);
+            if ($this->correctionPolicy->sectionKeys($auditResult) !== $sectionKeys) {
+                throw new AiPipelineException('AI_CORRECTION_SCOPE_MANIFEST_MISMATCH');
+            }
+            $findings = $auditResult->findings;
+        } else {
+            if (($audit->audit_report['passed'] ?? null) !== true) {
+                throw new AiPipelineException('AI_HUMAN_CORRECTION_PASSED_AUDIT_REQUIRED');
+            }
+            $review = HumanReview::query()->whereKey($sourceReviewId)->first();
+            if (! $review
+                || (int) $review->request_id !== (int) $request->id
+                || (int) $review->version_id !== $sourceVersionId
+                || $review->status !== HumanReviewStatus::ChangesRequested) {
+                throw new AiPipelineException('AI_HUMAN_CORRECTION_SOURCE_REVIEW_STALE');
+            }
+            try {
+                $context = $this->humanReviewCorrectionPolicy->buildForTerminalReview($review);
+            } catch (HumanReviewException $e) {
+                throw new AiPipelineException('AI_HUMAN_CORRECTION_SOURCE_REVIEW_STALE', $e->errorCode);
+            }
+            if ($context['payloadHash'] !== $sourceReviewPayloadHash || $context['sectionKeys'] !== $sectionKeys) {
+                throw new AiPipelineException('AI_HUMAN_CORRECTION_SOURCE_REVIEW_STALE');
+            }
+            $findings = $context['findings'];
         }
+
         $canonical = $this->canonicalValidator->validate($version->content);
 
         return new CorrectionInput(
@@ -93,10 +132,12 @@ final class CorrectionInputBuilder
             inputRevision: (int) $request->input_revision,
             sourceVersionId: $sourceVersionId,
             sourceAuditExecutionId: $sourceAuditExecutionId,
+            sourceKind: $sourceKind,
+            sourceReviewId: $sourceReviewId,
             correctionRound: $round,
             canonicalPlan: $canonical,
             sectionKeys: $sectionKeys,
-            findings: $auditResult->findings,
+            findings: $findings,
             promptVersionId: (int) $prompt->id,
             correlationId: $correlationId,
             operationKey: $execution->operation_key,

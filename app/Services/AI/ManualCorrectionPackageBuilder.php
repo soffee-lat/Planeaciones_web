@@ -43,6 +43,7 @@ final class ManualCorrectionPackageBuilder
         $sourceContentHash = (string) ($execution->input_manifest['source_content_hash'] ?? '');
         $sourceAuditReportHash = (string) ($execution->input_manifest['source_audit_report_hash'] ?? '');
         $auditReport = $this->auditReportFromFindings($input);
+        $correctionReportHash = CanonicalJson::hash($auditReport);
         $supported = [
             'request_id' => $input->requestId,
             'input_revision' => $input->inputRevision,
@@ -82,11 +83,15 @@ final class ManualCorrectionPackageBuilder
                 'correction_round' => $input->correctionRound,
             ],
             'source' => [
+                'kind' => $input->sourceKind,
                 'document_version_id' => $input->sourceVersionId,
                 'content_sha256' => $sourceContentHash,
                 'canonical_plan' => $input->canonicalPlan->toArray(),
                 'audit_execution_id' => $input->sourceAuditExecutionId,
-                'audit_report_sha256' => $sourceAuditReportHash,
+                'review_id' => $input->sourceReviewId,
+                'source_audit_report_sha256' => $sourceAuditReportHash,
+                'review_payload_sha256' => $execution->input_manifest['source_review_payload_hash'] ?? null,
+                'audit_report_sha256' => $input->sourceKind === 'audit' ? $sourceAuditReportHash : $correctionReportHash,
                 'audit_report' => $auditReport,
                 'section_keys' => $input->sectionKeys,
             ],

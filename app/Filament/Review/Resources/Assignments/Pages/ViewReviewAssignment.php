@@ -3,6 +3,9 @@
 namespace App\Filament\Review\Resources\Assignments\Pages;
 
 use App\Actions\Review\ApproveHumanReview;
+use App\Actions\Review\EscalateHumanReview;
+use App\Actions\Review\RejectHumanReview;
+use App\Actions\Review\RequestHumanReviewCorrection;
 use App\Actions\Review\SaveHumanReview;
 use App\Actions\Review\StartHumanReview;
 use App\Enums\ReviewAssignmentStatus;
@@ -81,6 +84,66 @@ class ViewReviewAssignment extends ViewRecord
                         Notification::make()->success()->title('Checklist guardado')->send();
                     } catch (HumanReviewException $e) {
                         Notification::make()->danger()->title('No se pudo guardar')->body($e->errorCode)->send();
+                    }
+                }),
+            Action::make('requestChanges')
+                ->label('Solicitar corrección')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalDescription('Usa los comentarios por sección del checklist guardado para delimitar exactamente qué puede corregirse. Si el problema toca datos curriculares o contexto congelado, usa Escalar.')
+                ->visible(fn () => $this->getRecord()->status === ReviewAssignmentStatus::InProgress && (int) $this->getRecord()->reviewer_id === (int) auth()->id())
+                ->action(function (): void {
+                    try {
+                        $review = $this->currentReview();
+                        if (! $review) {
+                            throw new HumanReviewException('HUMAN_REVIEW_REQUIRED');
+                        }
+                        app(RequestHumanReviewCorrection::class)->execute($review, auth()->user());
+                        Notification::make()->success()->title('Corrección solicitada')->body('La planeación volverá a revisión después de corregirse y auditarse.')->send();
+                        $this->redirect(ReviewAssignmentResource::getUrl('index'));
+                    } catch (HumanReviewException $e) {
+                        Notification::make()->danger()->title('No se puede solicitar corrección')->body($e->errorCode)->send();
+                    }
+                }),
+            Action::make('escalateReview')
+                ->label('Escalar')
+                ->color('gray')
+                ->schema([
+                    Textarea::make('reason')->label('Motivo para administración')->required()->rows(4)->maxLength(8000),
+                ])
+                ->visible(fn () => $this->getRecord()->status === ReviewAssignmentStatus::InProgress && (int) $this->getRecord()->reviewer_id === (int) auth()->id())
+                ->action(function (array $data): void {
+                    try {
+                        $review = $this->currentReview();
+                        if (! $review) {
+                            throw new HumanReviewException('HUMAN_REVIEW_REQUIRED');
+                        }
+                        app(EscalateHumanReview::class)->execute($review, auth()->user(), (string) $data['reason']);
+                        Notification::make()->warning()->title('Revisión escalada')->body('Administración deberá resolver el caso antes de reasignarlo.')->send();
+                        $this->redirect(ReviewAssignmentResource::getUrl('index'));
+                    } catch (HumanReviewException $e) {
+                        Notification::make()->danger()->title('No se pudo escalar')->body($e->errorCode)->send();
+                    }
+                }),
+            Action::make('rejectReview')
+                ->label('Rechazar y escalar')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->schema([
+                    Textarea::make('reason')->label('Motivo del rechazo')->required()->rows(4)->maxLength(8000),
+                ])
+                ->visible(fn () => $this->getRecord()->status === ReviewAssignmentStatus::InProgress && (int) $this->getRecord()->reviewer_id === (int) auth()->id())
+                ->action(function (array $data): void {
+                    try {
+                        $review = $this->currentReview();
+                        if (! $review) {
+                            throw new HumanReviewException('HUMAN_REVIEW_REQUIRED');
+                        }
+                        app(RejectHumanReview::class)->execute($review, auth()->user(), (string) $data['reason']);
+                        Notification::make()->warning()->title('Revisión rechazada')->body('El caso quedó bloqueado para decisión administrativa.')->send();
+                        $this->redirect(ReviewAssignmentResource::getUrl('index'));
+                    } catch (HumanReviewException $e) {
+                        Notification::make()->danger()->title('No se pudo rechazar')->body($e->errorCode)->send();
                     }
                 }),
             Action::make('approveReview')

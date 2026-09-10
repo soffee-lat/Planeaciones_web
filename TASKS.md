@@ -420,7 +420,13 @@ Salida: recorrido reproducible con fake/manual hasta aprobación automática o c
   - PostgreSQL vuelve verificable `approvals.review_id`, congela checklist publicado/review histórico/respuestas terminales y evita aprobación humana fabricada o sin evento de estado.
   - `/review` agrega recurso de revisiones asignadas con versión canónica mínima, inicio, guardado de checklist y aprobación; no expone pagos, prompts ni datos de cuenta del cliente.
   - Evidencia local: `ReviewChecklistVersionTest` **3 / 8**, `HumanReviewExecutionTest` **7 / 29**, `HumanReviewIntegrityTest` **5 / 5**; regresiones 5A, Fase 4 y hardening comercial verdes; rutas Filament `/review` registradas; suite completa **466 tests / 1634 assertions**, sin fallos. `git diff --check` limpio.
-- [ ] Corrección/rechazo/escalamiento, nueva versión y auditoría posterior.
+- [x] **Subfase 5C — decisiones del revisor y ciclo de corrección.** Verificada sobre `a206466`.
+  - `changes_requested` exige checklist con al menos un criterio obligatorio fallido y comentarios por sección en alcance mutable; criterios curriculares/contextuales congelados fuerzan escalamiento en vez de autocorrección.
+  - La corrección humana crea `AiExecution(stage=correction, source_kind=human_review)` + outbox, termina la asignación actual sin nuevo consumo de `human_review`, conserva el mismo ciclo comercial y usa el pipeline manual existente para producir una hija de `DocumentVersion` y reauditarla.
+  - Cuando la reauditoría aprueba, `AssignReviewer` intenta devolver el trabajo al revisor anterior si continúa elegible/capaz; se crea nueva asignación del mismo ciclo y una nueva `Review` sin respuestas heredadas.
+  - `escalated` y `rejected` son decisiones terminales de review que cancelan la asignación y abren `human_review_attention`; no cancelan la solicitud ni permiten reasignación automática mientras el bloqueo siga abierto.
+  - PostgreSQL extiende la integridad de reviews y del manifest de corrección para distinguir origen `audit` vs `human_review`; no se debilita el alcance inmutable de currículo/contexto.
+  - Evidencia local: `HumanReviewDecisionTest` **8 / 41**, `HumanReviewDecisionIntegrityTest` **4 / 5**; regresiones 5A/5B, ruteo/corrección de Fase 4 y hardening comercial verdes; suite completa **478 tests / 1680 assertions**, sin fallos. `git diff --check` limpio.
 - [ ] Honorarios tarifa×U por ciclo aprobado, liquidación y métricas propias; correcciones cubiertas sin doble pago.
 - [ ] Probar checklist incompleto, asignación concurrente, revocación y pago único por trabajo.
 
