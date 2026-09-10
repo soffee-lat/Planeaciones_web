@@ -66,13 +66,12 @@ final class ReviewInstitutionalFormatSample
             }
 
             $status = $approved ? FormatSampleStatus::Approved : FormatSampleStatus::Rejected;
-            $lockedSample->forceFill([
-                'status' => $status->value,
-                'reviewed_by' => $actor->id,
-                'review_note' => $note === '' ? null : $note,
-                'reviewed_at' => now(),
-            ])->save();
+            $reviewedAt = now();
 
+            // Para aprobación, PostgreSQL valida inmediatamente que el reporte de
+            // FormatVersion apunte a esta muestra exacta. Actualizamos primero el
+            // reporte dentro de la misma transacción; si luego falla la muestra,
+            // todo se revierte atómicamente.
             $report = $version->validation_report ?? [];
             $report['status'] = $approved ? 'approved' : 'sample_rejected';
             $report['sample'] = [
@@ -80,10 +79,17 @@ final class ReviewInstitutionalFormatSample
                 'fingerprint' => $lockedSample->fingerprint,
                 'renderer_version' => $lockedSample->renderer_version,
                 'reviewed_by' => (int) $actor->id,
-                'reviewed_at' => $lockedSample->reviewed_at?->toIso8601String(),
-                'review_note' => $lockedSample->review_note,
+                'reviewed_at' => $reviewedAt->toIso8601String(),
+                'review_note' => $note === '' ? null : $note,
             ];
             $version->forceFill(['validation_report' => $report])->save();
+
+            $lockedSample->forceFill([
+                'status' => $status->value,
+                'reviewed_by' => $actor->id,
+                'review_note' => $note === '' ? null : $note,
+                'reviewed_at' => $reviewedAt,
+            ])->save();
 
             return $lockedSample->fresh(['formatVersion', 'docxFile', 'pdfFile']);
         }, attempts: 3);
