@@ -126,7 +126,7 @@ BEGIN
     RETURN NULL;
 END; $$;
 SQL);
-        DB::statement('CREATE CONSTRAINT TRIGGER format_samples_integrity_trg AFTER INSERT OR UPDATE ON format_version_samples DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION format_sample_integrity_trigger()');
+        DB::statement('CREATE TRIGGER format_samples_integrity_trg AFTER INSERT OR UPDATE ON format_version_samples FOR EACH ROW EXECUTE FUNCTION format_sample_integrity_trigger()');
 
         DB::unprepared(<<<'SQL'
 CREATE OR REPLACE FUNCTION institutional_format_publication_sample_check(target_version bigint) RETURNS void
@@ -163,7 +163,7 @@ BEGIN
     RETURN NULL;
 END; $$;
 SQL);
-        DB::statement('CREATE CONSTRAINT TRIGGER institutional_format_publication_sample_trg AFTER INSERT OR UPDATE OF published_at, validation_report, mapping, source_file_id, renderer ON format_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION institutional_format_publication_sample_trigger()');
+        DB::statement('CREATE TRIGGER institutional_format_publication_sample_trg AFTER INSERT OR UPDATE OF published_at, validation_report, mapping, source_file_id, renderer ON format_versions FOR EACH ROW EXECUTE FUNCTION institutional_format_publication_sample_trigger()');
     }
 
     public function down(): void
