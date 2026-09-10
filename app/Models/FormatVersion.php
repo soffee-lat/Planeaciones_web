@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use RuntimeException;
 
 class FormatVersion extends Model
@@ -58,6 +59,11 @@ class FormatVersion extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function renderRuns(): HasMany
+    {
+        return $this->hasMany(DocumentRenderRun::class, 'format_version_id');
     }
 
     public function isPublished(): bool

@@ -190,6 +190,12 @@ Materializa `files`, `institutional_formats`, `format_versions` y `document_vers
 
 Evidencia local de cierre: `FormatFoundationTest` **10 / 20**; regresiones de grupos, solicitudes, contratos IA, importación de generación, pipeline E2E y revisión humana verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
 
+### Fase 6B — renderer estándar DOCX/PDF
+
+Implementa el pipeline real de render sobre `CanonicalPlanV1 + FormatVersion`: `DispatchDocumentRendering` congela la versión actual y el formato resuelto, crea un `DocumentRenderRun` idempotente y transiciona `APROBADA → GENERANDO_DOCUMENTO`; el job procesa el run con el renderer estándar, persiste DOCX/PDF en storage privado, enlaza `DocumentVersionFile` y solo entonces mueve la solicitud a `LISTA_PARA_ENTREGAR`. Los fallos quedan recuperables y los formatos institucionales sin renderer explícito se bloquean sin fabricar salidas falsas. PostgreSQL valida versión actual, autorización comercial, run y artefactos antes de aceptar estados de render/entrega.
+
+Evidencia local de cierre: `DocumentRenderingTest` **9 / 63** y `DocumentRenderingIntegrityTest` **4 / 8**; `FormatFoundationTest`, revisión humana, pipeline E2E y hardening comercial verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio. La entrega privada al docente y la retención quedan para 6C.
+
 Pruebas específicas de 4C:
 
 ```powershell

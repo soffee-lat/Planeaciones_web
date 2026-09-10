@@ -189,6 +189,11 @@ class PlanningRequest extends Model
         return $this->hasOne(Document::class, 'request_id');
     }
 
+    public function documentRenderRuns(): HasMany
+    {
+        return $this->hasMany(DocumentRenderRun::class, 'request_id');
+    }
+
     public function blocks(): HasMany
     {
         return $this->hasMany(RequestBlock::class, 'request_id');

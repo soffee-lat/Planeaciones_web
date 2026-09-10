@@ -445,8 +445,13 @@ Salida: revisión exacta por versión sin reescribir documentos completos ni exp
   - Publicación institucional requiere fuente limpia, mapping no vacío, muestra/validación aprobada y actor administrador; versión publicada queda inmutable.
   - PostgreSQL impide preferir/seleccionar formatos institucionales de otro propietario y deja preparado el vínculo seguro de archivos resultantes.
   - Evidencia local: `FormatFoundationTest` **10 / 20**; regresiones relacionadas verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
-- [ ] Renderer estándar DOCX/PDF; flujo institucional análisis/mapping/muestra/publicación.
-- [ ] Generación en queue, manifest, entrega privada e historial.
+- [x] **Subfase 6B — renderer estándar DOCX/PDF y pipeline de render.**
+  - `DispatchDocumentRendering` y `RenderPlanningDocument` ejecutan `APROBADA → GENERANDO_DOCUMENTO → LISTA_PARA_ENTREGAR` de forma idempotente sobre la `DocumentVersion` actual y el `FormatVersion` resuelto.
+  - El renderer estándar genera DOCX y PDF reales, los guarda en storage privado y los vincula mediante `document_version_files`; un fallo mantiene el run recuperable y no inventa archivos.
+  - PostgreSQL exige autorización comercial, versión actual, `document_render_run` coherente y artefactos reales antes de aceptar estados de render/entrega; el hardening documental no oculta `AUTHORIZATION_REQUIRED` de Fase 3.
+  - Evidencia local: `DocumentRenderingTest` **9 / 63**, `DocumentRenderingIntegrityTest` **4 / 8**; regresiones críticas verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio.
+- [ ] Flujo institucional de análisis/mapping/muestra/publicación con renderer explícito.
+- [ ] Entrega privada al docente, historial y retención de archivos.
 - [ ] Corrección cliente por ventana/cuota conservando entrega anterior.
 - [ ] Notificaciones internas/email y renovación próxima deduplicadas.
 - [ ] Probar render fallido, formato pendiente, descarga ajena, corrección tras expiración y email fallido.
