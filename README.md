@@ -196,6 +196,10 @@ Implementa el pipeline real de render sobre `CanonicalPlanV1 + FormatVersion`: `
 
 Evidencia local de cierre: `DocumentRenderingTest` **9 / 63** y `DocumentRenderingIntegrityTest` **4 / 8**; `FormatFoundationTest`, revisión humana, pipeline E2E y hardening comercial verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio. La entrega privada al docente y la retención quedan para 6C.
 
+### Fase 6C — entrega privada y retención
+
+El candidato 6C materializa `deliveries`, `delivery_files` y `delivery_downloads`, publica una entrega idempotente sobre la `DocumentVersion` y `DocumentRenderRun` exactos, y habilita descarga autenticada desde `/app` únicamente al propietario. Los bytes siguen en storage privado; cada acceso queda auditado. La retención de resultados se configura con `DOCUMENT_RESULT_RETENTION_DAYS` y `documents:purge-expired` elimina bytes expirados sin borrar metadatos ni historial. PostgreSQL protege identidad de entrega, set exacto DOCX/PDF, evento de estado y retención no decreciente.
+
 Pruebas específicas de 4C:
 
 ```powershell

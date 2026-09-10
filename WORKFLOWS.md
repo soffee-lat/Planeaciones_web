@@ -83,6 +83,8 @@ Aprobar crea trabajo pagable una vez: planning_units × tarifa por unidad congel
 
 ENTREGADA significa disponible en portal con registro de versión y manifest, no que el correo se leyó. Fallo de email no revierte entrega. Descargas sucesivas no duplican entrega. Corrección conserva acceso a versión anterior y entrega nueva independiente.
 
+Fase 6C materializa esa definición: `PublishPlanningDelivery` congela la versión vigente, el run de render exitoso y sus DOCX/PDF en `delivery_files`; solo después registra `LISTA_PARA_ENTREGAR → ENTREGADA`. La descarga usa controlador autenticado y verifica propietario, pertenencia del archivo, estado clean, retención y presencia del byte en storage privado; cada descarga se registra. La retención de resultados es configurable y su purga borra bytes vencidos, nunca las filas históricas ni una entrega.
+
 Eventos: PaymentConfirmed, InformationRequired, ProcessingStarted, ReviewAssigned, DocumentReady, CorrectionCompleted, RenewalUpcoming. Notificaciones internas y email mediante listeners/jobs; futuros canales por adapter, sin lógica WhatsApp. Deduplicar evento+destinatario+canal; scheduler no repite aviso en cada ejecución. Registrar auditoría para pago, transición, asignación, aprobación, IA, corrección, entrega y descarga sensible.
 
 

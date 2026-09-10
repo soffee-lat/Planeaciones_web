@@ -36,6 +36,9 @@ class ViewPlanningRequest extends ViewRecord
             View::make('filament.app.pages.commercial-summary')->viewData(fn () => [
                 'summary' => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->forCustomer(auth()->user(), $this->getRecord()->starts_on?->toDateString(), $this->getRecord()->ends_on?->toDateString()),
             ])->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO)->columnSpanFull(),
+            View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
+                'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
+            ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
         ]);
     }
 

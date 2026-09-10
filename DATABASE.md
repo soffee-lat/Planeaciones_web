@@ -55,20 +55,26 @@ La migración `2026_09_16_000001_harden_planning_commercial_integrity.php` compl
 
 ## Archivos, formatos y documentos
 
-- files: owner_id, request_id nullable, category (institutional_format/book/material/previous_plan/evidence/result/other), disk, path UNIQUE, original_name, detected_mime, size_bytes, sha256, scan_status, uploaded_by, created_at. Cuarentena no descargable ni consumible.
+- files: owner_id, request_id nullable, category (institutional_format/book/material/previous_plan/evidence/result/other), disk, path UNIQUE, original_name, detected_mime, size_bytes, sha256, scan_status, retention_until nullable, purged_at nullable, uploaded_by, created_at. Cuarentena no descargable ni consumible; purga elimina bytes, no historial.
 - institutional_formats: owner_id nullable para estándar, name, kind (standard/institutional), status (pending_analysis/configuring/ready/unsupported/archived).
 - format_versions: format_id, number, source_file_id nullable, mapping JSON, schema_version, renderer, validation_report JSON, approved_by nullable, published_at. UNIQUE(format_id,number); publicación inmutable, requiere muestra válida.
 - documents: request_id UNIQUE, owner_id, title. Documento lógico de planeación.
 - document_versions: document_id, number, parent_version_id nullable, input_revision, content JSON validado, content_hash, created_by nullable, ai_execution_id nullable, status (draft/validated/approved), created_at. UNIQUE(document_id,number). Numeración bajo bloqueo; contenido inmutable, corregir crea hija.
 - document_version_files: version_id, file_id, output_format, renderer_version; PK(version_id,file_id). Archivo generado adicional conserva anterior; si modifica contenido crea otra versión.
 - approvals: request_id, version_id, kind (ai/human), ai_execution_id nullable, review_id nullable, actor_id nullable, approved_at. UNIQUE(version_id,kind). AI requiere ejecución de auditoría exitosa; human requiere review aprobada de esa versión.
-- deliveries: request_id, version_id, delivered_at, created_by nullable, idempotency_key UNIQUE. Varias entregas por solicitud para correcciones. delivery_files: PK(delivery_id,file_id), congela archivos exactos. Reenvío no crea versión ni consumo.
+- deliveries: request_id, version_id, render_run_id, delivered_at, created_by nullable, idempotency_key UNIQUE, correlation_id UNIQUE. Varias entregas por solicitud para correcciones. delivery_files: PK(delivery_id,file_id), output_format, renderer_version; congela archivos exactos. delivery_downloads registra accesos append-only. Reenvío no crea versión ni consumo.
 
 ### Materialización Fase 6A
 
 - `files`, `institutional_formats`, `format_versions` y `document_version_files` reciben sus tablas/FK reales. `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las referencias `ai_executions.format_version_id/private_payload_file_id` dejan de ser placeholders.
 - Un formato `standard` es global (`owner_id NULL`) y solo puede existir uno no archivado; un formato `institutional` pertenece a un cliente. Publicar una versión institucional exige archivo fuente `clean`, mapping JSON objeto, `validation_report.status=approved` y administrador. Versiones publicadas son inmutables.
 - El selector de formato permite únicamente versiones publicadas de formatos `ready` pertenecientes al cliente o globales. `document_version_files` queda preparado para 6B y exige archivos `result/clean` del mismo request/owner que la `DocumentVersion`.
+
+### Materialización Fase 6C
+
+- Una entrega solo puede publicarse desde `LISTA_PARA_ENTREGAR` sobre la versión actual, un `document_render_run=succeeded` y exactamente DOCX+PDF limpios del mismo propietario/request; el evento `delivery_published` y la entrega se validan al commit.
+- `files.retention_until` puede extenderse pero no reducirse; `purged_at` solo puede fijarse cuando venció la retención. La purga conserva filas y relaciones para demostrar qué versión/archivos se entregaron aunque los bytes ya no estén disponibles.
+- `delivery_downloads` referencia una pareja `delivery_id + file_id` real y al usuario propietario; UPDATE/DELETE de entregas, archivos de entrega y descargas quedan bloqueados.
 
 ## IA, revisión y costos
 

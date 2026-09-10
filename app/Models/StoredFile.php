@@ -19,7 +19,7 @@ class StoredFile extends Model
 
     protected $fillable = [
         'owner_id', 'request_id', 'category', 'disk', 'path', 'original_name',
-        'detected_mime', 'size_bytes', 'sha256', 'scan_status', 'uploaded_by',
+        'detected_mime', 'size_bytes', 'sha256', 'scan_status', 'retention_until', 'purged_at', 'uploaded_by',
     ];
 
     protected function casts(): array
@@ -28,6 +28,8 @@ class StoredFile extends Model
             'category' => FileCategory::class,
             'scan_status' => FileScanStatus::class,
             'size_bytes' => 'integer',
+            'retention_until' => 'datetime',
+            'purged_at' => 'datetime',
             'created_at' => 'datetime',
         ];
     }

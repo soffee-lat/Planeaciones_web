@@ -451,7 +451,11 @@ Salida: revisión exacta por versión sin reescribir documentos completos ni exp
   - PostgreSQL exige autorización comercial, versión actual, `document_render_run` coherente y artefactos reales antes de aceptar estados de render/entrega; el hardening documental no oculta `AUTHORIZATION_REQUIRED` de Fase 3.
   - Evidencia local: `DocumentRenderingTest` **9 / 63**, `DocumentRenderingIntegrityTest` **4 / 8**; regresiones críticas verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio.
 - [ ] Flujo institucional de análisis/mapping/muestra/publicación con renderer explícito.
-- [ ] Entrega privada al docente, historial y retención de archivos.
+- [ ] **Subfase 6C — entrega privada, historial y retención.** Candidato sobre `2569b3d`.
+  - `PublishPlanningDelivery` congela `request + DocumentVersion + DocumentRenderRun + DOCX/PDF`, crea `delivery_files`, extiende retención configurable y materializa `LISTA_PARA_ENTREGAR → ENTREGADA`.
+  - Descarga por controlador autenticado y pertenencia exacta; cada descarga crea historial append-only, sin exponer storage público ni enlaces permanentes.
+  - `documents:purge-expired` elimina únicamente bytes vencidos y conserva `files`, `deliveries`, `delivery_files` y `delivery_downloads` para trazabilidad.
+  - PostgreSQL impide entregar sin versión/run/archivos/evento coherentes, acortar retención o mutar historial de entrega.
 - [ ] Corrección cliente por ventana/cuota conservando entrega anterior.
 - [ ] Notificaciones internas/email y renovación próxima deduplicadas.
 - [ ] Probar render fallido, formato pendiente, descarga ajena, corrección tras expiración y email fallido.

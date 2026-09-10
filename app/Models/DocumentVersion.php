@@ -76,4 +76,9 @@ class DocumentVersion extends Model
     {
         return $this->hasMany(DocumentRenderRun::class, 'version_id');
     }
+
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(PlanningDelivery::class, 'version_id');
+    }
 }

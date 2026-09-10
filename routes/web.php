@@ -1,4 +1,12 @@
 <?php
-use Illuminate\Support\Facades\Route;
-Route::redirect('/', '/app');
 
+use App\Http\Controllers\PrivateDeliveryDownloadController;
+use Illuminate\Support\Facades\Route;
+
+Route::redirect('/', '/app');
+Route::redirect('/login', '/app/login')->name('login');
+
+Route::middleware('auth')->group(function (): void {
+    Route::get('/app/deliveries/{delivery}/files/{file}', PrivateDeliveryDownloadController::class)
+        ->name('planning-deliveries.download');
+});
