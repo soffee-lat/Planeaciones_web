@@ -2,8 +2,10 @@
 
 namespace App\Actions\Documents;
 
+use App\Actions\Notifications\QueueOperationalNotification;
 use App\Enums\FileCategory;
 use App\Enums\FileScanStatus;
+use App\Enums\OperationalNotificationType;
 use App\Enums\PlanningRequestStatus;
 use App\Exceptions\DocumentDeliveryException;
 use App\Models\DocumentRenderRun;
@@ -19,7 +21,10 @@ use Illuminate\Support\Str;
 
 final class PublishPlanningDelivery
 {
-    public function __construct(private PlanningRequestStateMachine $stateMachine) {}
+    public function __construct(
+        private PlanningRequestStateMachine $stateMachine,
+        private QueueOperationalNotification $notifications,
+    ) {}
 
     public function execute(PlanningRequest|int $request, ?User $actor = null, ?string $correlationId = null): PlanningDelivery
     {
@@ -131,6 +136,20 @@ final class PublishPlanningDelivery
                 'reason' => 'delivery_published',
                 'correlation_id' => $delivery->correlation_id,
             ]);
+
+            $owner = User::query()->findOrFail($locked->owner_id);
+            $this->notifications->execute(
+                OperationalNotificationType::PlanningDelivered,
+                $owner,
+                "planning-delivery:{$delivery->id}:published",
+                'planning_delivery',
+                (int) $delivery->id,
+                [
+                    'title' => 'Tu planeación está lista',
+                    'body' => 'La nueva entrega ya está disponible en DOCX y PDF.',
+                    'url' => '/app/planning-requests/' . $locked->id,
+                ],
+            );
 
             return $delivery->fresh('files');
         }, attempts: 3);

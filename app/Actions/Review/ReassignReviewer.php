@@ -2,6 +2,8 @@
 
 namespace App\Actions\Review;
 
+use App\Actions\Notifications\QueueOperationalNotification;
+use App\Enums\OperationalNotificationType;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\ReviewAssignmentStatus;
 use App\Enums\RoleCode;
@@ -19,6 +21,7 @@ final class ReassignReviewer
     public function __construct(
         private ReviewerCapacityService $capacity,
         private RequestBlockManager $blocks,
+        private QueueOperationalNotification $notifications,
     ) {}
 
     public function execute(
@@ -91,6 +94,20 @@ final class ReassignReviewer
             ]);
 
             $this->blocks->resolve($fresh, 'no_reviewer', 'human_review', $actor);
+
+            $reviewer = User::query()->findOrFail($replacement->reviewer_id);
+            $this->notifications->execute(
+                OperationalNotificationType::ReviewAssigned,
+                $reviewer,
+                "review-assignment:{$replacement->id}:assigned",
+                'review_assignment',
+                (int) $replacement->id,
+                [
+                    'title' => 'Tienes una nueva revisión',
+                    'body' => 'Se te asignó una planeación para revisión humana.',
+                    'url' => '/review/assignments/' . $replacement->id,
+                ],
+            );
 
             return $replacement->fresh(['reviewer', 'profile']);
         }, attempts: 3);
