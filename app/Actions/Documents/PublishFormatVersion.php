@@ -4,16 +4,27 @@ namespace App\Actions\Documents;
 
 use App\Enums\FileCategory;
 use App\Enums\FileScanStatus;
+use App\Enums\FormatSampleStatus;
 use App\Enums\InstitutionalFormatKind;
 use App\Enums\InstitutionalFormatStatus;
 use App\Enums\RoleCode;
 use App\Exceptions\DocumentFormatException;
 use App\Models\FormatVersion;
+use App\Models\FormatVersionSample;
 use App\Models\User;
+use App\Services\Documents\DocumentRendererRegistry;
+use App\Services\Documents\InstitutionalDocumentRenderer;
+use App\Services\Documents\InstitutionalFormatMapping;
+use App\Support\AI\CanonicalJson;
 use Illuminate\Support\Facades\DB;
 
 final class PublishFormatVersion
 {
+    public function __construct(
+        private DocumentRendererRegistry $renderers,
+        private InstitutionalFormatMapping $mapping,
+    ) {}
+
     public function execute(FormatVersion $version, User $actor): FormatVersion
     {
         if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
@@ -42,6 +53,28 @@ final class PublishFormatVersion
             }
             if (! is_array($locked->mapping) || $locked->mapping === []) {
                 throw new DocumentFormatException('FORMAT_VERSION_MAPPING_REQUIRED');
+            }
+            $normalized = $this->mapping->validate($locked, $locked->mapping);
+            if (! $this->renderers->supports($locked)) {
+                throw new DocumentFormatException('FORMAT_VERSION_RENDERER_NOT_SUPPORTED');
+            }
+            $sampleId = (int) data_get($locked->validation_report, 'sample.id', 0);
+            $sample = $sampleId > 0
+                ? FormatVersionSample::query()->whereKey($sampleId)->lockForUpdate()->first()
+                : null;
+            $fingerprint = CanonicalJson::hash([
+                'source_file_id' => (int) $locked->source_file_id,
+                'source_sha256' => $source->sha256,
+                'mapping' => $normalized,
+                'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
+            ]);
+            if (! $sample
+                || $sample->status !== FormatSampleStatus::Approved
+                || (int) $sample->format_version_id !== (int) $locked->id
+                || $sample->fingerprint !== $fingerprint
+                || CanonicalJson::hash($sample->mapping_snapshot) !== CanonicalJson::hash($normalized)
+                || (int) $sample->source_file_id !== (int) $locked->source_file_id) {
+                throw new DocumentFormatException('FORMAT_VERSION_SAMPLE_NOT_APPROVED');
             }
 
             $locked->format->forceFill(['status' => InstitutionalFormatStatus::Ready->value])->save();

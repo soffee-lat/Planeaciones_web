@@ -5,7 +5,6 @@ namespace Tests\Feature\Documents;
 use App\Actions\AI\RouteAuditResult;
 use App\Actions\Documents\DispatchDocumentRendering;
 use App\Actions\Documents\ProcessDocumentRenderRun;
-use App\Actions\Documents\PublishFormatVersion;
 use App\Enums\DocumentRenderStatus;
 use App\Enums\FileCategory;
 use App\Enums\FileScanStatus;
@@ -14,8 +13,6 @@ use App\Exceptions\DocumentRenderException;
 use App\Jobs\RenderPlanningDocument;
 use App\Models\DocumentRenderRun;
 use App\Models\DocumentVersionFile;
-use App\Models\FormatVersion;
-use App\Models\InstitutionalFormat;
 use App\Models\PlanningRequest;
 use App\Models\StoredFile;
 use App\Services\Documents\DocumentRendererRegistry;
@@ -23,6 +20,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
+use Tests\Concerns\CreatesInstitutionalFormatScenario;
 use Tests\Concerns\CreatesManualAiPipelineScenario;
 use Tests\Feature\PedagogyTestCase;
 
@@ -30,18 +28,14 @@ class DocumentRenderingTest extends PedagogyTestCase
 {
     use BuildsGeneratedPlanDraft;
     use CreatesCommercialPlanningScenario;
+    use CreatesInstitutionalFormatScenario;
     use CreatesManualAiPipelineScenario;
 
     public function test_despacho_aprobado_crea_run_y_pasa_a_generando_documento(): void
     {
         Queue::fake();
         $scene = $this->approvedScene();
-
-        $run = app(DispatchDocumentRendering::class)->execute(
-            $scene['request'],
-            '91919191-9191-4191-8191-919191919191',
-        );
-
+        $run = app(DispatchDocumentRendering::class)->execute($scene['request'], '91919191-9191-4191-8191-919191919191');
         $this->assertSame(DocumentRenderStatus::Pending, $run->status);
         $this->assertSame(PlanningRequestStatus::GENERANDO_DOCUMENTO, $run->request->status);
         $this->assertSame($scene['version']->id, $run->version_id);
@@ -62,7 +56,6 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene = $this->approvedScene();
         $first = app(DispatchDocumentRendering::class)->execute($scene['request']);
         $second = app(DispatchDocumentRendering::class)->execute($scene['request']->fresh());
-
         $this->assertSame($first->id, $second->id);
         $this->assertSame(1, DocumentRenderRun::query()->where('request_id', $scene['request']->id)->count());
         Queue::assertPushed(RenderPlanningDocument::class, 1);
@@ -73,9 +66,7 @@ class DocumentRenderingTest extends PedagogyTestCase
         Queue::fake();
         $scene = $this->approvedScene();
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']);
-
         $done = app(ProcessDocumentRenderRun::class)->execute($run);
-
         $this->assertSame(DocumentRenderStatus::Succeeded, $done->status);
         $this->assertSame(PlanningRequestStatus::LISTA_PARA_ENTREGAR, $done->request->status);
         $this->assertSame('document_render_manifest_v1', $done->manifest['schema_version']);
@@ -83,12 +74,10 @@ class DocumentRenderingTest extends PedagogyTestCase
         $this->assertSame(['docx', 'pdf'], array_column($done->manifest['outputs'], 'format'));
         $this->assertSame(2, StoredFile::query()->where('request_id', $scene['request']->id)->where('category', FileCategory::Result->value)->count());
         $this->assertSame(2, DocumentVersionFile::query()->where('version_id', $scene['version']->id)->count());
-
         foreach ($done->manifest['outputs'] as $output) {
             Storage::disk('private')->assertExists($output['path']);
             $this->assertSame($output['sha256'], hash('sha256', Storage::disk('private')->get($output['path'])));
         }
-
         $docx = collect($done->manifest['outputs'])->firstWhere('format', 'docx');
         $pdf = collect($done->manifest['outputs'])->firstWhere('format', 'pdf');
         $docxBytes = Storage::disk('private')->get($docx['path']);
@@ -114,7 +103,6 @@ class DocumentRenderingTest extends PedagogyTestCase
         $renderer = app(DocumentRendererRegistry::class);
         $first = $renderer->render($run->version, $run->formatVersion);
         $second = $renderer->render($run->version, $run->formatVersion);
-
         $this->assertSame($first[0]->sha256(), $second[0]->sha256());
         $this->assertSame($first[1]->sha256(), $second[1]->sha256());
         $this->assertSame($first[0]->bytes, $second[0]->bytes);
@@ -128,36 +116,29 @@ class DocumentRenderingTest extends PedagogyTestCase
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']);
         $first = app(ProcessDocumentRenderRun::class)->execute($run);
         $second = app(ProcessDocumentRenderRun::class)->execute($first);
-
         $this->assertSame($first->id, $second->id);
         $this->assertSame(1, $second->attempts);
         $this->assertSame(2, StoredFile::query()->where('request_id', $scene['request']->id)->where('category', FileCategory::Result->value)->count());
         $this->assertSame(2, DocumentVersionFile::query()->where('version_id', $scene['version']->id)->count());
     }
 
-    public function test_formato_institucional_sin_renderer_real_se_bloquea_sin_avanzar_estado(): void
+    public function test_formato_institucional_publicado_usa_renderer_explicito(): void
     {
         Queue::fake();
         $scene = $this->approvedScene();
-        $published = $this->publishedInstitutional($scene['request']->owner_id);
+        $published = $this->publishedInstitutionalFormat($scene['request']->owner_id);
         $scene['request']->update(['format_version_id' => $published->id]);
-
-        try {
-            app(DispatchDocumentRendering::class)->execute($scene['request']->fresh());
-            $this->fail('Se esperaba DOCUMENT_RENDERER_NOT_SUPPORTED.');
-        } catch (DocumentRenderException $e) {
-            $this->assertSame('DOCUMENT_RENDERER_NOT_SUPPORTED', $e->errorCode);
-        }
-
-        $this->assertSame(PlanningRequestStatus::APROBADA, $scene['request']->fresh()->status);
-        $this->assertSame(0, DocumentRenderRun::query()->where('request_id', $scene['request']->id)->count());
-        $this->assertDatabaseHas('request_blocks', [
-            'request_id' => $scene['request']->id,
-            'code' => 'format_pending',
-            'stage' => 'document_render',
-            'resolved_at' => null,
-        ]);
-        Queue::assertNothingPushed();
+        Queue::fake();
+        $run = app(DispatchDocumentRendering::class)->execute($scene['request']->fresh());
+        $this->assertSame('institutional-v1.0.0', $run->renderer_version);
+        $done = app(ProcessDocumentRenderRun::class)->execute($run);
+        $this->assertSame(DocumentRenderStatus::Succeeded, $done->status);
+        $this->assertSame(PlanningRequestStatus::LISTA_PARA_ENTREGAR, $done->request->status);
+        $docx = collect($done->manifest['outputs'])->firstWhere('format', 'docx');
+        $docxBytes = Storage::disk('private')->get($docx['path']);
+        $this->assertStringContainsString('FORMATO INSTITUCIONAL DEMO', $docxBytes);
+        $this->assertStringContainsString('Planeación DEMO', $docxBytes);
+        $this->assertStringNotContainsString('{{TITLE}}', $docxBytes);
     }
 
     public function test_fallo_de_storage_conserva_generando_documento_y_abre_bloque_recuperable(): void
@@ -166,14 +147,12 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene = $this->approvedScene();
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']);
         config(['documents.disk' => 'disk-inexistente']);
-
         try {
             app(ProcessDocumentRenderRun::class)->execute($run);
             $this->fail('Se esperaba fallo recuperable de render.');
         } catch (DocumentRenderException $e) {
             $this->assertSame('DOCUMENT_RENDER_PROCESSING_FAILED', $e->errorCode);
         }
-
         $run->refresh();
         $this->assertSame(DocumentRenderStatus::Failed, $run->status);
         $this->assertSame('DOCUMENT_RENDER_PROCESSING_FAILED', $run->last_error_code);
@@ -192,16 +171,10 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene = $this->approvedScene();
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']);
         config(['documents.disk' => 'disk-inexistente']);
-        try {
-            app(ProcessDocumentRenderRun::class)->execute($run);
-        } catch (DocumentRenderException) {
-            // esperado
-        }
+        try { app(ProcessDocumentRenderRun::class)->execute($run); } catch (DocumentRenderException) {}
         config(['documents.disk' => 'private']);
         Queue::fake();
-
         $retried = app(DispatchDocumentRendering::class)->execute($scene['request']->fresh());
-
         $this->assertSame($run->id, $retried->id);
         $this->assertSame(1, DocumentRenderRun::query()->where('request_id', $scene['request']->id)->count());
         Queue::assertPushed(RenderPlanningDocument::class, 1);
@@ -213,7 +186,6 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene = $this->approvedScene();
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']);
         app(ProcessDocumentRenderRun::class)->execute($run);
-
         $files = StoredFile::query()->where('request_id', $scene['request']->id)->where('category', FileCategory::Result->value)->get();
         $this->assertCount(2, $files);
         foreach ($files as $file) {
@@ -223,7 +195,6 @@ class DocumentRenderingTest extends PedagogyTestCase
         }
     }
 
-    /** @return array{request:PlanningRequest,version:\App\Models\DocumentVersion} */
     private function approvedScene(): array
     {
         config([
@@ -234,26 +205,6 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene = $this->succeededAuditScenario(true);
         $request = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
         $this->assertSame(PlanningRequestStatus::APROBADA, $request->status);
-
         return ['request' => $request, 'version' => $scene['version']->fresh(['document'])];
-    }
-
-    private function publishedInstitutional(int $ownerId): FormatVersion
-    {
-        $source = StoredFile::factory()->create([
-            'owner_id' => $ownerId,
-            'uploaded_by' => $ownerId,
-            'category' => FileCategory::InstitutionalFormat->value,
-            'scan_status' => FileScanStatus::Clean->value,
-        ]);
-        $format = InstitutionalFormat::factory()->create(['owner_id' => $ownerId]);
-        $version = FormatVersion::factory()->create([
-            'format_id' => $format->id,
-            'source_file_id' => $source->id,
-            'renderer' => 'institutional-v1',
-            'validation_report' => ['status' => 'approved'],
-        ]);
-
-        return app(PublishFormatVersion::class)->execute($version, $this->admin());
     }
 }

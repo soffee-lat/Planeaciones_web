@@ -16,10 +16,13 @@ use App\Models\StoredFile;
 use App\Services\Documents\PlanningFormatResolver;
 use Illuminate\Database\QueryException;
 use RuntimeException;
+use Tests\Concerns\CreatesInstitutionalFormatScenario;
 use Tests\Feature\PedagogyTestCase;
 
 class FormatFoundationTest extends PedagogyTestCase
 {
+    use CreatesInstitutionalFormatScenario;
+
     public function test_formato_estandar_es_idempotente_y_publicado(): void
     {
         $first = app(EnsureStandardFormat::class)->execute();
@@ -36,20 +39,12 @@ class FormatFoundationTest extends PedagogyTestCase
     public function test_publicacion_institucional_exige_fuente_limpia_y_muestra_aprobada(): void
     {
         $scene = $this->seedFullTeacher();
-        $source = StoredFile::factory()->create([
-            'owner_id' => $scene['user']->id,
-            'uploaded_by' => $scene['user']->id,
-            'category' => FileCategory::InstitutionalFormat->value,
-            'scan_status' => FileScanStatus::Clean->value,
-        ]);
-        $format = InstitutionalFormat::factory()->create(['owner_id' => $scene['user']->id]);
-        $version = FormatVersion::factory()->create([
-            'format_id' => $format->id,
-            'source_file_id' => $source->id,
-            'validation_report' => ['status' => 'approved', 'sample' => 'manual-v1'],
-        ]);
+        $version = $this->configuredInstitutional($scene['user']->id);
+        $admin = $this->admin();
+        $sample = app(\App\Actions\Documents\RenderInstitutionalFormatSample::class)->execute($version, $admin);
+        app(\App\Actions\Documents\ReviewInstitutionalFormatSample::class)->approve($sample, $admin, 'Muestra correcta.');
 
-        $published = app(PublishFormatVersion::class)->execute($version, $this->admin());
+        $published = app(PublishFormatVersion::class)->execute($version->fresh(), $admin);
 
         $this->assertNotNull($published->published_at);
         $this->assertSame(InstitutionalFormatStatus::Ready, $published->format->status);
@@ -72,9 +67,7 @@ class FormatFoundationTest extends PedagogyTestCase
         $scene = $this->seedFullTeacher();
         $standard = app(EnsureStandardFormat::class)->execute();
         $request = $this->requestFor($scene);
-
         $resolved = app(PlanningFormatResolver::class)->resolve($request);
-
         $this->assertSame($standard['version']->id, $resolved->id);
     }
 
@@ -85,9 +78,7 @@ class FormatFoundationTest extends PedagogyTestCase
         $published = $this->publishedInstitutional($scene['user']->id);
         $scene['profile']->update(['preferred_format_id' => $published->format_id]);
         $request = $this->requestFor($scene);
-
         $resolved = app(PlanningFormatResolver::class)->resolve($request);
-
         $this->assertSame($published->id, $resolved->id);
     }
 
@@ -100,16 +91,13 @@ class FormatFoundationTest extends PedagogyTestCase
         $scene['profile']->update(['preferred_format_id' => $preferred->format_id]);
         $request = $this->requestFor($scene);
         $request->update(['format_version_id' => $explicit->id]);
-
         $resolved = app(PlanningFormatResolver::class)->resolve($request->fresh());
-
         $this->assertSame($explicit->id, $resolved->id);
     }
 
     public function test_version_publicada_es_inmutable(): void
     {
         $standard = app(EnsureStandardFormat::class)->execute()['version'];
-
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('FORMAT_VERSION_PUBLISHED_IMMUTABLE');
         $standard->update(['renderer' => 'otro-renderer']);
@@ -118,7 +106,6 @@ class FormatFoundationTest extends PedagogyTestCase
     public function test_estado_de_escaneo_terminal_no_puede_reabrirse(): void
     {
         $file = StoredFile::factory()->create(['scan_status' => FileScanStatus::Clean->value]);
-
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('FILE_SCAN_STATUS_TERMINAL');
         $file->update(['scan_status' => FileScanStatus::Pending->value]);
@@ -128,7 +115,6 @@ class FormatFoundationTest extends PedagogyTestCase
     {
         $scene = $this->seedFullTeacher();
         $foreign = $this->publishedInstitutional($this->customer()->id);
-
         $this->expectException(QueryException::class);
         $scene['profile']->update(['preferred_format_id' => $foreign->format_id]);
     }
@@ -138,7 +124,6 @@ class FormatFoundationTest extends PedagogyTestCase
         $scene = $this->seedFullTeacher();
         $foreign = $this->publishedInstitutional($this->customer()->id);
         $request = $this->requestFor($scene);
-
         $this->expectException(QueryException::class);
         $request->update(['format_version_id' => $foreign->id]);
     }
@@ -155,20 +140,6 @@ class FormatFoundationTest extends PedagogyTestCase
 
     private function publishedInstitutional(int $ownerId, int $number = 1): FormatVersion
     {
-        $source = StoredFile::factory()->create([
-            'owner_id' => $ownerId,
-            'uploaded_by' => $ownerId,
-            'category' => FileCategory::InstitutionalFormat->value,
-            'scan_status' => FileScanStatus::Clean->value,
-        ]);
-        $format = InstitutionalFormat::factory()->create(['owner_id' => $ownerId]);
-        $version = FormatVersion::factory()->create([
-            'format_id' => $format->id,
-            'number' => $number,
-            'source_file_id' => $source->id,
-            'validation_report' => ['status' => 'approved'],
-        ]);
-
-        return app(PublishFormatVersion::class)->execute($version, $this->admin());
+        return $this->publishedInstitutionalFormat($ownerId);
     }
 }

@@ -66,6 +66,11 @@ class FormatVersion extends Model
         return $this->hasMany(DocumentRenderRun::class, 'format_version_id');
     }
 
+    public function samples(): HasMany
+    {
+        return $this->hasMany(FormatVersionSample::class, 'format_version_id')->orderByDesc('id');
+    }
+
     public function isPublished(): bool
     {
         return $this->published_at !== null;
