@@ -35,6 +35,10 @@ class ViewInstitutionalFormat extends ViewRecord
                     TextEntry::make('source_name')->label('Archivo original')->state(fn (): ?string => $this->version()->sourceFile?->original_name),
                     TextEntry::make('user_status')->label('Estado')->state(fn (): string => $this->humanStatus())->badge(),
                     TextEntry::make('published_at')->label('Activo desde')->state(fn () => $this->version()->published_at)->dateTime('d/m/Y H:i')->placeholder('Todavía no está activo'),
+                    TextEntry::make('source_content_type')
+                        ->label('Qué detectamos en el Word')
+                        ->state(fn (): string => $this->sourceContentDescription())
+                        ->columnSpanFull(),
                 ])->columns(2)->columnSpanFull(),
 
             Section::make('1. Esto fue lo que entendimos')
@@ -43,11 +47,18 @@ class ViewInstitutionalFormat extends ViewRecord
                     TextEntry::make('detected_count')->label('Campos encontrados')->state(fn (): string => (string) $this->candidateCount()),
                     TextEntry::make('mapped_count')->label('Relacionados automáticamente')->state(fn (): string => (string) $this->mappedCount()),
                     TextEntry::make('unmapped_count')->label('Por revisar')->state(fn (): string => (string) $this->unmappedCount()),
-                    TextEntry::make('detected_fields')->label('Ejemplos de lo que entendimos')->state(fn (): string => $this->detectedExamples()),
+                    TextEntry::make('detected_fields')->label('Ejemplos de lo que entendimos')->state(fn (): string => $this->detectedExamples())->columnSpanFull(),
+                    TextEntry::make('previous_content_examples')
+                        ->label('Contenido anterior que será reemplazado')
+                        ->state(fn (): string => $this->priorContentExamples())
+                        ->visible(fn (): bool => $this->filledSource())
+                        ->columnSpanFull(),
                 ])->columns(3)->columnSpanFull(),
 
             Section::make('2. Mira un ejemplo antes de decidir')
-                ->description('La muestra usa datos ficticios para que veas en qué parte del documento colocaremos cada tipo de información.')
+                ->description($this->filledSource()
+                    ? 'La muestra sustituye la información de la planeación anterior por datos ficticios nuevos. Revisa que el texto viejo ya no aparezca y que cada dato nuevo quede en el lugar correcto.'
+                    : 'La muestra usa datos ficticios para que veas en qué parte del documento colocaremos cada tipo de información.')
                 ->schema([
                     TextEntry::make('preview_status')->label('Vista previa')->state(fn (): string => $this->previewStatus())->badge(),
                     TextEntry::make('next_step')->label('Qué hacer ahora')->state(fn (): string => $this->nextStep()),
@@ -130,7 +141,9 @@ class ViewInstitutionalFormat extends ViewRecord
                 ->icon('heroicon-o-check-circle')
                 ->requiresConfirmation()
                 ->modalHeading('¿El ejemplo se ve como esperabas?')
-                ->modalDescription('Al confirmar, este formato quedará activo para tus planeaciones. Si algo está mal, cancela y usa “Corregir lo que entendimos”.')
+                ->modalDescription($this->filledSource()
+                    ? 'Confirma solo si el contenido de la planeación anterior ya fue reemplazado y los datos de ejemplo están en el lugar correcto.'
+                    : 'Al confirmar, este formato quedará activo para tus planeaciones. Si algo está mal, cancela y usa “Corregir lo que entendimos”.')
                 ->visible(fn (): bool => $version->published_at === null && $sample?->status === FormatSampleStatus::Pending)
                 ->action(fn () => $this->runAction(function (): void {
                     app(ReviewInstitutionalFormatSample::class)->approve(
@@ -190,7 +203,8 @@ class ViewInstitutionalFormat extends ViewRecord
     /** @return array<int,Select> */
     private function mappingFields(): array
     {
-        $options = app(InstitutionalFormatFieldCatalog::class)->options();
+        $catalog = app(InstitutionalFormatFieldCatalog::class);
+        $options = $catalog->options();
         $mapping = is_array($this->version()->mapping) ? $this->version()->mapping : [];
         $currentAnchors = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
         $currentTokens = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
@@ -201,6 +215,15 @@ class ViewInstitutionalFormat extends ViewRecord
             $sourceLabel = trim((string) ($anchor['label'] ?? $id));
             $confidence = isset($anchor['confidence']) ? (int) $anchor['confidence'] : null;
             $suggested = $anchor['suggested_path'] ?? null;
+            $previous = trim((string) ($anchor['current_value_excerpt'] ?? ''));
+
+            $helper = $suggested
+                ? 'Nuestra sugerencia: “' . $catalog->labelFor((string) $suggested) . '”' . ($confidence ? ' (' . $confidence . '% de confianza).' : '.')
+                : 'No estamos seguros de qué dato corresponde aquí. Elige uno solo si esta zona debe llenarse automáticamente.';
+
+            if ($previous !== '') {
+                $helper .= ' En la planeación que subiste actualmente aparece: “' . $previous . '”. Ese texto se usará solo como referencia y será reemplazado.';
+            }
 
             $fields[] = Select::make('anchor_' . $index)
                 ->label('En tu Word aparece: “' . $sourceLabel . '”')
@@ -209,9 +232,7 @@ class ViewInstitutionalFormat extends ViewRecord
                 ->native(false)
                 ->placeholder('No llenar esta zona automáticamente')
                 ->default($currentAnchors[$id] ?? $suggested ?? null)
-                ->helperText($suggested
-                    ? 'Nuestra sugerencia: “' . app(InstitutionalFormatFieldCatalog::class)->labelFor((string) $suggested) . '”' . ($confidence ? ' (' . $confidence . '% de confianza).' : '.')
-                    : 'No estamos seguros de qué dato corresponde aquí. Elige uno solo si esta zona debe llenarse automáticamente.');
+                ->helperText($helper);
         }
 
         foreach ($this->placeholders() as $index => $token) {
@@ -294,6 +315,41 @@ class ViewInstitutionalFormat extends ViewRecord
         return max(0, $this->candidateCount() - $this->mappedCount());
     }
 
+    private function filledSource(): bool
+    {
+        return data_get($this->version()->validation_report, 'analysis.source_content_mode') === 'filled_example';
+    }
+
+    private function sourceContentDescription(): string
+    {
+        if ($this->filledSource()) {
+            $count = (int) data_get($this->version()->validation_report, 'analysis.existing_value_count', 0);
+            return 'Parece una planeación ya llena. Detectamos ' . $count . ' zona(s) con información anterior. La usamos únicamente para entender el formato: al generar una nueva planeación, esos datos se reemplazan y no se mezclan con los nuevos.';
+        }
+
+        return 'Parece una plantilla o formato sin contenido previo relevante. El sistema llenará las zonas que hayas confirmado.';
+    }
+
+    private function priorContentExamples(): string
+    {
+        $rows = [];
+        foreach ($this->anchors() as $anchor) {
+            $previous = trim((string) ($anchor['current_value_excerpt'] ?? ''));
+            if ($previous === '') {
+                continue;
+            }
+            $label = trim((string) ($anchor['label'] ?? 'Campo'));
+            $rows[] = '“' . $label . '” actualmente contiene “' . $previous . '”';
+            if (count($rows) >= 5) {
+                break;
+            }
+        }
+
+        return $rows === []
+            ? 'Detectamos contenido anterior, pero no necesitamos mostrarlo completo para configurar el formato.'
+            : implode(' | ', $rows) . '. Este contenido se reemplazará en la muestra y en futuras planeaciones.';
+    }
+
     private function detectedExamples(): string
     {
         if ($this->candidateCount() === 0) {
@@ -356,7 +412,9 @@ class ViewInstitutionalFormat extends ViewRecord
         }
 
         return match ($sample->status) {
-            FormatSampleStatus::Pending => 'Primero abre “Ver ejemplo PDF”. Si se ve bien, pulsa “Usar este formato”. Si algo quedó en la zona equivocada, pulsa “Corregir lo que entendimos”.',
+            FormatSampleStatus::Pending => $this->filledSource()
+                ? 'Abre “Ver ejemplo PDF” y confirma dos cosas: que la información anterior desapareció y que los datos nuevos quedaron en las zonas correctas. Si es así, pulsa “Usar este formato”.'
+                : 'Primero abre “Ver ejemplo PDF”. Si se ve bien, pulsa “Usar este formato”. Si algo quedó en la zona equivocada, pulsa “Corregir lo que entendimos”.',
             FormatSampleStatus::Approved => 'La muestra ya fue aceptada. Solo falta activar el formato.',
             FormatSampleStatus::Rejected => 'Pulsa “Corregir lo que entendimos”, ajusta las relaciones y te prepararemos un nuevo ejemplo automáticamente.',
         };
