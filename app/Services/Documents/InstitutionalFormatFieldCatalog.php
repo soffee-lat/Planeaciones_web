@@ -31,8 +31,11 @@ final class InstitutionalFormatFieldCatalog
             'assessment_plan.ongoing' => 'Seguimiento / evaluación continua',
             'assessment_plan.closure' => 'Evaluación de cierre',
             'resources' => 'Recursos / materiales',
+            'resources.physical_materials' => 'Materiales físicos',
+            'resources.digital_resources' => 'Recursos digitales',
             'adaptation_notes' => 'Adecuaciones / atención a la diversidad',
             'context' => 'Contexto / características del grupo',
+            'context.group_name' => 'Grupo',
         ];
     }
 
@@ -53,11 +56,12 @@ final class InstitutionalFormatFieldCatalog
         // with anchored branches. This avoids accidental '/' termination.
         $rules = [
             ['~(?:titulo|nombre) de (?:la )?planeacion|^titulo$~', 'planning.title', 96],
-            ['~^(?:nombre del )?proyecto$|^proyecto(?: didactico)?$~', 'planning.project_name', 95],
+            ['~^(?:titulo|nombre) del proyecto$|^(?:nombre del )?proyecto$|^proyecto(?: didactico)?$~', 'planning.project_name', 95],
             ['~^tema(?: central)?$|^tematica$~', 'planning.topic', 95],
-            ['~fecha (?:de )?inicio|inicio del periodo~', 'planning.starts_on', 92],
+            ['~^fecha$|fecha (?:de )?inicio|inicio del periodo~', 'planning.starts_on', 92],
             ['~fecha (?:de )?(?:termino|fin)|fin del periodo~', 'planning.ends_on', 92],
             ['~^grado(?: escolar)?$~', 'curricular_alignment.grade.name', 98],
+            ['~^grupo$~', 'context.group_name', 98],
             ['~^fase(?: educativa)?$~', 'curricular_alignment.phase.name', 98],
             ['~campos? formativos?~', 'curricular_alignment.fields', 98],
             ['~^contenidos?(?: curriculares?)?$~', 'curricular_alignment.contents', 96],
@@ -74,6 +78,8 @@ final class InstitutionalFormatFieldCatalog
             ['~evaluacion continua|seguimiento|evaluacion formativa~', 'assessment_plan.ongoing', 92],
             ['~evaluacion final|evaluacion de cierre~', 'assessment_plan.closure', 94],
             ['~^evaluacion$|plan de evaluacion|instrumentos? de evaluacion~', 'assessment_plan', 90],
+            ['~^fisicos?$|^materiales fisicos$~', 'resources.physical_materials', 94],
+            ['~^digitales?$|^recursos digitales$~', 'resources.digital_resources', 94],
             ['~recursos|materiales|material didactico~', 'resources', 89],
             ['~adecuaciones|ajustes razonables|atencion a la diversidad|inclusion~', 'adaptation_notes', 92],
             ['~contexto del grupo|caracteristicas del grupo|diagnostico del grupo~', 'context', 88],
