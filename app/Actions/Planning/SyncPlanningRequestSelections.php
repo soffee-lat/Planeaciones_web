@@ -19,7 +19,8 @@ use Illuminate\Validation\ValidationException;
  * para devolver un error semántico claro antes de tocar la base.
  *
  * Incrementa `selection_revision` y `input_revision` iff los pivotes cambian
- * realmente respecto al estado previo.
+ * realmente respecto al estado previo. Un cambio invalida cualquier mapa
+ * curricular previamente confirmado.
  */
 class SyncPlanningRequestSelections
 {
@@ -102,6 +103,8 @@ class SyncPlanningRequestSelections
 
             $fresh->selection_revision = (int) $fresh->selection_revision + 1;
             $fresh->input_revision = (int) $fresh->input_revision + 1;
+            $fresh->curriculum_confirmed_at = null;
+            $fresh->curriculum_selection_fingerprint = null;
             $fresh->save();
 
             return $fresh->refresh();
