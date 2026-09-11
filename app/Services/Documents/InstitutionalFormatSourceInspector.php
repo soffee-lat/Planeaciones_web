@@ -155,16 +155,15 @@ final class InstitutionalFormatSourceInspector
                     continue;
                 }
 
+                // In planning tables the most common structure is label | value.
+                // Once the current cell is a recognized label, the next cell in
+                // the same row is the replacement target even if its old content
+                // also contains words such as "PDA" or "evaluación".
                 $targetIndex = null;
                 $targetValue = '';
                 if ($local + 1 < $count) {
-                    $candidateIndex = $sourceIndex + 1;
-                    $candidateText = trim((string) ($cellTexts[$candidateIndex] ?? ''));
-                    $candidateProposal = $candidateText === '' ? null : $this->catalog->suggest($this->cleanLabel($candidateText));
-                    if ($candidateProposal === null) {
-                        $targetIndex = $candidateIndex;
-                        $targetValue = $candidateText;
-                    }
+                    $targetIndex = $sourceIndex + 1;
+                    $targetValue = trim((string) ($cellTexts[$targetIndex] ?? ''));
                 }
 
                 $this->addAnchor(
@@ -240,8 +239,15 @@ final class InstitutionalFormatSourceInspector
             if ($position + 1 < $itemCount) {
                 $next = $items[$position + 1];
                 $nextText = trim((string) $next['text']);
+                $currentIsExplicitLabel = $inline !== null || $this->looksLikeLabel($text);
+                $nextLooksExplicitlyLikeLabel = $this->looksLikeLabel($nextText);
                 $nextProposal = $nextText === '' ? null : $this->catalog->suggest($this->cleanLabel($nextText));
-                if ($nextProposal === null) {
+
+                if ($currentIsExplicitLabel) {
+                    if (! $nextLooksExplicitlyLikeLabel) {
+                        $target = $next;
+                    }
+                } elseif ($nextProposal === null) {
                     $target = $next;
                 }
             }
