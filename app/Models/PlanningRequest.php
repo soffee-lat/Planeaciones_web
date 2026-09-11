@@ -37,6 +37,21 @@ class PlanningRequest extends Model
         'requested_assessment',
     ];
 
+    /**
+     * Campos que alimentan directamente la propuesta curricular determinista.
+     * Si alguno cambia, una confirmación previa del mapa deja de ser vigente.
+     *
+     * @var list<string>
+     */
+    public const CURRICULUM_MAP_INPUT_FIELDS = [
+        'project',
+        'topic',
+        'book_pages',
+        'required_activities',
+        'special_events',
+        'comments',
+    ];
+
     protected $fillable = [
         'owner_id',
         'group_id',
@@ -45,6 +60,7 @@ class PlanningRequest extends Model
         'creation_mode',
         'selection_revision',
         'curriculum_confirmed_at',
+        'curriculum_selection_fingerprint',
         'starts_on',
         'ends_on',
         'period_label',
@@ -174,6 +190,11 @@ class PlanningRequest extends Model
         return $this->hasMany(RequestStateEvent::class, 'request_id');
     }
 
+    public function productEvents(): HasMany
+    {
+        return $this->hasMany(ProductEvent::class, 'planning_request_id');
+    }
+
     public function aiExecutions(): HasMany
     {
         return $this->hasMany(AiExecution::class, 'request_id');
@@ -233,6 +254,13 @@ class PlanningRequest extends Model
     {
         return $this->status !== PlanningRequestStatus::BORRADOR
             && $this->status !== PlanningRequestStatus::CANCELADA;
+    }
+
+    public function hasConfirmedCurriculumMap(): bool
+    {
+        return $this->curriculum_confirmed_at !== null
+            && is_string($this->curriculum_selection_fingerprint)
+            && preg_match('/^[0-9a-f]{64}$/', $this->curriculum_selection_fingerprint) === 1;
     }
 
     public function scopeOwnedBy(Builder $query, int $userId): Builder
