@@ -24,8 +24,44 @@ class CanonicalPlanValidator
             throw new AiContractException('AI_SCHEMA_INVALID', '$', 'canonical_plan_v1');
         }
 
-        $this->schemaValidator->validate($payload, $schema);
+        $basePayload = $payload;
+        unset($basePayload['custom']);
+        $this->schemaValidator->validate($basePayload, $schema);
+        $this->validateCustom($payload['custom'] ?? null);
 
         return new CanonicalPlan($payload);
+    }
+
+    private function validateCustom(mixed $custom): void
+    {
+        if ($custom === null) {
+            return;
+        }
+        if (! is_array($custom) || array_is_list($custom)) {
+            throw new AiContractException('CANONICAL_CUSTOM_OBJECT_REQUIRED', '$.custom');
+        }
+
+        foreach ($custom as $key => $value) {
+            $key = (string) $key;
+            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
+                throw new AiContractException('CANONICAL_CUSTOM_KEY_INVALID', '$.custom.' . $key);
+            }
+            if (is_string($value) && trim($value) !== '') {
+                continue;
+            }
+            if (is_array($value) && array_is_list($value) && $value !== []) {
+                $valid = true;
+                foreach ($value as $item) {
+                    if (! is_string($item) || trim($item) === '') {
+                        $valid = false;
+                        break;
+                    }
+                }
+                if ($valid) {
+                    continue;
+                }
+            }
+            throw new AiContractException('CANONICAL_CUSTOM_VALUE_INVALID', '$.custom.' . $key);
+        }
     }
 }
