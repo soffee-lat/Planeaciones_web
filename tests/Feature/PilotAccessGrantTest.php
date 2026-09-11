@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Actions\Planning\StartPlanningExperiment;
 use App\Models\Plan;
+use App\Models\PromptTemplate;
+use App\Models\PromptVersion;
 use App\Models\Subscription;
 
 class PilotAccessGrantTest extends PedagogyTestCase
@@ -15,7 +17,8 @@ class PilotAccessGrantTest extends PedagogyTestCase
         $this->artisan('validation:grant-pilot-access', [
             'email' => $ctx['user']->email,
             '--days' => 30,
-        ])->expectsOutputToContain('Acceso piloto otorgado')
+        ])->expectsOutputToContain('Prompts IA listos')
+            ->expectsOutputToContain('Acceso piloto otorgado')
             ->assertSuccessful();
 
         $subscription = Subscription::query()->where('customer_id', $ctx['user']->id)->sole();
@@ -30,14 +33,44 @@ class PilotAccessGrantTest extends PedagogyTestCase
         $this->assertTrue((bool) ($version->features['curricular_validation_pilot'] ?? false));
         $this->assertSame(50, (int) $version->planning_limit);
 
+        foreach (['planning.generation', 'planning.audit', 'planning.correction'] as $key) {
+            $template = PromptTemplate::query()->where('key', $key)->firstOrFail();
+            $this->assertNotNull($template->active_version_id);
+            $this->assertNotNull($template->activeVersion?->published_at);
+            $this->assertNotEmpty($template->activeVersion?->checksum);
+        }
+
         $this->artisan('validation:grant-pilot-access', [
             'email' => $ctx['user']->email,
             '--days' => 30,
-        ])->expectsOutputToContain('Acceso ya vigente')
+        ])->expectsOutputToContain('Prompts IA listos')
+            ->expectsOutputToContain('Acceso ya vigente')
             ->assertSuccessful();
 
         $this->assertSame(1, Subscription::query()->where('customer_id', $ctx['user']->id)->count());
         $this->assertSame(1, $subscription->periods()->count());
+        $this->assertSame(3, PromptTemplate::query()->count());
+        $this->assertSame(3, PromptVersion::query()->count());
+    }
+
+    public function test_comando_de_prompts_es_idempotente_y_publica_los_tres_contratos(): void
+    {
+        $this->seedFullTeacher();
+
+        $this->artisan('validation:ensure-ai-prompts')
+            ->expectsOutputToContain('generation: template=planning.generation')
+            ->expectsOutputToContain('audit: template=planning.audit')
+            ->expectsOutputToContain('correction: template=planning.correction')
+            ->assertSuccessful();
+
+        $this->artisan('validation:ensure-ai-prompts')->assertSuccessful();
+
+        $this->assertSame(3, PromptTemplate::query()->count());
+        $this->assertSame(3, PromptVersion::query()->count());
+        $this->assertSame(
+            ['audit_result_v1', 'correction_result_v1', 'generated_plan_draft_v1'],
+            PromptVersion::query()->orderBy('schema_version')->pluck('schema_version')->all(),
+        );
     }
 
     public function test_dispatch_generation_de_borrador_reporta_not_ready_en_vez_de_error_generico(): void
