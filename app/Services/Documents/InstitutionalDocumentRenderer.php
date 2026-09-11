@@ -19,12 +19,7 @@ final class InstitutionalDocumentRenderer
     public const FORMAT_RENDERER = 'institutional-v1';
     public const RENDERER_VERSION = 'institutional-v1.0.0';
 
-    public function __construct(
-        private CanonicalPlanValidator $validator,
-        private InstitutionalFormatMapping $mapping,
-        private InstitutionalDocxTemplateEngine $template,
-        private StandardPdfRenderer $pdf,
-    ) {}
+    public function __construct(private CanonicalPlanValidator $validator, private InstitutionalFormatMapping $mapping, private InstitutionalDocxTemplateEngine $template, private StandardPdfRenderer $pdf) {}
 
     /** @return array{0:RenderedArtifact,1:RenderedArtifact} */
     public function render(DocumentVersion $version, FormatVersion $formatVersion): array
@@ -32,54 +27,19 @@ final class InstitutionalDocumentRenderer
         if ($formatVersion->renderer !== self::FORMAT_RENDERER || $formatVersion->published_at === null) {
             throw new DocumentRenderException('DOCUMENT_RENDERER_NOT_SUPPORTED', $formatVersion->renderer);
         }
-        $formatVersion->loadMissing(['format', 'sourceFile']);
-        $source = $formatVersion->sourceFile;
-        if (! $source
-            || $source->category !== FileCategory::InstitutionalFormat
-            || $source->scan_status !== FileScanStatus::Clean
-            || $source->purged_at !== null
-            || (int) $source->owner_id !== (int) $formatVersion->format?->owner_id) {
-            throw new DocumentRenderException('DOCUMENT_RENDER_FORMAT_SOURCE_NOT_READY');
-        }
-
         $canonical = $this->validator->validate($version->content)->toArray();
-        if (CanonicalJson::hash($canonical) !== $version->content_hash) {
-            throw new DocumentRenderException('DOCUMENT_RENDER_SOURCE_HASH_MISMATCH');
-        }
-
+        if (CanonicalJson::hash($canonical) !== $version->content_hash) throw new DocumentRenderException('DOCUMENT_RENDER_SOURCE_HASH_MISMATCH');
         try {
-            $normalizedMapping = $this->mapping->validate($formatVersion, $formatVersion->mapping);
-            $storage = Storage::disk($source->disk);
-            if (! $storage->exists($source->path)) {
-                throw new DocumentFormatException('FORMAT_SOURCE_BYTES_MISSING');
-            }
-            $sourceBytes = $storage->get($source->path);
-            if (! is_string($sourceBytes) || hash('sha256', $sourceBytes) !== $source->sha256) {
-                throw new DocumentFormatException('FORMAT_SOURCE_HASH_MISMATCH');
-            }
-            $docxBytes = $this->template->render(
-                $sourceBytes,
-                $this->mapping->replacements($canonical, $normalizedMapping),
-            );
+            [$source, $sourceBytes, $normalized] = $this->source($formatVersion);
+            $docxBytes = $this->template->render($sourceBytes, $this->mapping->values($canonical, $normalized), (array) ($formatVersion->validation_report['analysis'] ?? []));
             $pdfBytes = $this->pdf->render($this->template->textBlocks($docxBytes));
         } catch (DocumentFormatException $e) {
             throw new DocumentRenderException('DOCUMENT_RENDER_INSTITUTIONAL_FORMAT_INVALID', $e->getMessage());
         }
-
-        if (! str_starts_with($docxBytes, "PK\x03\x04") || strlen($docxBytes) < 300) {
-            throw new DocumentRenderException('DOCUMENT_RENDER_DOCX_INVALID');
-        }
-        if (! str_starts_with($pdfBytes, '%PDF-1.4') || ! str_ends_with($pdfBytes, "%%EOF\n") || strlen($pdfBytes) < 500) {
-            throw new DocumentRenderException('DOCUMENT_RENDER_PDF_INVALID');
-        }
-
+        if (! str_starts_with($docxBytes, "PK\x03\x04") || strlen($docxBytes) < 300) throw new DocumentRenderException('DOCUMENT_RENDER_DOCX_INVALID');
+        if (! str_starts_with($pdfBytes, '%PDF-1.4') || ! str_ends_with($pdfBytes, "%%EOF\n") || strlen($pdfBytes) < 500) throw new DocumentRenderException('DOCUMENT_RENDER_PDF_INVALID');
         return [
-            new RenderedArtifact(
-                DocumentOutputFormat::Docx,
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'docx',
-                $docxBytes,
-            ),
+            new RenderedArtifact(DocumentOutputFormat::Docx, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx', $docxBytes),
             new RenderedArtifact(DocumentOutputFormat::Pdf, 'application/pdf', 'pdf', $pdfBytes),
         ];
     }
@@ -87,28 +47,26 @@ final class InstitutionalDocumentRenderer
     /** @return array{docx:string,pdf:string} */
     public function renderSample(FormatVersion $formatVersion): array
     {
+        [, $sourceBytes, $normalized] = $this->source($formatVersion);
+        $docx = $this->template->render($sourceBytes, $this->mapping->sampleValues($normalized), (array) ($formatVersion->validation_report['analysis'] ?? []));
+        return ['docx' => $docx, 'pdf' => $this->pdf->render($this->template->textBlocks($docx))];
+    }
+
+    /** @return array{0:mixed,1:string,2:array<string,mixed>} */
+    private function source(FormatVersion $formatVersion): array
+    {
         $formatVersion->loadMissing(['format', 'sourceFile']);
         $source = $formatVersion->sourceFile;
-        if ($formatVersion->renderer !== self::FORMAT_RENDERER
-            || ! $source
-            || $source->category !== FileCategory::InstitutionalFormat
-            || $source->scan_status !== FileScanStatus::Clean
-            || $source->purged_at !== null
+        if ($formatVersion->renderer !== self::FORMAT_RENDERER || ! $source || $source->category !== FileCategory::InstitutionalFormat
+            || $source->scan_status !== FileScanStatus::Clean || $source->purged_at !== null
             || (int) $source->owner_id !== (int) $formatVersion->format?->owner_id) {
             throw new DocumentFormatException('FORMAT_SAMPLE_RENDERER_NOT_SUPPORTED');
         }
-        $normalizedMapping = $this->mapping->validate($formatVersion, $formatVersion->mapping);
+        $normalized = $this->mapping->validate($formatVersion, $formatVersion->mapping);
         $storage = Storage::disk($source->disk);
-        if (! $storage->exists($source->path)) {
-            throw new DocumentFormatException('FORMAT_SOURCE_BYTES_MISSING');
-        }
-        $sourceBytes = $storage->get($source->path);
-        if (! is_string($sourceBytes) || hash('sha256', $sourceBytes) !== $source->sha256) {
-            throw new DocumentFormatException('FORMAT_SOURCE_HASH_MISMATCH');
-        }
-        $docx = $this->template->render($sourceBytes, $this->mapping->sampleReplacements($normalizedMapping));
-        $pdf = $this->pdf->render($this->template->textBlocks($docx));
-
-        return ['docx' => $docx, 'pdf' => $pdf];
+        if (! $storage->exists($source->path)) throw new DocumentFormatException('FORMAT_SOURCE_BYTES_MISSING');
+        $bytes = $storage->get($source->path);
+        if (! is_string($bytes) || hash('sha256', $bytes) !== $source->sha256) throw new DocumentFormatException('FORMAT_SOURCE_HASH_MISMATCH');
+        return [$source, $bytes, $normalized];
     }
 }

@@ -17,13 +17,12 @@ final class AnalyzeInstitutionalFormatVersion
 
     public function execute(FormatVersion $version, User $actor): FormatVersion
     {
-        $this->assertAdmin($actor);
         $version->loadMissing(['format', 'sourceFile']);
+        $this->assertOwner($version, $actor);
         if ($version->published_at !== null || $version->format?->kind !== InstitutionalFormatKind::Institutional) {
             throw new DocumentFormatException('FORMAT_ANALYSIS_STATE_INVALID');
         }
-        if (! $version->sourceFile
-            || (int) $version->sourceFile->owner_id !== (int) $version->format->owner_id) {
+        if (! $version->sourceFile || (int) $version->sourceFile->owner_id !== (int) $version->format->owner_id) {
             throw new DocumentFormatException('FORMAT_VERSION_SOURCE_NOT_READY');
         }
 
@@ -32,46 +31,35 @@ final class AnalyzeInstitutionalFormatVersion
         } catch (DocumentFormatException $e) {
             DB::transaction(function () use ($version, $e): void {
                 $locked = FormatVersion::query()->with('format')->whereKey($version->id)->lockForUpdate()->firstOrFail();
-                if ($locked->published_at === null && $locked->format?->kind === InstitutionalFormatKind::Institutional) {
-                    $locked->forceFill([
-                        'validation_report' => [
-                            'status' => 'unsupported',
-                            'analysis' => ['error_code' => $e->getMessage()],
-                        ],
-                    ])->save();
-                    $locked->format->forceFill(['status' => InstitutionalFormatStatus::Unsupported->value])->save();
-                }
+                $locked->forceFill(['validation_report' => ['status' => 'unsupported', 'analysis' => ['error_code' => $e->getMessage()]]])->save();
+                $locked->format->forceFill(['status' => InstitutionalFormatStatus::Unsupported->value])->save();
             }, attempts: 3);
             throw $e;
         }
 
         return DB::transaction(function () use ($version, $analysis): FormatVersion {
             $locked = FormatVersion::query()->with(['format', 'sourceFile'])->whereKey($version->id)->lockForUpdate()->firstOrFail();
-            if ($locked->published_at !== null
-                || $locked->format?->kind !== InstitutionalFormatKind::Institutional
-                || ! $locked->sourceFile
-                || $locked->sourceFile->sha256 !== $analysis['source_sha256']) {
+            if ($locked->published_at !== null || ! $locked->sourceFile || $locked->sourceFile->sha256 !== $analysis['source_sha256']) {
                 throw new DocumentFormatException('FORMAT_ANALYSIS_STALE');
             }
+            $suggested = $analysis['suggested_mapping'];
+            $hasMapping = ($suggested['anchors'] ?? []) !== [] || ($suggested['placeholders'] ?? []) !== [];
             $locked->forceFill([
-                'mapping' => ['schema_version' => 1, 'placeholders' => (object) []],
-                'schema_version' => 1,
+                'mapping' => $suggested,
+                'schema_version' => 2,
                 'renderer' => 'institutional-v1',
-                'validation_report' => [
-                    'status' => 'analysis_complete',
-                    'analysis' => $analysis,
-                ],
+                'validation_report' => ['status' => $hasMapping ? 'mapping_ready' : 'analysis_complete', 'analysis' => $analysis],
             ])->save();
             $locked->format->forceFill(['status' => InstitutionalFormatStatus::Configuring->value])->save();
-
             return $locked->fresh(['format', 'sourceFile']);
         }, attempts: 3);
     }
 
-    private function assertAdmin(User $actor): void
+    private function assertOwner(FormatVersion $version, User $actor): void
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || (int) $version->format?->owner_id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }
