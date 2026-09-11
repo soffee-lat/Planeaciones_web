@@ -16,12 +16,16 @@ final class ConfigureInstitutionalFormatMapping
     public function __construct(private InstitutionalFormatMapping $mapping) {}
 
     /** @param array<string,mixed> $mapping */
-    public function execute(FormatVersion $version, array $mapping, User $actor): FormatVersion
-    {
+    public function execute(
+        FormatVersion $version,
+        array $mapping,
+        User $actor,
+        bool $preserveVisualBindings = true,
+    ): FormatVersion {
         $version->loadMissing('format');
         $this->assertOwner($version, $actor);
 
-        return DB::transaction(function () use ($version, $mapping): FormatVersion {
+        return DB::transaction(function () use ($version, $mapping, $preserveVisualBindings): FormatVersion {
             $locked = FormatVersion::query()->with(['format', 'sourceFile'])->whereKey($version->id)->lockForUpdate()->firstOrFail();
             if ($locked->published_at !== null || $locked->format?->kind !== InstitutionalFormatKind::Institutional) {
                 throw new DocumentFormatException('FORMAT_MAPPING_STATE_INVALID');
@@ -38,22 +42,24 @@ final class ConfigureInstitutionalFormatMapping
                 $incoming['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
             }
 
-            $incomingAnchors = is_array($incoming['anchors'] ?? null) ? $incoming['anchors'] : [];
-            $existingAnchors = is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [];
-            $automaticIds = [];
-            foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
-                if (is_array($anchor) && is_string($anchor['id'] ?? null)) {
-                    $automaticIds[$anchor['id']] = true;
+            if ($preserveVisualBindings) {
+                $incomingAnchors = is_array($incoming['anchors'] ?? null) ? $incoming['anchors'] : [];
+                $existingAnchors = is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [];
+                $automaticIds = [];
+                foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                    if (is_array($anchor) && is_string($anchor['id'] ?? null)) {
+                        $automaticIds[$anchor['id']] = true;
+                    }
                 }
-            }
-            foreach ($existingAnchors as $id => $path) {
-                $id = (string) $id;
-                $path = (string) $path;
-                if (! isset($automaticIds[$id]) || str_starts_with($path, 'custom.')) {
-                    $incomingAnchors[$id] ??= $path;
+                foreach ($existingAnchors as $id => $path) {
+                    $id = (string) $id;
+                    $path = (string) $path;
+                    if (! isset($automaticIds[$id]) || str_starts_with($path, 'custom.')) {
+                        $incomingAnchors[$id] ??= $path;
+                    }
                 }
+                $incoming['anchors'] = $incomingAnchors;
             }
-            $incoming['anchors'] = $incomingAnchors;
 
             $normalized = $this->mapping->validate($locked, $incoming);
             $report = $locked->validation_report ?? [];
