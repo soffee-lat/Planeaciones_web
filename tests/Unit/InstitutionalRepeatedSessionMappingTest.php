@@ -51,12 +51,18 @@ class InstitutionalRepeatedSessionMappingTest extends TestCase
         $this->assertSame('sessions.1.title', $result['anchors']['c:30']);
         $this->assertSame('sessions.1.date', $result['anchors']['c:31']);
         $this->assertSame('sessions.1.opening', $result['anchors']['c:42']);
-        $this->assertSame('sessions.1.instruments', $result['anchors']['c:51']);
 
         $this->assertArrayNotHasKey('c:10', $result['anchors']);
         $this->assertArrayNotHasKey('c:13', $result['anchors']);
         $this->assertArrayNotHasKey('c:14', $result['anchors']);
         $this->assertArrayNotHasKey('c:15', $result['anchors']);
+        $this->assertArrayNotHasKey('c:50', $result['anchors']);
+        $this->assertArrayNotHasKey('c:51', $result['anchors']);
+
+        $fragmentPaths = array_column($result['fragments'], 'field_path');
+        $this->assertContains('sessions.1.render.assessment', $fragmentPaths);
+        $this->assertContains('sessions.1.render.evidence', $fragmentPaths);
+        $this->assertContains('sessions.1.render.instruments', $fragmentPaths);
         $this->assertSame([], $result['custom_fields']);
     }
 
@@ -222,6 +228,7 @@ class InstitutionalRepeatedSessionMappingTest extends TestCase
             16 => ['Inicio', 'sessions.opening', 'c:17'],
             18 => ['Desarrollo', 'sessions.development', 'c:19'],
             20 => ['Cierre', 'sessions.closing', 'c:21'],
+            24 => ['Evidencias', null, 'c:25'],
             27 => ['Grado', 'curricular_alignment.grade.name'],
             28 => ['Grupo', 'context.group_name'],
             30 => ['Titulo del proyecto', 'planning.project_name'],
@@ -235,6 +242,7 @@ class InstitutionalRepeatedSessionMappingTest extends TestCase
             42 => ['Inicio', 'sessions.opening', 'c:43'],
             44 => ['Desarrollo', 'sessions.development', 'c:45'],
             46 => ['Cierre', 'sessions.closing', 'c:47'],
+            50 => ['Evidencias', null, 'c:51'],
             51 => ['Instrumento', null],
         ] as $id => $row) {
             $target = $row[2] ?? 'c:' . $id;
