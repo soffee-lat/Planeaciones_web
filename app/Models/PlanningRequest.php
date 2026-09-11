@@ -195,6 +195,11 @@ class PlanningRequest extends Model
         return $this->hasMany(ProductEvent::class, 'planning_request_id');
     }
 
+    public function feedback(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(PlanningFeedback::class, 'planning_request_id');
+    }
+
     public function aiExecutions(): HasMany
     {
         return $this->hasMany(AiExecution::class, 'request_id');
