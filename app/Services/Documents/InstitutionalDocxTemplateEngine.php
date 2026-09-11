@@ -25,6 +25,18 @@ final class InstitutionalDocxTemplateEngine
                 $anchorsById[$anchor['id']] = $anchor;
             }
         }
+        foreach (($analysis['document_zones'] ?? []) as $zone) {
+            if (! is_array($zone) || ! is_string($zone['id'] ?? null) || isset($anchorsById[$zone['id']])) {
+                continue;
+            }
+            $anchorsById[$zone['id']] = [
+                'id' => $zone['id'],
+                'kind' => $zone['kind'] ?? null,
+                'label' => '',
+                'target_id' => $zone['id'],
+                'replacement_mode' => 'replace_target',
+            ];
+        }
 
         $cellOperations = [];
         $paragraphOperations = [];
@@ -39,7 +51,7 @@ final class InstitutionalDocxTemplateEngine
             $targetId = is_string($anchor['target_id'] ?? null) ? $anchor['target_id'] : $id;
             $operation = [
                 'value' => $value,
-                'mode' => (string) ($anchor['replacement_mode'] ?? 'append_after_label'),
+                'mode' => (string) ($anchor['replacement_mode'] ?? 'replace_target'),
                 'label' => (string) ($anchor['label'] ?? ''),
             ];
 
@@ -50,9 +62,6 @@ final class InstitutionalDocxTemplateEngine
             }
         }
 
-        // Paragraph anchors are indexed against the original package. Apply them
-        // before cell operations because filling an empty cell may add a paragraph
-        // and would otherwise shift subsequent paragraph indexes.
         if ($paragraphOperations !== []) {
             $xml = $this->applyOperations(
                 $xml,
