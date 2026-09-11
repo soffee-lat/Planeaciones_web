@@ -8,6 +8,7 @@ final readonly class GenerationInput
      * @param array<string,mixed> $inputSnapshot
      * @param array<string,mixed> $commercialSnapshot
      * @param list<array<string,mixed>> $segments
+     * @param array<string,mixed> $formatContext
      * @param array<string,mixed> $inputManifest
      */
     public function __construct(
@@ -17,6 +18,7 @@ final readonly class GenerationInput
         public array $commercialSnapshot,
         public int $planningUnits,
         public array $segments,
+        public array $formatContext,
         public array $inputManifest,
         public int $promptVersionId,
         public string $outputSchemaVersion,
