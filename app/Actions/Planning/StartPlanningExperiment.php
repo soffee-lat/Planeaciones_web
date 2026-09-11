@@ -87,7 +87,7 @@ final class StartPlanningExperiment
                 ],
             );
 
-            return $request->refresh(['group.profile', 'grade', 'curriculumVersion']);
+            return $request->fresh(['group.profile', 'grade', 'curriculumVersion']) ?? $request;
         }, attempts: 3);
     }
 
