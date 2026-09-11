@@ -98,17 +98,12 @@ final class InstitutionalFormatVisualBindingController
             if ($bindingId !== '' && isset($mapping['fragments'][$bindingId])) {
                 unset($mapping['fragments'][$bindingId]);
             } else {
-                unset($mapping['anchors'][$zoneId]);
-                foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
-                    if (is_array($anchor) && (string) ($anchor['target_id'] ?? '') === $zoneId) {
-                        unset($mapping['anchors'][(string) ($anchor['id'] ?? '')]);
-                    }
-                }
+                $this->removeWholeZoneBindings($mapping, $analysis, $zoneId, removeFragments: false);
             }
         }
 
         $mapping['ignored_zones'] = array_values(array_unique(array_map('strval', $mapping['ignored_zones'])));
-        $configured = app(ConfigureInstitutionalFormatMapping::class)->execute($version, $mapping, $user, preserveVisualBindings: false);
+        $configured = $configure->execute($version, $mapping, $user, preserveVisualBindings: false);
         $normalized = is_array($configured->mapping) ? $configured->mapping : [];
 
         return response()->json([
@@ -158,7 +153,7 @@ final class InstitutionalFormatVisualBindingController
     private function bind(array &$mapping, array $analysis, string $zoneId, string $bindingId, bool $hasFragment, array $data, string $fieldPath): void
     {
         if (! $hasFragment) {
-            $this->removeFragmentsForZone($mapping, $zoneId);
+            $this->removeWholeZoneBindings($mapping, $analysis, $zoneId);
             $mapping['anchors'][$zoneId] = $fieldPath;
             return;
         }
