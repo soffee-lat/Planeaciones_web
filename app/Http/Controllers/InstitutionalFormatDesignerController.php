@@ -17,6 +17,7 @@ final class InstitutionalFormatDesignerController
         $this->assertOwner($format, $user);
 
         $version = $format->versions()
+            ->reorder()
             ->with(['sourceFile', 'samples'])
             ->orderByDesc('number')
             ->firstOrFail();
