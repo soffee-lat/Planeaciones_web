@@ -108,7 +108,7 @@ final class InstitutionalFormatVisualBindingController
             unset($mapping['anchors'][$zoneId]);
         }
 
-        $configured = $configure->execute($version, $mapping, $user);
+        $configured = $configure->execute($version, $mapping, $user, preserveVisualBindings: false);
         $normalized = is_array($configured->mapping) ? $configured->mapping : [];
         $path = $normalized['anchors'][$zoneId] ?? null;
 
