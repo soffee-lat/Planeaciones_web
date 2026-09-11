@@ -41,9 +41,10 @@ final class InstitutionalFormatMapping
         $availableTokens = array_fill_keys(array_map('strval', is_array($analysis['placeholders'] ?? null) ? $analysis['placeholders'] : []), true);
         $anchors = $this->normalizeMap($mapping['anchors'] ?? [], $availableAnchors, 'FORMAT_MAPPING_ANCHOR_MISMATCH', $customFields);
         $placeholders = $this->normalizeMap($mapping['placeholders'] ?? [], $availableTokens, 'FORMAT_MAPPING_PLACEHOLDER_MISMATCH', $customFields);
+        $fragments = $this->normalizeFragments($mapping['fragments'] ?? [], $availableAnchors, $customFields);
         $ignoredZones = $this->normalizeIgnoredZones($mapping['ignored_zones'] ?? [], $availableAnchors);
 
-        if ($anchors === [] && $placeholders === [] && $ignoredZones === [] && $customFields === []) {
+        if ($anchors === [] && $placeholders === [] && $fragments === [] && $ignoredZones === [] && $customFields === []) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
         }
 
@@ -51,6 +52,7 @@ final class InstitutionalFormatMapping
             'schema_version' => 2,
             'anchors' => $anchors,
             'placeholders' => $placeholders,
+            'fragments' => $fragments,
             'custom_fields' => $customFields,
             'ignored_zones' => $ignoredZones,
         ];
@@ -61,13 +63,13 @@ final class InstitutionalFormatMapping
         return CanonicalJson::hash($mapping);
     }
 
-    /** @return array{anchors:array<string,string>,placeholders:array<string,string>} */
+    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>} */
     public function values(array $canonical, array $mapping): array
     {
         return $this->mappedValues($mapping, fn (string $path): string => $this->resolve($canonical, $path));
     }
 
-    /** @return array{anchors:array<string,string>,placeholders:array<string,string>} */
+    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>} */
     public function sampleValues(array $mapping): array
     {
         $customFields = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
@@ -102,7 +104,21 @@ final class InstitutionalFormatMapping
         foreach (($mapping['placeholders'] ?? []) as $token => $path) {
             $placeholders[(string) $token] = $resolver((string) $path);
         }
-        return ['anchors' => $anchors, 'placeholders' => $placeholders];
+        $fragments = [];
+        foreach (($mapping['fragments'] ?? []) as $id => $definition) {
+            if (! is_array($definition)) {
+                continue;
+            }
+            $path = (string) ($definition['field_path'] ?? '');
+            if ($path === '') {
+                continue;
+            }
+            $fragments[(string) $id] = [
+                ...$definition,
+                'value' => $resolver($path),
+            ];
+        }
+        return ['anchors' => $anchors, 'placeholders' => $placeholders, 'fragments' => $fragments];
     }
 
     /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,string>> $customFields @return array<string,string> */
@@ -126,6 +142,57 @@ final class InstitutionalFormatMapping
             }
             $this->assertPath($path, $customFields);
             $normalized[$key] = $path;
+        }
+        ksort($normalized, SORT_STRING);
+        return $normalized;
+    }
+
+    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,string>> $customFields @return array<string,array<string,mixed>> */
+    private function normalizeFragments(mixed $raw, array $available, array $customFields): array
+    {
+        if ($raw === null || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_FRAGMENT_INVALID');
+        }
+
+        $normalized = [];
+        $rangesByZone = [];
+        foreach ($raw as $id => $definition) {
+            $id = trim((string) $id);
+            if (preg_match('/^f_[a-f0-9]{12,64}$/', $id) !== 1 || ! is_array($definition)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_FRAGMENT_INVALID');
+            }
+
+            $zoneId = trim((string) ($definition['zone_id'] ?? ''));
+            $start = filter_var($definition['start'] ?? null, FILTER_VALIDATE_INT);
+            $end = filter_var($definition['end'] ?? null, FILTER_VALIDATE_INT);
+            $sourceText = trim((string) ($definition['source_text'] ?? ''));
+            $labelHint = trim((string) ($definition['label_hint'] ?? ''));
+            $path = trim((string) ($definition['field_path'] ?? ''));
+
+            if (! isset($available[$zoneId]) || $start === false || $end === false || $start < 0 || $end <= $start || $end > 50000
+                || $sourceText === '' || mb_strlen($sourceText) > 1000 || mb_strlen($labelHint) > 160 || $path === '') {
+                throw new DocumentFormatException('FORMAT_MAPPING_FRAGMENT_INVALID');
+            }
+            $this->assertPath($path, $customFields);
+
+            foreach ($rangesByZone[$zoneId] ?? [] as [$existingStart, $existingEnd]) {
+                if ($start < $existingEnd && $end > $existingStart) {
+                    throw new DocumentFormatException('FORMAT_MAPPING_FRAGMENT_OVERLAP');
+                }
+            }
+            $rangesByZone[$zoneId][] = [$start, $end];
+
+            $normalized[$id] = [
+                'zone_id' => $zoneId,
+                'start' => $start,
+                'end' => $end,
+                'source_text' => $sourceText,
+                'label_hint' => $labelHint,
+                'field_path' => $path,
+            ];
         }
         ksort($normalized, SORT_STRING);
         return $normalized;
