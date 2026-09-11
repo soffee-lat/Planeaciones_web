@@ -2,8 +2,9 @@
 
 namespace App\Filament\App\Resources\PlanningRequests\Pages;
 
+use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
-use Filament\Actions\CreateAction;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 
 class ListPlanningRequests extends ListRecords
@@ -12,6 +13,11 @@ class ListPlanningRequests extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [CreateAction::make()->label('Nueva planeación')];
+        return [
+            Action::make('startPlanning')
+                ->label('Nueva planeación')
+                ->icon('heroicon-o-document-plus')
+                ->url(StartPlanning::getUrl()),
+        ];
     }
 }
