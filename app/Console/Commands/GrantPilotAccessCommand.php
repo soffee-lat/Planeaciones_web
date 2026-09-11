@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Actions\Commerce\CreateSubscription;
 use App\Actions\Commerce\OpenSubscriptionPeriod;
 use App\Actions\Plans\PublishPlanVersion;
+use App\Actions\Validation\EnsurePilotAiPrompts;
 use App\Enums\RoleCode;
 use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
@@ -21,12 +22,13 @@ class GrantPilotAccessCommand extends Command
         {email : Correo del docente participante}
         {--days=45 : Días de vigencia del periodo piloto}';
 
-    protected $description = 'Otorga acceso comercial gratuito y acotado para ejecutar el piloto curricular sin desactivar las invariantes de suscripciones.';
+    protected $description = 'Prepara el acceso piloto curricular: prompts IA manuales y suscripción gratuita temporal, sin desactivar invariantes comerciales.';
 
     public function handle(
         CreateSubscription $createSubscription,
         OpenSubscriptionPeriod $openPeriod,
         PublishPlanVersion $publishPlanVersion,
+        EnsurePilotAiPrompts $ensureAiPrompts,
     ): int {
         $email = mb_strtolower(trim((string) $this->argument('email')));
         $days = (int) $this->option('days');
@@ -46,6 +48,30 @@ class GrantPilotAccessCommand extends Command
             || ! $customer->hasVerifiedEmail()
             || ! $customer->hasRole(RoleCode::Customer)) {
             $this->error('PILOT_ACCESS_CUSTOMER_NOT_ELIGIBLE');
+            return self::FAILURE;
+        }
+
+        $publisher = User::query()
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($query) => $query->where('code', RoleCode::Administrator->value))
+            ->orderBy('id')
+            ->first();
+        if (! $publisher) {
+            $this->error('PILOT_ACCESS_ADMIN_REQUIRED');
+            return self::FAILURE;
+        }
+
+        try {
+            $prompts = $ensureAiPrompts->execute($publisher);
+            $this->info(sprintf(
+                'Prompts IA listos: generation=v%d audit=v%d correction=v%d',
+                $prompts['generation']->number,
+                $prompts['audit']->number,
+                $prompts['correction']->number,
+            ));
+        } catch (Throwable $error) {
+            report($error);
+            $this->error($error->getMessage() !== '' ? $error->getMessage() : 'PILOT_AI_PROMPTS_ENSURE_FAILED');
             return self::FAILURE;
         }
 
@@ -79,6 +105,7 @@ class GrantPilotAccessCommand extends Command
                 $createSubscription,
                 $openPeriod,
                 $publishPlanVersion,
+                $publisher,
             ): array {
                 $plan = Plan::query()->firstOrCreate(
                     ['code' => 'validation-pilot'],
@@ -96,15 +123,6 @@ class GrantPilotAccessCommand extends Command
                     ->first();
 
                 if (! $version) {
-                    $publisher = User::query()
-                        ->where('status', 'active')
-                        ->whereHas('roles', fn ($query) => $query->where('code', RoleCode::Administrator->value))
-                        ->orderBy('id')
-                        ->first();
-                    if (! $publisher) {
-                        throw new \RuntimeException('PILOT_ACCESS_ADMIN_REQUIRED');
-                    }
-
                     $nextNumber = ((int) PlanVersion::query()->where('plan_id', $plan->id)->max('number')) + 1;
                     $version = PlanVersion::query()->create([
                         'plan_id' => $plan->id,
