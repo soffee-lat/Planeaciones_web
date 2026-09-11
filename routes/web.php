@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\InstitutionalFormatDesignerController;
 use App\Http\Controllers\InstitutionalFormatVisualBindingController;
+use App\Http\Controllers\InstitutionalFormatVisualPreviewController;
 use App\Http\Controllers\PrivateDeliveryDownloadController;
 use App\Http\Controllers\PrivateFormatSampleDownloadController;
 use App\Http\Controllers\PrivateInstitutionalFormatSourceController;
@@ -20,4 +21,6 @@ Route::middleware('auth')->group(function (): void {
         ->name('institutional-formats.source');
     Route::post('/app/institutional-formats/{format}/visual-binding', InstitutionalFormatVisualBindingController::class)
         ->name('institutional-formats.visual-binding');
+    Route::post('/app/institutional-formats/{format}/visual-preview', InstitutionalFormatVisualPreviewController::class)
+        ->name('institutional-formats.visual-preview');
 });
