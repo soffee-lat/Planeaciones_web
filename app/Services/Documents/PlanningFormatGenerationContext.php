@@ -60,19 +60,28 @@ final class PlanningFormatGenerationContext
 
         usort($customFields, static fn (array $a, array $b): int => strcmp((string) $a['key'], (string) $b['key']));
 
+        $standardPaths = array_values(array_keys(array_filter(
+            $usedPaths,
+            static fn (bool $_, string $path): bool => ! str_starts_with($path, 'custom.'),
+            ARRAY_FILTER_USE_BOTH,
+        )));
+        $standardExamples = array_filter(
+            $examples,
+            static fn (string $_, string $path): bool => ! str_starts_with($path, 'custom.'),
+            ARRAY_FILTER_USE_BOTH,
+        );
+        ksort($standardExamples, SORT_STRING);
+
         return [
             'schema_version' => 1,
             'format_version_id' => (int) $version->id,
             'format_name' => (string) ($version->format?->name ?? 'Formato institucional'),
             'renderer' => (string) $version->renderer,
             'source_content_mode' => data_get($version->validation_report, 'analysis.source_content_mode'),
-            'mapped_standard_paths' => array_values(array_keys(array_filter(
-                $usedPaths,
-                static fn (bool $_, string $path): bool => ! str_starts_with($path, 'custom.'),
-                ARRAY_FILTER_USE_BOTH,
-            ))),
+            'mapped_standard_paths' => $standardPaths,
+            'standard_field_examples' => $standardExamples,
             'custom_fields' => $customFields,
-            'example_policy' => 'Los ejemplos sirven solo para entender intención, longitud y estilo. No copies nombres, datos personales ni contenido específico de una planeación anterior.',
+            'example_policy' => 'Los ejemplos sirven solo para entender intención, longitud, organización y estilo. No copies nombres, datos personales ni contenido específico de una planeación anterior.',
         ];
     }
 
@@ -86,6 +95,7 @@ final class PlanningFormatGenerationContext
             'renderer' => null,
             'source_content_mode' => null,
             'mapped_standard_paths' => [],
+            'standard_field_examples' => [],
             'custom_fields' => [],
             'example_policy' => null,
         ];
@@ -180,13 +190,15 @@ final class PlanningFormatGenerationContext
             }
             $id = (string) ($anchor['id'] ?? '');
             $path = (string) ($anchorPaths[$id] ?? '');
+            $label = trim((string) ($anchor['label'] ?? ''));
             $example = trim((string) ($anchor['current_value_excerpt'] ?? ''));
-            if ($path === '' || $example === '' || ! str_starts_with($path, 'custom.')) {
+            if ($path === '' || $example === '' || $this->manualOnly($label)) {
                 continue;
             }
             $examples[$path] ??= mb_substr($example, 0, 160);
         }
 
+        ksort($examples, SORT_STRING);
         return $examples;
     }
 
