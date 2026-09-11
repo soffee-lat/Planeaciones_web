@@ -20,8 +20,11 @@ final class PlanningFormatGenerationContext
     public function build(PlanningRequest $request): array
     {
         $version = $this->resolveVersion($request);
-        if (! $version || $version->renderer !== InstitutionalDocumentRenderer::FORMAT_RENDERER) {
+        if (! $version) {
             return $this->emptyContext();
+        }
+        if ($version->renderer !== InstitutionalDocumentRenderer::FORMAT_RENDERER) {
+            return $this->baseContext($version);
         }
 
         try {
@@ -73,15 +76,28 @@ final class PlanningFormatGenerationContext
         ksort($standardExamples, SORT_STRING);
 
         return [
-            'schema_version' => 1,
-            'format_version_id' => (int) $version->id,
-            'format_name' => (string) ($version->format?->name ?? 'Formato institucional'),
-            'renderer' => (string) $version->renderer,
+            ...$this->baseContext($version),
             'source_content_mode' => data_get($version->validation_report, 'analysis.source_content_mode'),
             'mapped_standard_paths' => $standardPaths,
             'standard_field_examples' => $standardExamples,
             'custom_fields' => $customFields,
             'example_policy' => 'Los ejemplos sirven solo para entender intención, longitud, organización y estilo. No copies nombres, datos personales ni contenido específico de una planeación anterior.',
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function baseContext(FormatVersion $version): array
+    {
+        return [
+            'schema_version' => 1,
+            'format_version_id' => (int) $version->id,
+            'format_name' => (string) ($version->format?->name ?? 'Formato de planeación'),
+            'renderer' => (string) $version->renderer,
+            'source_content_mode' => null,
+            'mapped_standard_paths' => [],
+            'standard_field_examples' => [],
+            'custom_fields' => [],
+            'example_policy' => null,
         ];
     }
 
