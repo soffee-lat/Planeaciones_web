@@ -50,15 +50,9 @@ final class InstitutionalDocxTemplateEngine
             }
         }
 
-        if ($cellOperations !== []) {
-            $xml = $this->applyOperations(
-                $xml,
-                '/<w:tc\b[^>]*>.*?<\/w:tc>/s',
-                $cellOperations,
-                '</w:tc>',
-                true,
-            );
-        }
+        // Paragraph anchors are indexed against the original package. Apply them
+        // before cell operations because filling an empty cell may add a paragraph
+        // and would otherwise shift subsequent paragraph indexes.
         if ($paragraphOperations !== []) {
             $xml = $this->applyOperations(
                 $xml,
@@ -66,6 +60,15 @@ final class InstitutionalDocxTemplateEngine
                 $paragraphOperations,
                 '</w:p>',
                 false,
+            );
+        }
+        if ($cellOperations !== []) {
+            $xml = $this->applyOperations(
+                $xml,
+                '/<w:tc\b[^>]*>.*?<\/w:tc>/s',
+                $cellOperations,
+                '</w:tc>',
+                true,
             );
         }
 
@@ -78,16 +81,9 @@ final class InstitutionalDocxTemplateEngine
         return $package->toBytes();
     }
 
-    /**
-     * @param array<int,array{value:string,mode:string,label:string}> $operations
-     */
-    private function applyOperations(
-        string $xml,
-        string $pattern,
-        array $operations,
-        string $closingTag,
-        bool $cell,
-    ): string {
+    /** @param array<int,array{value:string,mode:string,label:string}> $operations */
+    private function applyOperations(string $xml, string $pattern, array $operations, string $closingTag, bool $cell): string
+    {
         $index = -1;
 
         return preg_replace_callback($pattern, function (array $match) use (&$index, $operations, $closingTag, $cell): string {
