@@ -53,6 +53,7 @@ class UpdatePlanningRequestDraft
             }
 
             $changed = false;
+            $mapInputsChanged = false;
             foreach (PlanningRequest::TRACKED_INPUT_FIELDS as $field) {
                 if (! array_key_exists($field, $data)) {
                     continue;
@@ -72,11 +73,18 @@ class UpdatePlanningRequestDraft
                 if ($current !== $newValue) {
                     $fresh->setAttribute($field, $newValue);
                     $changed = true;
+                    if (in_array($field, PlanningRequest::CURRICULUM_MAP_INPUT_FIELDS, true)) {
+                        $mapInputsChanged = true;
+                    }
                 }
             }
 
             if ($changed) {
                 $fresh->input_revision = (int) $fresh->input_revision + 1;
+            }
+            if ($mapInputsChanged) {
+                $fresh->curriculum_confirmed_at = null;
+                $fresh->curriculum_selection_fingerprint = null;
             }
             $fresh->save();
 
