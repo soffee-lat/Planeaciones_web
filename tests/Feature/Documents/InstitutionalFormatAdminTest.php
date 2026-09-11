@@ -21,6 +21,22 @@ class InstitutionalFormatAdminTest extends PedagogyTestCase
         $this->actingAs($this->admin())->get('/admin/institutional-formats')->assertNotFound();
     }
 
+    public function test_detalle_explica_deteccion_ejemplo_y_activacion_en_lenguaje_de_docente(): void
+    {
+        $owner = $this->customer();
+        $version = $this->configuredInstitutional($owner->id);
+        app(RenderInstitutionalFormatSample::class)->execute($version, $owner);
+
+        $this->actingAs($owner)
+            ->get('/app/institutional-formats/' . $version->format_id)
+            ->assertOk()
+            ->assertSee('Esto fue lo que entendimos')
+            ->assertSee('Mira un ejemplo antes de decidir')
+            ->assertSee('Cuando el ejemplo se vea bien')
+            ->assertSee('Campos encontrados')
+            ->assertSee('Qué hacer ahora');
+    }
+
     public function test_cliente_crea_su_propio_borrador_privado(): void
     {
         Storage::fake('private');
