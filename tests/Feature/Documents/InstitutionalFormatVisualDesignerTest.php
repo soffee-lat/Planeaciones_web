@@ -21,7 +21,7 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
             ->get(route('institutional-formats.designer', $version->format_id))
             ->assertOk()
             ->assertSee('Diseñador visual de formato')
-            ->assertSee('Selecciona directamente una zona del documento')
+            ->assertSee('Marca el contenido que cambia, no el nombre del campo')
             ->assertSee('Generar y ver ejemplo');
 
         $this->actingAs($owner)
@@ -55,15 +55,16 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $zone = $zones->first(fn (array $zone): bool => ! $candidateIds->contains($zone['id']) && ! $zone['is_blank']);
         $this->assertNotNull($zone);
 
-        $this->actingAs($owner)
+        $response = $this->actingAs($owner)
             ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
                 'zone_id' => $zone['id'],
                 'mode' => 'bind',
                 'field_path' => 'planning.title',
             ])
             ->assertOk()
-            ->assertJsonPath('field_path', 'planning.title');
+            ->assertJsonPath('ok', true);
 
+        $this->assertSame('planning.title', $response->json('mapping.anchors.' . str_replace('.', '\\.', $zone['id'])) ?? $version->fresh()->mapping['anchors'][$zone['id']]);
         $this->assertSame('planning.title', $version->fresh()->mapping['anchors'][$zone['id']]);
     }
 
@@ -74,7 +75,7 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $zone = collect($version->validation_report['analysis']['document_zones'])->first();
         $this->assertNotNull($zone);
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
                 'zone_id' => $zone['id'],
                 'mode' => 'custom',
@@ -82,12 +83,13 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
                 'custom_type' => 'long_text',
                 'custom_instruction' => 'Describe el producto final del proyecto.',
             ])
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('ok', true);
 
-        $path = (string) $response->json('field_path');
-        $this->assertStringStartsWith('custom.', $path);
-        $key = substr($path, strlen('custom.'));
         $mapping = $version->fresh()->mapping;
+        $key = array_key_first($mapping['custom_fields']);
+        $this->assertNotNull($key);
+        $path = 'custom.' . $key;
         $this->assertSame('Producto integrador', $mapping['custom_fields'][$key]['label']);
         $this->assertSame($path, $mapping['anchors'][$zone['id']]);
     }
@@ -105,7 +107,7 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
                 'mode' => 'ignore',
             ])
             ->assertOk()
-            ->assertJsonPath('ignored', true);
+            ->assertJsonPath('ok', true);
 
         $mapping = $version->fresh()->mapping;
         $this->assertContains($zone['id'], $mapping['ignored_zones']);
@@ -116,10 +118,84 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
                 'zone_id' => $zone['id'],
                 'mode' => 'unbind',
             ])
-            ->assertOk()
-            ->assertJsonPath('ignored', false);
+            ->assertOk();
 
         $this->assertNotContains($zone['id'], $version->fresh()->mapping['ignored_zones']);
+    }
+
+    public function test_fragmento_fecha_reemplaza_solo_valor_y_conserva_etiqueta(): void
+    {
+        Storage::fake('private');
+        $owner = $this->customer();
+        $draft = $this->institutionalDraft($owner->id, [], false, ['Fecha: 11/09/2026']);
+        $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+        $zone = collect($version->validation_report['analysis']['document_zones'])
+            ->first(fn (array $zone): bool => ($zone['text_excerpt'] ?? null) === 'Fecha: 11/09/2026');
+        $this->assertNotNull($zone);
+
+        $this->actingAs($owner)
+            ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+                'zone_id' => $zone['id'],
+                'mode' => 'bind',
+                'field_path' => 'planning.starts_on',
+                'fragment_start' => 7,
+                'fragment_end' => 17,
+                'fragment_text' => '11/09/2026',
+                'label_hint' => 'Fecha',
+            ])
+            ->assertOk();
+
+        $fresh = $version->fresh();
+        $this->assertCount(1, $fresh->mapping['fragments']);
+        $this->assertArrayNotHasKey($zone['id'], $fresh->mapping['anchors']);
+
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($fresh, $owner);
+        $bytes = Storage::disk('private')->get($sample->docxFile->path);
+        $this->assertStringContainsString('Fecha:', $bytes);
+        $this->assertStringNotContainsString('11/09/2026', $bytes);
+        $this->assertStringContainsString('MUESTRA', $bytes);
+    }
+
+    public function test_dos_fragmentos_pueden_convivir_en_una_misma_linea(): void
+    {
+        Storage::fake('private');
+        $owner = $this->customer();
+        $line = 'GRADO: 3°  GRUPO: A';
+        $draft = $this->institutionalDraft($owner->id, [], false, [$line]);
+        $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+        $zone = collect($version->validation_report['analysis']['document_zones'])
+            ->first(fn (array $zone): bool => ($zone['text_excerpt'] ?? null) === $line);
+        $this->assertNotNull($zone);
+
+        $this->actingAs($owner)->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+            'zone_id' => $zone['id'],
+            'mode' => 'bind',
+            'field_path' => 'curricular_alignment.grade.name',
+            'fragment_start' => 7,
+            'fragment_end' => 9,
+            'fragment_text' => '3°',
+            'label_hint' => 'GRADO',
+        ])->assertOk();
+
+        $this->actingAs($owner)->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+            'zone_id' => $zone['id'],
+            'mode' => 'custom',
+            'fragment_start' => 18,
+            'fragment_end' => 19,
+            'fragment_text' => 'A',
+            'label_hint' => 'GRUPO',
+            'custom_label' => 'Grupo',
+            'custom_type' => 'text',
+        ])->assertOk();
+
+        $fresh = $version->fresh();
+        $this->assertCount(2, $fresh->mapping['fragments']);
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($fresh, $owner);
+        $bytes = Storage::disk('private')->get($sample->docxFile->path);
+        $this->assertStringContainsString('GRADO:', $bytes);
+        $this->assertStringContainsString('GRUPO:', $bytes);
+        $this->assertStringNotContainsString('GRADO: 3°', $bytes);
+        $this->assertStringNotContainsString('GRUPO: A', $bytes);
     }
 
     public function test_renderer_puede_usar_campo_manual_en_zona_que_heuristica_no_reconocio(): void
