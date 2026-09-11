@@ -94,6 +94,6 @@ class StartPlanning extends Page
             ->body('Ahora revisa las conexiones curriculares antes de generar la planeación.')
             ->send();
 
-        $this->redirect(PlanningRequestResource::getUrl('edit', ['record' => $request]));
+        $this->redirect(route('planning.curriculum-map', $request));
     }
 }
