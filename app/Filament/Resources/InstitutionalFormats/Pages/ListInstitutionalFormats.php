@@ -37,7 +37,7 @@ class ListInstitutionalFormats extends ListRecords
                         ->acceptedFileTypes([CreateInstitutionalFormatDraft::DOCX_MIME])
                         ->maxSize(10240)
                         ->required()
-                        ->helperText('Sube el formato tal como te lo entrega tu institución. No necesitas editarlo ni agregar códigos o placeholders.'),
+                        ->helperText('Puede ser una plantilla vacía o una planeación anterior ya llena. No necesitas borrar el contenido ni agregar códigos: si tiene información previa, la usaremos solo para entender dónde va cada dato y la reemplazaremos en las nuevas planeaciones.'),
                 ])
                 ->action(function (array $data): void {
                     $path = (string) ($data['source'] ?? '');
@@ -75,12 +75,18 @@ class ListInstitutionalFormats extends ListRecords
                             }
                         }
 
+                        $filledExample = data_get($version->validation_report, 'analysis.source_content_mode') === 'filled_example';
+
                         Notification::make()
                             ->success()
                             ->title($previewReady ? 'Preparamos un ejemplo de tu formato' : 'Analizamos tu formato')
                             ->body($previewReady
-                                ? 'Abre el ejemplo para comprobar cómo se llenará. Si algo no corresponde, puedes corregir lo que entendimos.'
-                                : 'Encontramos la estructura del Word. Revisa lo que entendimos para indicarnos qué datos deben ir en cada zona.')
+                                ? ($filledExample
+                                    ? 'Detectamos que el Word ya tenía una planeación. La usamos solo como referencia para ubicar campos y en el ejemplo reemplazamos ese contenido por datos ficticios nuevos.'
+                                    : 'Abre el ejemplo para comprobar cómo se llenará. Si algo no corresponde, puedes corregir lo que entendimos.')
+                                : ($filledExample
+                                    ? 'Detectamos contenido de una planeación anterior. No se copiará a futuras planeaciones; revisa lo que entendimos para indicarnos qué dato corresponde a cada zona.'
+                                    : 'Encontramos la estructura del Word. Revisa lo que entendimos para indicarnos qué datos deben ir en cada zona.'))
                             ->send();
 
                         $this->redirect(InstitutionalFormatResource::getUrl('view', ['record' => $version->format_id]));
