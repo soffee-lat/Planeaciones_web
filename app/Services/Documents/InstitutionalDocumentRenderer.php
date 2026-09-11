@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
 final class InstitutionalDocumentRenderer
 {
     public const FORMAT_RENDERER = 'institutional-v1';
-    public const RENDERER_VERSION = 'institutional-v1.0.0';
+    public const RENDERER_VERSION = 'institutional-v1.1.0';
 
     public function __construct(private CanonicalPlanValidator $validator, private InstitutionalFormatMapping $mapping, private InstitutionalDocxTemplateEngine $template, private StandardPdfRenderer $pdf) {}
 
