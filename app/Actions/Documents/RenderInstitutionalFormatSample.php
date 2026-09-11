@@ -33,7 +33,13 @@ final class RenderInstitutionalFormatSample
             throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
         }
 
-        $normalized = $this->normalizedMapping($version);
+        // El mapping derivado (incluidos custom.* detectados automáticamente)
+        // forma parte del contrato de la versión. Debe persistirse antes de
+        // generar la muestra para que mapping_snapshot, fingerprint y las
+        // protecciones de integridad de PostgreSQL comparen exactamente el
+        // mismo documento lógico durante la aprobación.
+        $version = $this->synchronizeMapping($version);
+        $normalized = $this->mapping->validate($version, $version->mapping);
         $fingerprint = $this->fingerprint($version, $normalized);
         $existing = FormatVersionSample::query()
             ->where('format_version_id', $version->id)
@@ -52,7 +58,10 @@ final class RenderInstitutionalFormatSample
                 throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             }
 
-            $current = $this->normalizedMapping($locked);
+            // No volvemos a derivar aquí: el mapping persistido es el contrato
+            // que la muestra congeló. Si alguien lo cambió mientras se hacía el
+            // render, esta comprobación convierte la muestra en obsoleta.
+            $current = $this->mapping->validate($locked, $locked->mapping);
             $currentFingerprint = $this->fingerprint($locked, $current);
             if ($currentFingerprint !== $fingerprint || $current !== $normalized) {
                 throw new DocumentFormatException('FORMAT_SAMPLE_STALE');
@@ -93,11 +102,31 @@ final class RenderInstitutionalFormatSample
         }, attempts: 3);
     }
 
-    /** @return array<string,mixed> */
-    private function normalizedMapping(FormatVersion $version): array
+    private function synchronizeMapping(FormatVersion $version): FormatVersion
     {
-        $raw = is_array($version->mapping) ? $version->mapping : [];
-        return $this->mapping->validate($version, $this->dynamicFields->augment($version, $raw));
+        return DB::transaction(function () use ($version): FormatVersion {
+            $locked = FormatVersion::query()
+                ->with(['format', 'sourceFile'])
+                ->whereKey($version->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($locked->published_at !== null || ! $locked->sourceFile) {
+                throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
+            }
+
+            $raw = is_array($locked->mapping) ? $locked->mapping : [];
+            $normalized = $this->mapping->validate(
+                $locked,
+                $this->dynamicFields->augment($locked, $raw),
+            );
+
+            if (CanonicalJson::hash($raw) !== CanonicalJson::hash($normalized)) {
+                $locked->forceFill(['mapping' => $normalized])->save();
+            }
+
+            return $locked->fresh(['format', 'sourceFile']);
+        }, attempts: 3);
     }
 
     /** @param array<string,mixed> $normalized */
