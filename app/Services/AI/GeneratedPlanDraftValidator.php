@@ -15,11 +15,51 @@ class GeneratedPlanDraftValidator
     public function validate(array $payload): GeneratedPlanDraft
     {
         $schema = $this->loadSchema(resource_path('schemas/ai/generated_plan_draft_v1.schema.json'));
-        $this->schemaValidator->validate($payload, $schema);
+
+        // `custom` se define dinámicamente por el formato institucional de la
+        // ejecución. El contrato base sigue siendo v1 y se valida sin esa
+        // extensión; después validamos la forma segura de los valores custom.
+        $basePayload = $payload;
+        unset($basePayload['custom']);
+        $this->schemaValidator->validate($basePayload, $schema);
+        $this->validateCustom($payload['custom'] ?? null);
         $this->validateSessions($payload);
         $this->validateInstruments($payload);
 
         return new GeneratedPlanDraft($payload);
+    }
+
+    private function validateCustom(mixed $custom): void
+    {
+        if ($custom === null) {
+            return;
+        }
+        if (! is_array($custom) || array_is_list($custom)) {
+            throw new AiContractException('GENERATED_CUSTOM_OBJECT_REQUIRED', '$.custom');
+        }
+
+        foreach ($custom as $key => $value) {
+            $key = (string) $key;
+            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
+                throw new AiContractException('GENERATED_CUSTOM_KEY_INVALID', '$.custom.' . $key);
+            }
+            if (is_string($value)) {
+                if (trim($value) === '') {
+                    throw new AiContractException('GENERATED_CUSTOM_VALUE_EMPTY', '$.custom.' . $key);
+                }
+                continue;
+            }
+            if (is_array($value) && array_is_list($value) && $value !== []) {
+                foreach ($value as $index => $item) {
+                    if (! is_string($item) || trim($item) === '') {
+                        throw new AiContractException('GENERATED_CUSTOM_LIST_INVALID', '$.custom.' . $key . '[' . $index . ']');
+                    }
+                }
+                continue;
+            }
+
+            throw new AiContractException('GENERATED_CUSTOM_VALUE_INVALID', '$.custom.' . $key);
+        }
     }
 
     /** @param array<string,mixed> $payload */
