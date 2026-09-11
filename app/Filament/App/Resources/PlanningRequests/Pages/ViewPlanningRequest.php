@@ -2,15 +2,21 @@
 
 namespace App\Filament\App\Resources\PlanningRequests\Pages;
 
+use App\Actions\AI\DispatchPlanningGeneration;
+use App\Actions\Documents\DispatchDocumentRendering;
+use App\Actions\Documents\PublishPlanningDelivery;
 use App\Actions\Planning\AuthorizePlanningRequestForProcessing;
 use App\Actions\Planning\RequestClientCorrection;
 use App\Actions\Planning\WithdrawClientCorrection;
+use App\Actions\Validation\SubmitPilotFeedback;
 use App\Enums\CorrectionRequestStatus;
 use App\Enums\PlanningRequestStatus;
 use App\Exceptions\ClientCorrectionException;
 use App\Exceptions\PlanningCommercialException;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\CorrectionRequest;
+use App\Models\DocumentRenderRun;
+use App\Models\DocumentVersion;
 use App\Models\PlanningRequest;
 use App\Services\Planning\ClientCorrectionPolicy;
 use Filament\Actions\Action;
@@ -52,12 +58,37 @@ class ViewPlanningRequest extends ViewRecord
                     ->visible(fn () => $this->getRecord()->deliveries()->exists() && (int) $this->getRecord()->correction_limit_snapshot > 0),
                 TextEntry::make('human_review_required_snapshot')->label('Revisión humana incluida')->formatStateUsing(fn ($state) => $state ? 'Sí' : 'No')->visible(fn () => $this->getRecord()->commercial_authorized_at !== null),
             ])->columns(2)->columnSpanFull(),
+
             View::make('filament.app.pages.commercial-summary')->viewData(fn () => [
                 'summary' => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->forCustomer(auth()->user(), $this->getRecord()->starts_on?->toDateString(), $this->getRecord()->ends_on?->toDateString()),
             ])->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO)->columnSpanFull(),
+
+            View::make('filament.app.planning-requests.generated-preview')
+                ->viewData(function (): array {
+                    $version = $this->currentVersion();
+                    return [
+                        'plan' => $version?->content ?? [],
+                        'version' => $version,
+                        'renderRun' => $this->latestSuccessfulRender(),
+                    ];
+                })
+                ->visible(fn () => $this->currentVersion() !== null)
+                ->columnSpanFull(),
+
             View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
                 'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
             ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
+
+            View::make('filament.app.planning-requests.pilot-feedback')
+                ->viewData(fn (): array => [
+                    'request' => $this->getRecord(),
+                    'feedback' => $this->getRecord()->feedback()->first(),
+                    'savedTimeOptions' => SubmitPilotFeedback::SAVED_TIME_OPTIONS,
+                    'helpfulOptions' => SubmitPilotFeedback::MOST_HELPFUL_OPTIONS,
+                    'nextPlanningOptions' => SubmitPilotFeedback::NEXT_PLANNING_OPTIONS,
+                ])
+                ->visible(fn (): bool => $this->getRecord()->creation_mode === 'quick' && $this->getRecord()->deliveries()->exists())
+                ->columnSpanFull(),
         ]);
     }
 
@@ -78,6 +109,61 @@ class ViewPlanningRequest extends ViewRecord
                         Notification::make()->danger()->title('No pudimos activar el procesamiento')->body('Tu solicitud se conserva. Inténtalo de nuevo o solicita ayuda.')->send();
                     }
                 }),
+
+            Action::make('generatePlanning')
+                ->label('Generar planeación')
+                ->color('primary')
+                ->databaseTransaction(false)
+                ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::LISTA_PARA_PROCESAR)
+                ->action(function (): void {
+                    try {
+                        app(DispatchPlanningGeneration::class)->execute($this->getRecord());
+                        $this->record = $this->getRecord()->fresh();
+                        Notification::make()->success()->title('Generación iniciada')
+                            ->body('La planeación se está procesando con el canal de IA configurado. Puedes volver a esta pantalla para ver la versión generada.')->send();
+                    } catch (\Throwable $error) {
+                        report($error);
+                        Notification::make()->danger()->title('No se pudo iniciar la generación')
+                            ->body('La solicitud se conserva sin cambios irreversibles. Revisa la configuración del pipeline y vuelve a intentarlo.')->send();
+                    }
+                }),
+
+            Action::make('renderDocument')
+                ->label('Generar DOCX / PDF')
+                ->color('primary')
+                ->databaseTransaction(false)
+                ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::APROBADA)
+                ->action(function (): void {
+                    try {
+                        app(DispatchDocumentRendering::class)->execute($this->getRecord());
+                        $this->record = $this->getRecord()->fresh();
+                        Notification::make()->success()->title('Documentos en preparación')
+                            ->body('Usaremos el formato preferido del grupo cuando esté disponible; en caso contrario, el formato estándar.')->send();
+                    } catch (\Throwable $error) {
+                        report($error);
+                        Notification::make()->danger()->title('No se pudieron preparar los documentos')
+                            ->body('La versión generada se conserva. Revisa el formato y vuelve a intentarlo.')->send();
+                    }
+                }),
+
+            Action::make('publishDelivery')
+                ->label('Publicar entrega')
+                ->color('success')
+                ->databaseTransaction(false)
+                ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::LISTA_PARA_ENTREGAR)
+                ->action(function (): void {
+                    try {
+                        app(PublishPlanningDelivery::class)->execute($this->getRecord(), auth()->user());
+                        $this->record = $this->getRecord()->fresh();
+                        Notification::make()->success()->title('Planeación lista')
+                            ->body('El DOCX y el PDF ya están disponibles en esta pantalla.')->send();
+                    } catch (\Throwable $error) {
+                        report($error);
+                        Notification::make()->danger()->title('No se pudo publicar la entrega')
+                            ->body('Los archivos se conservan. Recarga la pantalla e inténtalo de nuevo.')->send();
+                    }
+                }),
+
             Action::make('requestCorrection')
                 ->label('Solicitar corrección')
                 ->color('warning')
@@ -142,6 +228,20 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
         ];
+    }
+
+    private function currentVersion(): ?DocumentVersion
+    {
+        $document = $this->getRecord()->document()->with('currentVersion')->first();
+        return $document?->currentVersion;
+    }
+
+    private function latestSuccessfulRender(): ?DocumentRenderRun
+    {
+        return $this->getRecord()->documentRenderRuns()
+            ->where('status', 'succeeded')
+            ->latest('id')
+            ->first();
     }
 
     private function pendingClientCorrection(): ?CorrectionRequest

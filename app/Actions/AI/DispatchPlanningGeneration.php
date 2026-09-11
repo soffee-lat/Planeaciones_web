@@ -69,13 +69,16 @@ final class DispatchPlanningGeneration
                 return $existing;
             }
 
-            $this->stateMachine->assertCanTransition($fresh->status, PlanningRequestStatus::GENERACION_IA);
+            // Reporta un error de dominio estable antes de delegar a la máquina
+            // de estados. Esto evita convertir un borrador o una solicitud aún
+            // pendiente de activación en un error genérico de consola.
             if ($fresh->status !== PlanningRequestStatus::LISTA_PARA_PROCESAR
                 || $fresh->commercial_authorized_at === null
                 || $fresh->current_version_id === null
                 || (int) $fresh->planning_units < 1) {
                 throw new AiPipelineException('AI_GENERATION_REQUEST_NOT_READY');
             }
+            $this->stateMachine->assertCanTransition($fresh->status, PlanningRequestStatus::GENERACION_IA);
 
             $templateKey = trim((string) config('ai.prompts.generation_key', 'planning.generation'));
             /** @var PromptTemplate|null $template */

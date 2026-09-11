@@ -5,8 +5,10 @@ namespace App\Filament\App\Resources\PlanningRequests\Pages;
 use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
+use App\Enums\ProductEventType;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
+use App\Models\ProductEvent;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -63,7 +65,19 @@ class EditPlanningRequest extends EditRecord
                 ->action(function () {
                     try {
                         $this->save(shouldRedirect: false, shouldSendSavedNotification: false);
-                        app(ConfirmPlanningRequest::class)->execute(auth()->user(), $this->getRecord());
+                        $record = $this->getRecord()->fresh();
+
+                        if ($record && $this->isValidationFlow($record) && ! $record->hasConfirmedCurriculumMap()) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Confirma primero las conexiones curriculares')
+                                ->body('Cambiaste información que afecta el mapa o todavía no lo has confirmado. Revísalo antes de enviar la planeación a generación.')
+                                ->send();
+                            $this->redirect(route('planning.curriculum-map', ['planningRequest' => $record->id]));
+                            return;
+                        }
+
+                        app(ConfirmPlanningRequest::class)->execute(auth()->user(), $record ?? $this->getRecord());
                         $this->attemptCommercialAuthorization();
                         $this->redirect(PlanningRequestResource::getUrl('view', ['record' => $this->getRecord()->id]));
                     } catch (\Illuminate\Validation\ValidationException $e) {
@@ -75,6 +89,15 @@ class EditPlanningRequest extends EditRecord
                     }
                 }),
         ];
+    }
+
+    private function isValidationFlow(PlanningRequest $request): bool
+    {
+        return ProductEvent::query()
+            ->where('planning_request_id', $request->id)
+            ->where('event_type', ProductEventType::PlanningStarted->value)
+            ->where('metadata->entry_surface', 'curricular_validation_v1')
+            ->exists();
     }
 
     private function attemptCommercialAuthorization(): void
