@@ -44,6 +44,7 @@ final class InstitutionalFormatDesignerController
             'fields' => $fields,
             'sourceUrl' => route('institutional-formats.source', $format),
             'bindingUrl' => route('institutional-formats.visual-binding', $format),
+            'previewUrl' => route('institutional-formats.visual-preview', $format),
             'backUrl' => '/app/institutional-formats/' . $format->id,
         ]);
     }
