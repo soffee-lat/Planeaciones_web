@@ -38,9 +38,6 @@ final class ConfigureInstitutionalFormatMapping
                 $incoming['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
             }
 
-            // The older guided editor only exposes automatically detected anchors.
-            // Preserve manual zones and custom fields created in the visual builder
-            // when that editor saves its subset of the mapping.
             $incomingAnchors = is_array($incoming['anchors'] ?? null) ? $incoming['anchors'] : [];
             $existingAnchors = is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [];
             $automaticIds = [];
@@ -63,7 +60,8 @@ final class ConfigureInstitutionalFormatMapping
             if (! is_array($report['analysis'] ?? null)) {
                 throw new DocumentFormatException('FORMAT_ANALYSIS_REQUIRED');
             }
-            $report['status'] = 'mapping_ready';
+            $hasRenderableMapping = ($normalized['anchors'] ?? []) !== [] || ($normalized['placeholders'] ?? []) !== [];
+            $report['status'] = $hasRenderableMapping ? 'mapping_ready' : 'analysis_complete';
             unset($report['sample']);
             $locked->forceFill([
                 'mapping' => $normalized,
