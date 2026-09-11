@@ -7,11 +7,9 @@ class AdminPanelProvider extends BasePanelProvider {
         return $this->base($panel)->id('admin')->path('admin')
             ->brandName('Planeaciones · Administración')
             ->colors(['primary' => Color::Amber])
-            
             ->pages([\App\Filament\Admin\Pages\Dashboard::class])
             ->resources([
                 \App\Filament\Resources\PlanningRequests\PlanningRequestResource::class,
-                \App\Filament\Resources\InstitutionalFormats\InstitutionalFormatResource::class,
                 \App\Filament\Resources\Curricula\CurriculumResource::class,
                 \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::class,
                 \App\Filament\Resources\Plans\PlanResource::class,

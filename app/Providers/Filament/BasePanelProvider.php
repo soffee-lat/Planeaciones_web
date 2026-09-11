@@ -5,7 +5,7 @@ use Filament\PanelProvider;
 abstract class BasePanelProvider extends PanelProvider {
     protected function base(Panel $panel): Panel {
         return $panel->login(\App\Filament\Auth\Login::class)->passwordReset(\App\Filament\Auth\RequestPasswordReset::class)->emailVerification()->emailChangeVerification()->profile(\App\Filament\Auth\EditProfile::class)
-            ->brandName('Planeaciones')->viteTheme('resources/css/filament/theme.css')->databaseTransactions()
+            ->brandName('Planeaciones')->viteTheme('resources/css/filament/theme.css')->databaseNotifications()->databaseTransactions()
             ->middleware([
                 \Illuminate\Cookie\Middleware\EncryptCookies::class,
                 \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
@@ -23,8 +23,3 @@ abstract class BasePanelProvider extends PanelProvider {
             ], isPersistent: true);
     }
 }
-
-
-
-
-

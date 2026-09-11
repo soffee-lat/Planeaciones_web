@@ -17,29 +17,18 @@ use Illuminate\Support\Facades\DB;
 
 final class RenderInstitutionalFormatSample
 {
-    public function __construct(
-        private InstitutionalDocumentRenderer $renderer,
-        private InstitutionalFormatMapping $mapping,
-        private InstitutionalFormatSampleStorage $storage,
-    ) {}
+    public function __construct(private InstitutionalDocumentRenderer $renderer, private InstitutionalFormatMapping $mapping, private InstitutionalFormatSampleStorage $storage) {}
 
     public function execute(FormatVersion $version, User $actor): FormatVersionSample
     {
-        $this->assertAdmin($actor);
         $version = FormatVersion::query()->with(['format', 'sourceFile'])->findOrFail($version->id);
-        if ($version->published_at !== null
-            || $version->format?->kind !== InstitutionalFormatKind::Institutional
-            || ! $version->sourceFile) {
+        $this->assertOwner($version, $actor);
+        if ($version->published_at !== null || $version->format?->kind !== InstitutionalFormatKind::Institutional || ! $version->sourceFile) {
             throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
         }
-        $normalized = $this->mapping->validate($version, $version->mapping);
-        $fingerprint = CanonicalJson::hash([
-            'source_file_id' => (int) $version->source_file_id,
-            'source_sha256' => $version->sourceFile->sha256,
-            'mapping' => $normalized,
-            'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
-        ]);
 
+        $normalized = $this->mapping->validate($version, $version->mapping);
+        $fingerprint = $this->fingerprint($version, $normalized);
         $existing = FormatVersionSample::query()
             ->where('format_version_id', $version->id)
             ->where('fingerprint', $fingerprint)
@@ -56,13 +45,9 @@ final class RenderInstitutionalFormatSample
             if ($locked->published_at !== null || ! $locked->sourceFile) {
                 throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             }
+
             $current = $this->mapping->validate($locked, $locked->mapping);
-            $currentFingerprint = CanonicalJson::hash([
-                'source_file_id' => (int) $locked->source_file_id,
-                'source_sha256' => $locked->sourceFile->sha256,
-                'mapping' => $current,
-                'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
-            ]);
+            $currentFingerprint = $this->fingerprint($locked, $current);
             if ($currentFingerprint !== $fingerprint || $current !== $normalized) {
                 throw new DocumentFormatException('FORMAT_SAMPLE_STALE');
             }
@@ -102,10 +87,27 @@ final class RenderInstitutionalFormatSample
         }, attempts: 3);
     }
 
-    private function assertAdmin(User $actor): void
+    /** @param array<string,mixed> $normalized */
+    private function fingerprint(FormatVersion $version, array $normalized): string
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        return CanonicalJson::hash([
+            'source_file_id' => (int) $version->source_file_id,
+            'source_sha256' => $version->sourceFile?->sha256,
+            'mapping' => $normalized,
+            'analysis_hash' => CanonicalJson::hash(
+                is_array($version->validation_report['analysis'] ?? null)
+                    ? $version->validation_report['analysis']
+                    : [],
+            ),
+            'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
+        ]);
+    }
+
+    private function assertOwner(FormatVersion $version, User $actor): void
+    {
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || (int) $version->format?->owner_id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }

@@ -29,7 +29,8 @@ final class ReviewInstitutionalFormatSample
 
     private function review(FormatVersionSample $sample, User $actor, bool $approved, ?string $note): FormatVersionSample
     {
-        $this->assertAdmin($actor);
+        $sample->loadMissing('formatVersion.format');
+        $this->assertOwner($sample, $actor);
         $note = trim((string) $note);
         if (! $approved && mb_strlen($note) < 3) {
             throw new DocumentFormatException('FORMAT_SAMPLE_REJECTION_NOTE_REQUIRED');
@@ -52,13 +53,9 @@ final class ReviewInstitutionalFormatSample
             if ($version->published_at !== null || ! $version->sourceFile) {
                 throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             }
+
             $normalized = $this->mapping->validate($version, $version->mapping);
-            $fingerprint = CanonicalJson::hash([
-                'source_file_id' => (int) $version->source_file_id,
-                'source_sha256' => $version->sourceFile->sha256,
-                'mapping' => $normalized,
-                'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
-            ]);
+            $fingerprint = $this->fingerprint($version, $normalized);
             if ($fingerprint !== $lockedSample->fingerprint
                 || (int) $lockedSample->source_file_id !== (int) $version->source_file_id
                 || CanonicalJson::hash($lockedSample->mapping_snapshot) !== CanonicalJson::hash($normalized)) {
@@ -67,11 +64,6 @@ final class ReviewInstitutionalFormatSample
 
             $status = $approved ? FormatSampleStatus::Approved : FormatSampleStatus::Rejected;
             $reviewedAt = now();
-
-            // Para aprobación, PostgreSQL valida inmediatamente que el reporte de
-            // FormatVersion apunte a esta muestra exacta. Actualizamos primero el
-            // reporte dentro de la misma transacción; si luego falla la muestra,
-            // todo se revierte atómicamente.
             $report = $version->validation_report ?? [];
             $report['status'] = $approved ? 'approved' : 'sample_rejected';
             $report['sample'] = [
@@ -83,7 +75,6 @@ final class ReviewInstitutionalFormatSample
                 'review_note' => $note === '' ? null : $note,
             ];
             $version->forceFill(['validation_report' => $report])->save();
-
             $lockedSample->forceFill([
                 'status' => $status->value,
                 'reviewed_by' => $actor->id,
@@ -95,10 +86,27 @@ final class ReviewInstitutionalFormatSample
         }, attempts: 3);
     }
 
-    private function assertAdmin(User $actor): void
+    /** @param array<string,mixed> $normalized */
+    private function fingerprint(FormatVersion $version, array $normalized): string
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        return CanonicalJson::hash([
+            'source_file_id' => (int) $version->source_file_id,
+            'source_sha256' => $version->sourceFile?->sha256,
+            'mapping' => $normalized,
+            'analysis_hash' => CanonicalJson::hash(
+                is_array($version->validation_report['analysis'] ?? null)
+                    ? $version->validation_report['analysis']
+                    : [],
+            ),
+            'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
+        ]);
+    }
+
+    private function assertOwner(FormatVersionSample $sample, User $actor): void
+    {
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || (int) $sample->formatVersion?->format?->owner_id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }

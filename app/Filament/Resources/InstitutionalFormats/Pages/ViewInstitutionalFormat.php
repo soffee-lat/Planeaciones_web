@@ -11,9 +11,10 @@ use App\Enums\FormatSampleStatus;
 use App\Filament\Resources\InstitutionalFormats\InstitutionalFormatResource;
 use App\Models\FormatVersion;
 use App\Models\FormatVersionSample;
+use App\Services\Documents\InstitutionalFormatFieldCatalog;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -27,26 +28,48 @@ class ViewInstitutionalFormat extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Formato institucional')->schema([
-                TextEntry::make('name')->label('Nombre'),
-                TextEntry::make('owner.name')->label('Docente'),
-                TextEntry::make('status')->label('Estado')->badge(),
-                TextEntry::make('current_version')->label('Versión')->state(fn (): string => 'v' . $this->version()->number),
-                TextEntry::make('source_name')->label('Archivo fuente')->state(fn (): ?string => $this->version()->sourceFile?->original_name),
-                TextEntry::make('renderer')->label('Renderer')->state(fn (): string => (string) $this->version()->renderer),
-                TextEntry::make('published_at')->label('Publicada')->state(fn () => $this->version()->published_at)->dateTime('d/m/Y H:i')->placeholder('No publicada'),
-            ])->columns(2)->columnSpanFull(),
-            Section::make('Análisis y mapping')->schema([
-                TextEntry::make('analysis_status')->label('Estado técnico')->state(fn (): string => (string) data_get($this->version()->validation_report, 'status', 'pendiente')),
-                TextEntry::make('placeholders')->label('Placeholders detectados')->state(fn (): string => implode(', ', $this->placeholders()) ?: 'Pendientes de análisis'),
-                TextEntry::make('mapping')->label('Mapping actual')->state(fn (): string => $this->mappingSummary()),
-                TextEntry::make('warnings')->label('Advertencias')->state(fn (): string => implode(', ', array_map('strval', data_get($this->version()->validation_report, 'analysis.warnings', []))) ?: 'Sin advertencias'),
-            ])->columns(1)->columnSpanFull(),
-            Section::make('Muestra')->schema([
-                TextEntry::make('sample_status')->label('Estado')->state(fn (): string => $this->latestSample()?->status?->value ?? 'Sin muestra'),
-                TextEntry::make('sample_fingerprint')->label('Fingerprint')->state(fn (): ?string => $this->latestSample()?->fingerprint)->placeholder('—'),
-                TextEntry::make('sample_review_note')->label('Nota de revisión')->state(fn (): ?string => $this->latestSample()?->review_note)->placeholder('—'),
-            ])->columns(1)->columnSpanFull(),
+            Section::make('Tu formato')
+                ->description('El archivo original se conserva sin modificar. Nada se usará en tus planeaciones hasta que tú confirmes una muestra.')
+                ->schema([
+                    TextEntry::make('name')->label('Nombre'),
+                    TextEntry::make('source_name')->label('Archivo original')->state(fn (): ?string => $this->version()->sourceFile?->original_name),
+                    TextEntry::make('user_status')->label('Estado')->state(fn (): string => $this->humanStatus())->badge(),
+                    TextEntry::make('published_at')->label('Activo desde')->state(fn () => $this->version()->published_at)->dateTime('d/m/Y H:i')->placeholder('Todavía no está activo'),
+                    TextEntry::make('source_content_type')
+                        ->label('Qué detectamos en el Word')
+                        ->state(fn (): string => $this->sourceContentDescription())
+                        ->columnSpanFull(),
+                ])->columns(2)->columnSpanFull(),
+
+            Section::make('1. Esto fue lo que entendimos')
+                ->description('El sistema buscó etiquetas y zonas de tu Word. Las relaciones automáticas son una propuesta: puedes corregirlas antes de usar el formato.')
+                ->schema([
+                    TextEntry::make('detected_count')->label('Campos encontrados')->state(fn (): string => (string) $this->candidateCount()),
+                    TextEntry::make('mapped_count')->label('Relacionados automáticamente')->state(fn (): string => (string) $this->mappedCount()),
+                    TextEntry::make('unmapped_count')->label('Por revisar')->state(fn (): string => (string) $this->unmappedCount()),
+                    TextEntry::make('detected_fields')->label('Ejemplos de lo que entendimos')->state(fn (): string => $this->detectedExamples())->columnSpanFull(),
+                    TextEntry::make('previous_content_examples')
+                        ->label('Contenido anterior que será reemplazado')
+                        ->state(fn (): string => $this->priorContentExamples())
+                        ->visible(fn (): bool => $this->filledSource())
+                        ->columnSpanFull(),
+                ])->columns(3)->columnSpanFull(),
+
+            Section::make('2. Mira un ejemplo antes de decidir')
+                ->description($this->filledSource()
+                    ? 'La muestra sustituye la información de la planeación anterior por datos ficticios nuevos. Revisa que el texto viejo ya no aparezca y que cada dato nuevo quede en el lugar correcto.'
+                    : 'La muestra usa datos ficticios para que veas en qué parte del documento colocaremos cada tipo de información.')
+                ->schema([
+                    TextEntry::make('preview_status')->label('Vista previa')->state(fn (): string => $this->previewStatus())->badge(),
+                    TextEntry::make('next_step')->label('Qué hacer ahora')->state(fn (): string => $this->nextStep()),
+                    TextEntry::make('sample_review_note')->label('Última observación')->state(fn (): ?string => $this->latestSample()?->review_note)->placeholder('Sin observaciones'),
+                ])->columns(1)->columnSpanFull(),
+
+            Section::make('3. Cuando el ejemplo se vea bien')
+                ->description('Pulsa “Usar este formato”. Desde ese momento quedará disponible para tus planeaciones. Si algo está mal, corrige los campos y revisa una nueva muestra.')
+                ->schema([
+                    TextEntry::make('activation_status')->label('Uso en planeaciones')->state(fn (): string => $this->version()->published_at ? 'Activo y listo para usar' : 'Todavía no activo'),
+                ])->columns(1)->columnSpanFull(),
         ]);
     }
 
@@ -56,108 +79,171 @@ class ViewInstitutionalFormat extends ViewRecord
         $sample = $this->latestSample();
 
         return [
-            Action::make('analyze')
-                ->label('Analizar DOCX')
-                ->icon('heroicon-o-magnifying-glass')
-                ->visible(fn (): bool => $version->published_at === null)
-                ->action(fn () => $this->runAction(
-                    fn () => app(AnalyzeInstitutionalFormatVersion::class)->execute($this->version(), auth()->user()),
-                    'Formato analizado',
-                )),
-            Action::make('mapping')
-                ->label('Configurar mapping')
-                ->icon('heroicon-o-adjustments-horizontal')
-                ->visible(fn (): bool => $version->published_at === null && $this->placeholders() !== [])
-                ->schema($this->mappingFields())
-                ->action(function (array $data): void {
-                    $paths = [];
-                    foreach ($this->placeholders() as $index => $token) {
-                        $paths[$token] = (string) ($data['token_' . $index] ?? '');
-                    }
-                    $this->runAction(
-                        fn () => app(ConfigureInstitutionalFormatMapping::class)->execute(
-                            $this->version(),
-                            ['schema_version' => 1, 'placeholders' => $paths],
-                            auth()->user(),
-                        ),
-                        'Mapping guardado',
-                    );
-                }),
-            Action::make('sample')
-                ->label('Generar muestra')
-                ->icon('heroicon-o-document-duplicate')
-                ->visible(fn (): bool => $version->published_at === null && $this->mappingReady())
-                ->action(fn () => $this->runAction(
-                    fn () => app(RenderInstitutionalFormatSample::class)->execute($this->version(), auth()->user()),
-                    'Muestra generada',
-                )),
-            Action::make('downloadSampleDocx')
-                ->label('Muestra DOCX')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->visible(fn (): bool => $sample?->docx_file_id !== null)
-                ->url(fn (): string => route('format-samples.download', [$this->latestSample(), $this->latestSample()?->docx_file_id]))
-                ->openUrlInNewTab(),
             Action::make('downloadSamplePdf')
-                ->label('Muestra PDF')
-                ->icon('heroicon-o-arrow-down-tray')
+                ->label('Ver ejemplo PDF')
+                ->icon('heroicon-o-eye')
+                ->color('primary')
                 ->visible(fn (): bool => $sample?->pdf_file_id !== null)
                 ->url(fn (): string => route('format-samples.download', [$this->latestSample(), $this->latestSample()?->pdf_file_id]))
                 ->openUrlInNewTab(),
-            Action::make('approveSample')
-                ->label('Aprobar muestra')
+
+            Action::make('downloadSampleDocx')
+                ->label('Ver ejemplo en Word')
+                ->icon('heroicon-o-document-arrow-down')
+                ->visible(fn (): bool => $sample?->docx_file_id !== null)
+                ->url(fn (): string => route('format-samples.download', [$this->latestSample(), $this->latestSample()?->docx_file_id]))
+                ->openUrlInNewTab(),
+
+            Action::make('mapping')
+                ->label('Corregir lo que entendimos')
+                ->icon('heroicon-o-pencil-square')
+                ->visible(fn (): bool => $version->published_at === null && $this->hasDetectedCandidates())
+                ->schema($this->mappingFields())
+                ->action(function (array $data): void {
+                    $anchors = [];
+                    foreach ($this->anchors() as $index => $anchor) {
+                        $value = trim((string) ($data['anchor_' . $index] ?? ''));
+                        if ($value !== '') {
+                            $anchors[(string) $anchor['id']] = $value;
+                        }
+                    }
+
+                    $placeholders = [];
+                    foreach ($this->placeholders() as $index => $token) {
+                        $value = trim((string) ($data['token_' . $index] ?? ''));
+                        if ($value !== '') {
+                            $placeholders[$token] = $value;
+                        }
+                    }
+
+                    $this->runAction(function () use ($anchors, $placeholders): void {
+                        $configured = app(ConfigureInstitutionalFormatMapping::class)->execute(
+                            $this->version(),
+                            ['schema_version' => 2, 'anchors' => $anchors, 'placeholders' => $placeholders],
+                            auth()->user(),
+                        );
+                        app(RenderInstitutionalFormatSample::class)->execute($configured, auth()->user());
+                    }, 'Guardamos tus correcciones y preparamos un nuevo ejemplo');
+                }),
+
+            Action::make('sample')
+                ->label('Crear ejemplo')
+                ->icon('heroicon-o-document-duplicate')
+                ->visible(fn (): bool => $version->published_at === null && $this->mappingReady() && $sample === null)
+                ->action(fn () => $this->runAction(
+                    fn () => app(RenderInstitutionalFormatSample::class)->execute($this->version(), auth()->user()),
+                    'Ejemplo generado',
+                )),
+
+            Action::make('useFormat')
+                ->label('Usar este formato')
                 ->color('success')
-                ->schema([
-                    Textarea::make('note')->label('Nota')->maxLength(2000)->rows(3),
-                ])
-                ->visible(fn (): bool => $sample?->status === FormatSampleStatus::Pending)
-                ->action(fn (array $data) => $this->runAction(
-                    fn () => app(ReviewInstitutionalFormatSample::class)->approve(
+                ->icon('heroicon-o-check-circle')
+                ->requiresConfirmation()
+                ->modalHeading('¿El ejemplo se ve como esperabas?')
+                ->modalDescription($this->filledSource()
+                    ? 'Confirma solo si el contenido de la planeación anterior ya fue reemplazado y los datos de ejemplo están en el lugar correcto.'
+                    : 'Al confirmar, este formato quedará activo para tus planeaciones. Si algo está mal, cancela y usa “Corregir lo que entendimos”.')
+                ->visible(fn (): bool => $version->published_at === null && $sample?->status === FormatSampleStatus::Pending)
+                ->action(fn () => $this->runAction(function (): void {
+                    app(ReviewInstitutionalFormatSample::class)->approve(
                         $this->latestSample(),
                         auth()->user(),
-                        isset($data['note']) ? (string) $data['note'] : null,
-                    ),
-                    'Muestra aprobada',
-                )),
-            Action::make('rejectSample')
-                ->label('Rechazar muestra')
-                ->color('danger')
-                ->schema([
-                    Textarea::make('note')->label('Motivo')->required()->minLength(3)->maxLength(2000)->rows(3),
-                ])
-                ->visible(fn (): bool => $sample?->status === FormatSampleStatus::Pending)
-                ->action(fn (array $data) => $this->runAction(
-                    fn () => app(ReviewInstitutionalFormatSample::class)->reject(
-                        $this->latestSample(),
-                        auth()->user(),
-                        (string) $data['note'],
-                    ),
-                    'Muestra rechazada',
-                )),
+                        'Muestra aceptada por el propietario.',
+                    );
+                    app(PublishFormatVersion::class)->execute($this->version()->fresh(), auth()->user());
+                }, 'Formato activado y listo para usar')),
+
             Action::make('publish')
-                ->label('Publicar formato')
+                ->label('Activar formato')
                 ->color('success')
                 ->icon('heroicon-o-check-badge')
                 ->requiresConfirmation()
                 ->visible(fn (): bool => $version->published_at === null && data_get($version->validation_report, 'status') === 'approved')
                 ->action(fn () => $this->runAction(
                     fn () => app(PublishFormatVersion::class)->execute($this->version(), auth()->user()),
-                    'Formato publicado',
+                    'Formato activado y listo para usar',
                 )),
+
+            Action::make('rejectSample')
+                ->label('El ejemplo no quedó bien')
+                ->color('danger')
+                ->schema([
+                    Textarea::make('note')
+                        ->label('¿Qué viste mal?')
+                        ->helperText('Esto es solo una nota para ayudarte a recordar qué debes corregir en “Corregir lo que entendimos”.')
+                        ->required()
+                        ->minLength(3)
+                        ->maxLength(2000)
+                        ->rows(3),
+                ])
+                ->visible(fn (): bool => $version->published_at === null && $sample?->status === FormatSampleStatus::Pending)
+                ->action(fn (array $data) => $this->runAction(
+                    fn () => app(ReviewInstitutionalFormatSample::class)->reject(
+                        $this->latestSample(),
+                        auth()->user(),
+                        (string) $data['note'],
+                    ),
+                    'Anotamos que el ejemplo necesita correcciones',
+                )),
+
+            Action::make('analyze')
+                ->label('Analizar otra vez')
+                ->icon('heroicon-o-arrow-path')
+                ->visible(fn (): bool => $version->published_at === null)
+                ->action(fn () => $this->runAction(function (): void {
+                    $analyzed = app(AnalyzeInstitutionalFormatVersion::class)->execute($this->version(), auth()->user());
+                    if ($this->mappingAvailable($analyzed)) {
+                        app(RenderInstitutionalFormatSample::class)->execute($analyzed, auth()->user());
+                    }
+                }, 'Volvimos a analizar el formato')),
         ];
     }
 
-    /** @return array<int,TextInput> */
+    /** @return array<int,Select> */
     private function mappingFields(): array
     {
-        $current = is_array($this->version()->mapping) ? ($this->version()->mapping['placeholders'] ?? []) : [];
+        $catalog = app(InstitutionalFormatFieldCatalog::class);
+        $options = $catalog->options();
+        $mapping = is_array($this->version()->mapping) ? $this->version()->mapping : [];
+        $currentAnchors = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
+        $currentTokens = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
         $fields = [];
+
+        foreach ($this->anchors() as $index => $anchor) {
+            $id = (string) $anchor['id'];
+            $sourceLabel = trim((string) ($anchor['label'] ?? $id));
+            $confidence = isset($anchor['confidence']) ? (int) $anchor['confidence'] : null;
+            $suggested = $anchor['suggested_path'] ?? null;
+            $previous = trim((string) ($anchor['current_value_excerpt'] ?? ''));
+
+            $helper = $suggested
+                ? 'Nuestra sugerencia: “' . $catalog->labelFor((string) $suggested) . '”' . ($confidence ? ' (' . $confidence . '% de confianza).' : '.')
+                : 'No estamos seguros de qué dato corresponde aquí. Elige uno solo si esta zona debe llenarse automáticamente.';
+
+            if ($previous !== '') {
+                $helper .= ' En la planeación que subiste actualmente aparece: “' . $previous . '”. Ese texto se usará solo como referencia y será reemplazado.';
+            }
+
+            $fields[] = Select::make('anchor_' . $index)
+                ->label('En tu Word aparece: “' . $sourceLabel . '”')
+                ->options($options)
+                ->searchable()
+                ->native(false)
+                ->placeholder('No llenar esta zona automáticamente')
+                ->default($currentAnchors[$id] ?? $suggested ?? null)
+                ->helperText($helper);
+        }
+
         foreach ($this->placeholders() as $index => $token) {
-            $fields[] = TextInput::make('token_' . $index)
-                ->label('{{' . $token . '}}')
-                ->default(is_array($current) ? ($current[$token] ?? null) : null)
-                ->placeholder('planning.title')
-                ->required()
-                ->maxLength(255);
+            $fields[] = Select::make('token_' . $index)
+                ->label('En tu Word aparece: {{' . $token . '}}')
+                ->options($options)
+                ->searchable()
+                ->native(false)
+                ->placeholder('No usar este campo')
+                ->default($currentTokens[$token] ?? null)
+                ->helperText('Este marcador ya venía dentro del archivo. Puedes indicar qué información debe reemplazarlo.');
         }
 
         return $fields;
@@ -165,7 +251,17 @@ class ViewInstitutionalFormat extends ViewRecord
 
     private function version(): FormatVersion
     {
-        return $this->getRecord()->versions()->with(['sourceFile', 'samples.docxFile', 'samples.pdfFile'])->orderByDesc('number')->firstOrFail();
+        return $this->getRecord()->versions()
+            ->with(['sourceFile', 'samples.docxFile', 'samples.pdfFile'])
+            ->orderByDesc('number')
+            ->firstOrFail();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function anchors(): array
+    {
+        $values = data_get($this->version()->validation_report, 'analysis.anchors', []);
+        return is_array($values) ? array_values(array_filter($values, 'is_array')) : [];
     }
 
     /** @return list<string> */
@@ -175,10 +271,22 @@ class ViewInstitutionalFormat extends ViewRecord
         return is_array($values) ? array_values(array_map('strval', $values)) : [];
     }
 
+    private function hasDetectedCandidates(): bool
+    {
+        return $this->anchors() !== [] || $this->placeholders() !== [];
+    }
+
     private function mappingReady(): bool
     {
-        $mapping = $this->version()->mapping;
-        return is_array($mapping) && is_array($mapping['placeholders'] ?? null) && $mapping['placeholders'] !== [];
+        return $this->mappingAvailable($this->version());
+    }
+
+    private function mappingAvailable(FormatVersion $version): bool
+    {
+        $mapping = $version->mapping;
+        return is_array($mapping)
+            && ((is_array($mapping['anchors'] ?? null) && $mapping['anchors'] !== [])
+                || (is_array($mapping['placeholders'] ?? null) && $mapping['placeholders'] !== []));
     }
 
     private function latestSample(): ?FormatVersionSample
@@ -186,15 +294,148 @@ class ViewInstitutionalFormat extends ViewRecord
         return $this->version()->samples()->with(['docxFile', 'pdfFile'])->orderByDesc('id')->first();
     }
 
-    private function mappingSummary(): string
+    private function candidateCount(): int
+    {
+        return count($this->anchors()) + count($this->placeholders());
+    }
+
+    private function mappedCount(): int
     {
         $mapping = $this->version()->mapping;
-        $paths = is_array($mapping) ? ($mapping['placeholders'] ?? []) : [];
-        if (! is_array($paths) || $paths === []) {
-            return 'Sin configurar';
+        if (! is_array($mapping)) {
+            return 0;
         }
 
-        return collect($paths)->map(fn ($path, $token): string => '{{' . $token . '}} → ' . $path)->implode('; ');
+        return count(is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [])
+            + count(is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : []);
+    }
+
+    private function unmappedCount(): int
+    {
+        return max(0, $this->candidateCount() - $this->mappedCount());
+    }
+
+    private function filledSource(): bool
+    {
+        return data_get($this->version()->validation_report, 'analysis.source_content_mode') === 'filled_example';
+    }
+
+    private function sourceContentDescription(): string
+    {
+        if ($this->filledSource()) {
+            $count = (int) data_get($this->version()->validation_report, 'analysis.existing_value_count', 0);
+            return 'Parece una planeación ya llena. Detectamos ' . $count . ' zona(s) con información anterior. La usamos únicamente para entender el formato: al generar una nueva planeación, esos datos se reemplazan y no se mezclan con los nuevos.';
+        }
+
+        return 'Parece una plantilla o formato sin contenido previo relevante. El sistema llenará las zonas que hayas confirmado.';
+    }
+
+    private function priorContentExamples(): string
+    {
+        $rows = [];
+        foreach ($this->anchors() as $anchor) {
+            $previous = trim((string) ($anchor['current_value_excerpt'] ?? ''));
+            if ($previous === '') {
+                continue;
+            }
+            $label = trim((string) ($anchor['label'] ?? 'Campo'));
+            $rows[] = '“' . $label . '” actualmente contiene “' . $previous . '”';
+            if (count($rows) >= 5) {
+                break;
+            }
+        }
+
+        return $rows === []
+            ? 'Detectamos contenido anterior, pero no necesitamos mostrarlo completo para configurar el formato.'
+            : implode(' | ', $rows) . '. Este contenido se reemplazará en la muestra y en futuras planeaciones.';
+    }
+
+    private function detectedExamples(): string
+    {
+        if ($this->candidateCount() === 0) {
+            return 'No encontramos etiquetas claras para relacionar automáticamente.';
+        }
+
+        $catalog = app(InstitutionalFormatFieldCatalog::class);
+        $mapping = is_array($this->version()->mapping) ? $this->version()->mapping : [];
+        $anchorMapping = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
+        $tokenMapping = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
+        $rows = [];
+
+        foreach ($this->anchors() as $anchor) {
+            $id = (string) ($anchor['id'] ?? '');
+            $label = trim((string) ($anchor['label'] ?? $id));
+            $path = $anchorMapping[$id] ?? null;
+            $rows[] = '“' . $label . '” → ' . ($path ? $catalog->labelFor((string) $path) : 'sin relacionar');
+        }
+
+        foreach ($this->placeholders() as $token) {
+            $path = $tokenMapping[$token] ?? null;
+            $rows[] = '{{' . $token . '}} → ' . ($path ? $catalog->labelFor((string) $path) : 'sin relacionar');
+        }
+
+        $total = count($rows);
+        $shown = array_slice($rows, 0, 8);
+        $summary = implode(' | ', $shown);
+        if ($total > count($shown)) {
+            $summary .= ' | y ' . ($total - count($shown)) . ' campo(s) más';
+        }
+
+        return $summary;
+    }
+
+    private function previewStatus(): string
+    {
+        $sample = $this->latestSample();
+        if (! $sample) {
+            return $this->mappingReady() ? 'Aún no generada' : 'Necesita revisar campos primero';
+        }
+
+        return match ($sample->status) {
+            FormatSampleStatus::Pending => 'Lista para revisar',
+            FormatSampleStatus::Approved => 'Aceptada',
+            FormatSampleStatus::Rejected => 'Marcada para corregir',
+        };
+    }
+
+    private function nextStep(): string
+    {
+        if ($this->version()->published_at !== null) {
+            return 'No necesitas hacer nada más. Este formato ya está activo.';
+        }
+
+        $sample = $this->latestSample();
+        if (! $sample) {
+            return $this->mappingReady()
+                ? 'Pulsa “Crear ejemplo” para ver cómo quedará el documento antes de activarlo.'
+                : 'Pulsa “Corregir lo que entendimos” y relaciona al menos un campo que deba llenarse automáticamente.';
+        }
+
+        return match ($sample->status) {
+            FormatSampleStatus::Pending => $this->filledSource()
+                ? 'Abre “Ver ejemplo PDF” y confirma dos cosas: que la información anterior desapareció y que los datos nuevos quedaron en las zonas correctas. Si es así, pulsa “Usar este formato”.'
+                : 'Primero abre “Ver ejemplo PDF”. Si se ve bien, pulsa “Usar este formato”. Si algo quedó en la zona equivocada, pulsa “Corregir lo que entendimos”.',
+            FormatSampleStatus::Approved => 'La muestra ya fue aceptada. Solo falta activar el formato.',
+            FormatSampleStatus::Rejected => 'Pulsa “Corregir lo que entendimos”, ajusta las relaciones y te prepararemos un nuevo ejemplo automáticamente.',
+        };
+    }
+
+    private function humanStatus(): string
+    {
+        if ($this->version()->published_at !== null) {
+            return 'Activo';
+        }
+        if ($this->latestSample()?->status === FormatSampleStatus::Pending) {
+            return 'Esperando tu revisión';
+        }
+        if ($this->latestSample()?->status === FormatSampleStatus::Rejected) {
+            return 'Necesita correcciones';
+        }
+        if ($this->mappingReady()) {
+            return 'Listo para crear ejemplo';
+        }
+
+        return 'Analizado';
     }
 
     private function runAction(callable $callback, string $success): void

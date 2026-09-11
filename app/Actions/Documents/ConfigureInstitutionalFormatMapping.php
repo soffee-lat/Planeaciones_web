@@ -16,26 +16,63 @@ final class ConfigureInstitutionalFormatMapping
     public function __construct(private InstitutionalFormatMapping $mapping) {}
 
     /** @param array<string,mixed> $mapping */
-    public function execute(FormatVersion $version, array $mapping, User $actor): FormatVersion
-    {
-        $this->assertAdmin($actor);
+    public function execute(
+        FormatVersion $version,
+        array $mapping,
+        User $actor,
+        bool $preserveVisualBindings = true,
+    ): FormatVersion {
+        $version->loadMissing('format');
+        $this->assertOwner($version, $actor);
 
-        return DB::transaction(function () use ($version, $mapping): FormatVersion {
+        return DB::transaction(function () use ($version, $mapping, $preserveVisualBindings): FormatVersion {
             $locked = FormatVersion::query()->with(['format', 'sourceFile'])->whereKey($version->id)->lockForUpdate()->firstOrFail();
             if ($locked->published_at !== null || $locked->format?->kind !== InstitutionalFormatKind::Institutional) {
                 throw new DocumentFormatException('FORMAT_MAPPING_STATE_INVALID');
             }
-            $normalized = $this->mapping->validate($locked, $mapping);
+
+            $incoming = $mapping;
+            $existing = is_array($locked->mapping) ? $locked->mapping : [];
+            $analysis = is_array(data_get($locked->validation_report, 'analysis')) ? data_get($locked->validation_report, 'analysis') : [];
+
+            foreach (['custom_fields', 'ignored_zones', 'fragments'] as $key) {
+                if (! array_key_exists($key, $incoming)) {
+                    $incoming[$key] = is_array($existing[$key] ?? null) ? $existing[$key] : [];
+                }
+            }
+
+            if ($preserveVisualBindings) {
+                $incomingAnchors = is_array($incoming['anchors'] ?? null) ? $incoming['anchors'] : [];
+                $existingAnchors = is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [];
+                $automaticIds = [];
+                foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                    if (is_array($anchor) && is_string($anchor['id'] ?? null)) {
+                        $automaticIds[$anchor['id']] = true;
+                    }
+                }
+                foreach ($existingAnchors as $id => $path) {
+                    $id = (string) $id;
+                    $path = (string) $path;
+                    if (! isset($automaticIds[$id]) || str_starts_with($path, 'custom.')) {
+                        $incomingAnchors[$id] ??= $path;
+                    }
+                }
+                $incoming['anchors'] = $incomingAnchors;
+            }
+
+            $normalized = $this->mapping->validate($locked, $incoming);
             $report = $locked->validation_report ?? [];
             if (! is_array($report['analysis'] ?? null)) {
                 throw new DocumentFormatException('FORMAT_ANALYSIS_REQUIRED');
             }
-            $report['status'] = 'mapping_ready';
+            $hasRenderableMapping = ($normalized['anchors'] ?? []) !== []
+                || ($normalized['placeholders'] ?? []) !== []
+                || ($normalized['fragments'] ?? []) !== [];
+            $report['status'] = $hasRenderableMapping ? 'mapping_ready' : 'analysis_complete';
             unset($report['sample']);
-
             $locked->forceFill([
                 'mapping' => $normalized,
-                'schema_version' => 1,
+                'schema_version' => 2,
                 'renderer' => 'institutional-v1',
                 'validation_report' => $report,
             ])->save();
@@ -45,10 +82,11 @@ final class ConfigureInstitutionalFormatMapping
         }, attempts: 3);
     }
 
-    private function assertAdmin(User $actor): void
+    private function assertOwner(FormatVersion $version, User $actor): void
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || (int) $version->format?->owner_id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }

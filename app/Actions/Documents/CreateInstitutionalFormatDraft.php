@@ -23,17 +23,9 @@ final class CreateInstitutionalFormatDraft
 {
     public const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-    public function execute(
-        User $owner,
-        string $name,
-        string $originalName,
-        string $bytes,
-        User $actor,
-    ): FormatVersion {
-        $this->assertAdmin($actor);
-        if (! $owner->hasRole(RoleCode::Customer)) {
-            throw new DocumentFormatException('FORMAT_OWNER_CUSTOMER_REQUIRED');
-        }
+    public function execute(User $owner, string $name, string $originalName, string $bytes, User $actor): FormatVersion
+    {
+        $this->assertOwner($owner, $actor);
 
         $name = trim($name);
         $originalName = trim($originalName);
@@ -85,7 +77,7 @@ final class CreateInstitutionalFormatDraft
                     'number' => 1,
                     'source_file_id' => $source->id,
                     'mapping' => (object) [],
-                    'schema_version' => 1,
+                    'schema_version' => 2,
                     'renderer' => InstitutionalDocumentRenderer::FORMAT_RENDERER,
                     'validation_report' => ['status' => 'pending_analysis'],
                     'approved_by' => null,
@@ -108,7 +100,6 @@ final class CreateInstitutionalFormatDraft
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_REQUIRED_ENTRY_MISSING:' . $required);
             }
         }
-
         $contentTypes = $package->get('[Content_Types].xml');
         if (stripos($contentTypes, 'macroEnabled') !== false) {
             throw new DocumentFormatException('FORMAT_SOURCE_DOCX_ACTIVE_CONTENT');
@@ -118,17 +109,17 @@ final class CreateInstitutionalFormatDraft
             if (str_ends_with($lower, 'vbaproject.bin') || str_contains($lower, '/activex/')) {
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_ACTIVE_CONTENT');
             }
-            if (str_ends_with($lower, '.rels')
-                && preg_match('/TargetMode\s*=\s*["\']External["\']/i', $package->get($entry)) === 1) {
+            if (str_ends_with($lower, '.rels') && preg_match('/TargetMode\s*=\s*["\']External["\']/i', $package->get($entry)) === 1) {
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_EXTERNAL_RELATIONSHIP');
             }
         }
     }
 
-    private function assertAdmin(User $actor): void
+    private function assertOwner(User $owner, User $actor): void
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || ! $owner->hasRole(RoleCode::Customer) || (int) $owner->id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }

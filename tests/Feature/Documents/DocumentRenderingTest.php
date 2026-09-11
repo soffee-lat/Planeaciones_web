@@ -16,6 +16,7 @@ use App\Models\DocumentVersionFile;
 use App\Models\PlanningRequest;
 use App\Models\StoredFile;
 use App\Services\Documents\DocumentRendererRegistry;
+use App\Services\Documents\InstitutionalDocumentRenderer;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
@@ -130,7 +131,7 @@ class DocumentRenderingTest extends PedagogyTestCase
         $scene['request']->update(['format_version_id' => $published->id]);
         Queue::fake();
         $run = app(DispatchDocumentRendering::class)->execute($scene['request']->fresh());
-        $this->assertSame('institutional-v1.0.0', $run->renderer_version);
+        $this->assertSame(InstitutionalDocumentRenderer::RENDERER_VERSION, $run->renderer_version);
         $done = app(ProcessDocumentRenderRun::class)->execute($run);
         $this->assertSame(DocumentRenderStatus::Succeeded, $done->status);
         $this->assertSame(PlanningRequestStatus::LISTA_PARA_ENTREGAR, $done->request->status);

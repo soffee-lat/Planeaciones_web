@@ -3,7 +3,9 @@
 namespace App\Actions\Review;
 
 use App\Actions\Commerce\ConsumePlanningReservation;
+use App\Actions\Notifications\QueueOperationalNotification;
 use App\Enums\ApprovalKind;
+use App\Enums\OperationalNotificationType;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\ReviewAssignmentStatus;
 use App\Enums\UsageResource;
@@ -12,6 +14,7 @@ use App\Models\Approval;
 use App\Models\PlanningRequest;
 use App\Models\ReviewerAssignment;
 use App\Models\UsageReservation;
+use App\Models\User;
 use App\Services\AI\RequestBlockManager;
 use App\Services\Review\ReviewerCapacityService;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +26,7 @@ final class AssignReviewer
         private ReviewerCapacityService $capacity,
         private ConsumePlanningReservation $consume,
         private RequestBlockManager $blocks,
+        private QueueOperationalNotification $notifications,
     ) {}
 
     public function execute(PlanningRequest $request, ?string $correlationId = null): ?ReviewerAssignment
@@ -100,6 +104,20 @@ final class AssignReviewer
             ]);
 
             $this->blocks->resolve($fresh, 'no_reviewer', 'human_review');
+
+            $reviewer = User::query()->findOrFail($assignment->reviewer_id);
+            $this->notifications->execute(
+                OperationalNotificationType::ReviewAssigned,
+                $reviewer,
+                "review-assignment:{$assignment->id}:assigned",
+                'review_assignment',
+                (int) $assignment->id,
+                [
+                    'title' => 'Tienes una nueva revisión',
+                    'body' => 'Se te asignó una planeación para revisión humana.',
+                    'url' => '/review/assignments/' . $assignment->id,
+                ],
+            );
 
             return $assignment->fresh(['reviewer', 'profile']);
         }, attempts: 3);
