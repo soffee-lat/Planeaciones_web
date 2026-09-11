@@ -26,25 +26,47 @@ final class InstitutionalDocxTemplateEngine
             }
         }
 
-        $cellValues = [];
-        $paragraphValues = [];
+        $cellOperations = [];
+        $paragraphOperations = [];
+
         foreach ($values['anchors'] as $id => $value) {
-            if (! isset($anchorsById[$id]) || trim($value) === '') {
+            $value = trim($value);
+            if ($value === '' || ! isset($anchorsById[$id])) {
                 continue;
             }
-            if (str_starts_with($id, 'c:')) {
-                $cellValues[(int) substr($id, 2)] = $value;
-            }
-            if (str_starts_with($id, 'p:')) {
-                $paragraphValues[(int) substr($id, 2)] = $value;
+
+            $anchor = $anchorsById[$id];
+            $targetId = is_string($anchor['target_id'] ?? null) ? $anchor['target_id'] : $id;
+            $operation = [
+                'value' => $value,
+                'mode' => (string) ($anchor['replacement_mode'] ?? 'append_after_label'),
+                'label' => (string) ($anchor['label'] ?? ''),
+            ];
+
+            if (str_starts_with($targetId, 'c:')) {
+                $cellOperations[(int) substr($targetId, 2)] = $operation;
+            } elseif (str_starts_with($targetId, 'p:')) {
+                $paragraphOperations[(int) substr($targetId, 2)] = $operation;
             }
         }
 
-        if ($cellValues !== []) {
-            $xml = $this->appendAtIndexes($xml, '/<w:tc\b[^>]*>.*?<\/w:tc>/s', $cellValues, '</w:tc>', true);
+        if ($cellOperations !== []) {
+            $xml = $this->applyOperations(
+                $xml,
+                '/<w:tc\b[^>]*>.*?<\/w:tc>/s',
+                $cellOperations,
+                '</w:tc>',
+                true,
+            );
         }
-        if ($paragraphValues !== []) {
-            $xml = $this->appendAtIndexes($xml, '/<w:p\b[^>]*>.*?<\/w:p>/s', $paragraphValues, '</w:p>', false);
+        if ($paragraphOperations !== []) {
+            $xml = $this->applyOperations(
+                $xml,
+                '/<w:p\b[^>]*>.*?<\/w:p>/s',
+                $paragraphOperations,
+                '</w:p>',
+                false,
+            );
         }
 
         if (preg_match('/\{\{[A-Z][A-Z0-9_.-]{1,63}\}\}/', $xml) === 1) {
@@ -56,27 +78,72 @@ final class InstitutionalDocxTemplateEngine
         return $package->toBytes();
     }
 
-    /** @param array<int,string> $values */
-    private function appendAtIndexes(string $xml, string $pattern, array $values, string $closingTag, bool $cell): string
-    {
+    /**
+     * @param array<int,array{value:string,mode:string,label:string}> $operations
+     */
+    private function applyOperations(
+        string $xml,
+        string $pattern,
+        array $operations,
+        string $closingTag,
+        bool $cell,
+    ): string {
         $index = -1;
 
-        return preg_replace_callback($pattern, function (array $match) use (&$index, $values, $closingTag, $cell): string {
+        return preg_replace_callback($pattern, function (array $match) use (&$index, $operations, $closingTag, $cell): string {
             $index++;
-            if (! array_key_exists($index, $values)) {
+            if (! isset($operations[$index])) {
                 return $match[0];
             }
 
-            $value = trim($values[$index]);
+            $operation = $operations[$index];
+            $value = trim($operation['value']);
             if ($value === '') {
                 return $match[0];
             }
 
-            $run = '<w:r><w:t xml:space="preserve"> ' . $this->xml($value) . '</w:t></w:r>';
-            $addition = $cell ? '<w:p>' . $run . '</w:p>' : $run;
-
-            return preg_replace('/' . preg_quote($closingTag, '/') . '$/', $addition . $closingTag, $match[0]) ?? $match[0];
+            return match ($operation['mode']) {
+                'replace_target' => $this->replaceFragmentText($match[0], $value, $closingTag, $cell),
+                'replace_after_label' => $this->replaceFragmentText(
+                    $match[0],
+                    rtrim(trim($operation['label']), ':') . ': ' . $value,
+                    $closingTag,
+                    $cell,
+                ),
+                default => $this->appendValue($match[0], $value, $closingTag, $cell),
+            };
         }, $xml) ?? $xml;
+    }
+
+    private function replaceFragmentText(string $fragment, string $text, string $closingTag, bool $cell): string
+    {
+        if (preg_match('/<w:t\b[^>]*>.*?<\/w:t>/s', $fragment) !== 1) {
+            return $this->appendValue($fragment, $text, $closingTag, $cell);
+        }
+
+        $first = true;
+        $replaced = preg_replace_callback(
+            '/(<w:t\b[^>]*>)(.*?)(<\/w:t>)/s',
+            function (array $match) use (&$first, $text): string {
+                if ($first) {
+                    $first = false;
+                    return $match[1] . $this->xml($text) . $match[3];
+                }
+
+                return $match[1] . $match[3];
+            },
+            $fragment,
+        );
+
+        return is_string($replaced) ? $replaced : $fragment;
+    }
+
+    private function appendValue(string $fragment, string $value, string $closingTag, bool $cell): string
+    {
+        $run = '<w:r><w:t xml:space="preserve"> ' . $this->xml($value) . '</w:t></w:r>';
+        $addition = $cell ? '<w:p>' . $run . '</w:p>' : $run;
+
+        return preg_replace('/' . preg_quote($closingTag, '/') . '$/', $addition . $closingTag, $fragment) ?? $fragment;
     }
 
     /** @return list<array{type:string,text:string}> */
