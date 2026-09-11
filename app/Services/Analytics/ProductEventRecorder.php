@@ -60,10 +60,13 @@ final class ProductEventRecorder
     {
         return match ($type) {
             ProductEventType::PlanningStarted => ['entry_surface', 'profile_reused', 'session_minutes_known'],
-            ProductEventType::CurriculumSuggestionsShown => ['strategy_version', 'content_count', 'pda_count', 'axis_count', 'formative_field_count', 'has_strong_match'],
+            ProductEventType::CurriculumSuggestionsShown => [
+                'strategy_version', 'suggestion_fingerprint', 'content_count', 'pda_count',
+                'axis_count', 'formative_field_count', 'has_strong_match',
+            ],
             ProductEventType::CurriculumSuggestionAccepted,
             ProductEventType::CurriculumSuggestionRejected,
-            ProductEventType::CurriculumSelectionAdded => ['entity_type', 'entity_id', 'origin'],
+            ProductEventType::CurriculumSelectionAdded => ['entity_type', 'entity_id', 'origin', 'suggestion_fingerprint'],
             ProductEventType::CurriculumMapConfirmed => ['selection_revision', 'fingerprint', 'content_count', 'pda_count', 'axis_count'],
             ProductEventType::PlanGenerated => ['document_version_id', 'renderer'],
             ProductEventType::PlanSectionEdited,
@@ -101,8 +104,10 @@ final class ProductEventRecorder
         if (isset($metadata['origin']) && ! in_array($metadata['origin'], ['suggested', 'catalog', 'teacher_added'], true)) {
             throw new \RuntimeException('PRODUCT_EVENT_ORIGIN_INVALID');
         }
-        if (isset($metadata['fingerprint']) && (! is_string($metadata['fingerprint']) || ! preg_match('/^[0-9a-f]{64}$/', $metadata['fingerprint']))) {
-            throw new \RuntimeException('PRODUCT_EVENT_FINGERPRINT_INVALID');
+        foreach (['fingerprint', 'suggestion_fingerprint'] as $fingerprintKey) {
+            if (isset($metadata[$fingerprintKey]) && (! is_string($metadata[$fingerprintKey]) || ! preg_match('/^[0-9a-f]{64}$/', $metadata[$fingerprintKey]))) {
+                throw new \RuntimeException('PRODUCT_EVENT_FINGERPRINT_INVALID:' . $fingerprintKey);
+            }
         }
         if (isset($metadata['section_key']) && (! is_string($metadata['section_key']) || ! preg_match('/^[a-z0-9_.-]+$/', $metadata['section_key']))) {
             throw new \RuntimeException('PRODUCT_EVENT_SECTION_KEY_INVALID');
