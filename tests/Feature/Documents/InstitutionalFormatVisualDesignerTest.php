@@ -30,19 +30,20 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
             ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     }
 
-    public function test_otro_cliente_no_puede_abrir_disenador_ni_fuente(): void
+    public function test_otro_cliente_y_administrador_no_pueden_abrir_disenador_ni_fuente(): void
     {
         $owner = $this->customer();
         $version = $this->analyzedInstitutional($owner->id);
-        $other = $this->customer();
 
-        $this->actingAs($other)
-            ->get(route('institutional-formats.designer', $version->format_id))
-            ->assertForbidden();
+        foreach ([$this->customer(), $this->admin()] as $actor) {
+            $this->actingAs($actor)
+                ->get(route('institutional-formats.designer', $version->format_id))
+                ->assertForbidden();
 
-        $this->actingAs($other)
-            ->get(route('institutional-formats.source', $version->format_id))
-            ->assertForbidden();
+            $this->actingAs($actor)
+                ->get(route('institutional-formats.source', $version->format_id))
+                ->assertForbidden();
+        }
     }
 
     public function test_zona_no_reconocida_puede_convertirse_en_campo_estandar(): void
@@ -196,6 +197,43 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $this->assertStringContainsString('GRUPO:', $bytes);
         $this->assertStringNotContainsString('GRADO: 3°', $bytes);
         $this->assertStringNotContainsString('GRUPO: A', $bytes);
+    }
+
+    public function test_binding_preciso_sobrevive_reanalisis_y_evata_reemplazo_de_zona_completa(): void
+    {
+        Storage::fake('private');
+        $owner = $this->customer();
+        $draft = $this->institutionalDraft($owner->id, [], false, ['Fecha: 11/09/2026']);
+        $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+        $zone = collect($version->validation_report['analysis']['document_zones'])
+            ->first(fn (array $zone): bool => ($zone['text_excerpt'] ?? null) === 'Fecha: 11/09/2026');
+        $this->assertNotNull($zone);
+
+        $this->actingAs($owner)
+            ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+                'zone_id' => $zone['id'],
+                'mode' => 'bind',
+                'field_path' => 'planning.starts_on',
+                'fragment_start' => 7,
+                'fragment_end' => 17,
+                'fragment_text' => '11/09/2026',
+                'label_hint' => 'Fecha',
+            ])
+            ->assertOk();
+
+        $reanalyzed = app(AnalyzeInstitutionalFormatVersion::class)->execute($version->fresh(), $owner);
+        $this->assertCount(1, $reanalyzed->mapping['fragments']);
+
+        foreach ($reanalyzed->validation_report['analysis']['anchors'] as $anchor) {
+            if (is_array($anchor) && ($anchor['target_id'] ?? null) === $zone['id']) {
+                $this->assertArrayNotHasKey((string) $anchor['id'], $reanalyzed->mapping['anchors']);
+            }
+        }
+
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($reanalyzed, $owner);
+        $bytes = Storage::disk('private')->get($sample->docxFile->path);
+        $this->assertStringContainsString('Fecha:', $bytes);
+        $this->assertStringNotContainsString('11/09/2026', $bytes);
     }
 
     public function test_renderer_puede_usar_campo_manual_en_zona_que_heuristica_no_reconocio(): void
