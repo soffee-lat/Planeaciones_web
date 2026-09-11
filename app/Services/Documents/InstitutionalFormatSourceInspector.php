@@ -21,6 +21,7 @@ final class InstitutionalFormatSourceInspector
             || $file->detected_mime !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
             throw new DocumentFormatException('FORMAT_VERSION_SOURCE_NOT_READY');
         }
+
         $storage = Storage::disk($file->disk);
         if (! $storage->exists($file->path)) {
             throw new DocumentFormatException('FORMAT_SOURCE_BYTES_MISSING');
@@ -36,6 +37,7 @@ final class InstitutionalFormatSourceInspector
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_REQUIRED_ENTRY_MISSING:' . $required);
             }
         }
+
         $contentTypes = $package->get('[Content_Types].xml');
         $names = $package->names();
         foreach ($names as $name) {
@@ -43,7 +45,8 @@ final class InstitutionalFormatSourceInspector
             if (str_ends_with($lower, 'vbaproject.bin') || str_contains($lower, '/activex/')) {
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_ACTIVE_CONTENT');
             }
-            if (str_ends_with($lower, '.rels') && preg_match('/TargetMode\s*=\s*["\']External["\']/i', $package->get($name)) === 1) {
+            if (str_ends_with($lower, '.rels')
+                && preg_match('/TargetMode\s*=\s*["\']External["\']/i', $package->get($name)) === 1) {
                 throw new DocumentFormatException('FORMAT_SOURCE_DOCX_EXTERNAL_RELATIONSHIP');
             }
         }
@@ -59,14 +62,9 @@ final class InstitutionalFormatSourceInspector
         $anchors = [];
         $suggestedAnchors = [];
         $usedPaths = [];
-        preg_match_all('/<w:tc\b[^>]*>(.*?)<\/w:tc>/s', $xml, $cells);
-        foreach ($cells[1] ?? [] as $index => $fragment) {
-            $this->collectAnchor($anchors, $suggestedAnchors, $usedPaths, 'c:' . $index, 'cell', $this->text($fragment));
-        }
-        preg_match_all('/<w:p\b[^>]*>(.*?)<\/w:p>/s', $xml, $paragraphs);
-        foreach ($paragraphs[1] ?? [] as $index => $fragment) {
-            $this->collectAnchor($anchors, $suggestedAnchors, $usedPaths, 'p:' . $index, 'paragraph', $this->text($fragment));
-        }
+
+        $this->collectTableAnchors($xml, $anchors, $suggestedAnchors, $usedPaths);
+        $this->collectParagraphAnchors($xml, $anchors, $suggestedAnchors, $usedPaths);
 
         $suggestedPlaceholders = [];
         foreach ($placeholders as $token) {
@@ -75,9 +73,17 @@ final class InstitutionalFormatSourceInspector
             }
         }
 
+        $existingValueCount = count(array_filter(
+            $anchors,
+            static fn (array $anchor): bool => (bool) ($anchor['has_existing_value'] ?? false),
+        ));
+
         $warnings = [];
         if (str_contains($xml, '<w:tbl')) {
             $warnings[] = 'tables_present_review_sample_visually';
+        }
+        if ($existingValueCount > 0) {
+            $warnings[] = 'filled_example_content_will_be_replaced';
         }
         if ($anchors === [] && $placeholders === []) {
             $warnings[] = 'no_field_candidates_detected';
@@ -87,7 +93,9 @@ final class InstitutionalFormatSourceInspector
 
         return [
             'status' => 'analyzed',
-            'mapping_strategy' => 'anchors_v1',
+            'mapping_strategy' => 'anchors_v2',
+            'source_content_mode' => $existingValueCount > 0 ? 'filled_example' : 'blank_template',
+            'existing_value_count' => $existingValueCount,
             'anchors' => $anchors,
             'placeholders' => $placeholders,
             'suggested_mapping' => [
@@ -102,29 +110,258 @@ final class InstitutionalFormatSourceInspector
         ];
     }
 
-    /** @param list<array<string,mixed>> $anchors @param array<string,string> $suggested @param array<string,bool> $usedPaths */
-    private function collectAnchor(array &$anchors, array &$suggested, array &$usedPaths, string $id, string $kind, string $label): void
+    /**
+     * @param list<array<string,mixed>> $anchors
+     * @param array<string,string> $suggested
+     * @param array<string,bool> $usedPaths
+     */
+    private function collectTableAnchors(string $xml, array &$anchors, array &$suggested, array &$usedPaths): void
     {
-        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? $label);
+        preg_match_all('/<w:tc\b[^>]*>.*?<\/w:tc>/s', $xml, $allCells);
+        $cellTexts = [];
+        foreach ($allCells[0] ?? [] as $index => $cell) {
+            $cellTexts[$index] = $this->text((string) $cell);
+        }
+
+        $globalCellIndex = 0;
+        preg_match_all('/<w:tr\b[^>]*>.*?<\/w:tr>/s', $xml, $rows);
+        foreach ($rows[0] ?? [] as $row) {
+            preg_match_all('/<w:tc\b[^>]*>.*?<\/w:tc>/s', (string) $row, $rowCells);
+            $count = count($rowCells[0] ?? []);
+
+            for ($local = 0; $local < $count; $local++) {
+                $sourceIndex = $globalCellIndex + $local;
+                $text = trim((string) ($cellTexts[$sourceIndex] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+
+                $inline = $this->splitInlineLabel($text);
+                if ($inline !== null) {
+                    $this->addAnchor(
+                        $anchors,
+                        $suggested,
+                        $usedPaths,
+                        'c:' . $sourceIndex,
+                        'cell',
+                        $inline['label'],
+                        'c:' . $sourceIndex,
+                        'replace_after_label',
+                        $inline['value'],
+                        $inline['proposal'],
+                    );
+                    continue;
+                }
+
+                $proposal = $this->catalog->suggest($this->cleanLabel($text));
+                if ($proposal === null && ! $this->looksLikeLabel($text)) {
+                    continue;
+                }
+
+                $targetIndex = null;
+                $targetValue = '';
+                if ($local + 1 < $count) {
+                    $candidateIndex = $sourceIndex + 1;
+                    $candidateText = trim((string) ($cellTexts[$candidateIndex] ?? ''));
+                    $candidateProposal = $candidateText === '' ? null : $this->catalog->suggest($this->cleanLabel($candidateText));
+                    if ($candidateProposal === null) {
+                        $targetIndex = $candidateIndex;
+                        $targetValue = $candidateText;
+                    }
+                }
+
+                $this->addAnchor(
+                    $anchors,
+                    $suggested,
+                    $usedPaths,
+                    'c:' . $sourceIndex,
+                    'cell',
+                    $this->cleanLabel($text),
+                    $targetIndex !== null ? 'c:' . $targetIndex : 'c:' . $sourceIndex,
+                    $targetIndex !== null ? 'replace_target' : 'append_after_label',
+                    $targetValue,
+                    $proposal,
+                );
+            }
+
+            $globalCellIndex += $count;
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $anchors
+     * @param array<string,string> $suggested
+     * @param array<string,bool> $usedPaths
+     */
+    private function collectParagraphAnchors(string $xml, array &$anchors, array &$suggested, array &$usedPaths): void
+    {
+        preg_match_all('/<w:tbl\b[^>]*>.*?<\/w:tbl>/s', $xml, $tables, PREG_OFFSET_CAPTURE);
+        $tableRanges = [];
+        foreach ($tables[0] ?? [] as $table) {
+            $start = (int) $table[1];
+            $tableRanges[] = [$start, $start + strlen((string) $table[0])];
+        }
+
+        preg_match_all('/<w:p\b[^>]*>.*?<\/w:p>/s', $xml, $paragraphs, PREG_OFFSET_CAPTURE);
+        $items = [];
+        foreach ($paragraphs[0] ?? [] as $index => $paragraph) {
+            $offset = (int) $paragraph[1];
+            if ($this->insideRanges($offset, $tableRanges)) {
+                continue;
+            }
+            $items[] = [
+                'index' => (int) $index,
+                'text' => $this->text((string) $paragraph[0]),
+            ];
+        }
+
+        $itemCount = count($items);
+        for ($position = 0; $position < $itemCount; $position++) {
+            $item = $items[$position];
+            $text = trim((string) $item['text']);
+            if ($text === '') {
+                continue;
+            }
+
+            $inline = $this->splitInlineLabel($text);
+            if ($inline !== null) {
+                $this->addAnchor(
+                    $anchors,
+                    $suggested,
+                    $usedPaths,
+                    'p:' . $item['index'],
+                    'paragraph',
+                    $inline['label'],
+                    'p:' . $item['index'],
+                    'replace_after_label',
+                    $inline['value'],
+                    $inline['proposal'],
+                );
+                continue;
+            }
+
+            $label = $this->cleanLabel($text);
+            $proposal = $this->catalog->suggest($label);
+            if ($proposal === null && ! $this->looksLikeLabel($text)) {
+                continue;
+            }
+
+            $target = null;
+            if ($position + 1 < $itemCount) {
+                $next = $items[$position + 1];
+                $nextText = trim((string) $next['text']);
+                $nextProposal = $nextText === '' ? null : $this->catalog->suggest($this->cleanLabel($nextText));
+                if ($nextProposal === null) {
+                    $target = $next;
+                }
+            }
+
+            $this->addAnchor(
+                $anchors,
+                $suggested,
+                $usedPaths,
+                'p:' . $item['index'],
+                'paragraph',
+                $label,
+                $target !== null ? 'p:' . $target['index'] : 'p:' . $item['index'],
+                $target !== null ? 'replace_target' : 'append_after_label',
+                $target !== null ? (string) $target['text'] : '',
+                $proposal,
+            );
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $anchors
+     * @param array<string,string> $suggested
+     * @param array<string,bool> $usedPaths
+     * @param array{path:string,confidence:int}|null $proposal
+     */
+    private function addAnchor(
+        array &$anchors,
+        array &$suggested,
+        array &$usedPaths,
+        string $id,
+        string $kind,
+        string $label,
+        string $targetId,
+        string $replacementMode,
+        string $existingValue,
+        ?array $proposal,
+    ): void {
+        $label = trim($label);
         if ($label === '' || mb_strlen($label) > 120) {
             return;
         }
-        $proposal = $this->catalog->suggest($label);
-        $looksLikeLabel = $proposal !== null || str_ends_with($label, ':') || preg_match('/_{3,}|\.{4,}$/u', $label) === 1;
-        if (! $looksLikeLabel) {
-            return;
-        }
+
+        $existingValue = trim(preg_replace('/\s+/u', ' ', $existingValue) ?? $existingValue);
+        $hasExistingValue = $existingValue !== '' && ! $this->looksLikeBlank($existingValue);
+
         $anchors[] = [
             'id' => $id,
             'kind' => $kind,
-            'label' => rtrim($label, " :._\t"),
+            'label' => $label,
+            'target_id' => $targetId,
+            'replacement_mode' => $replacementMode,
+            'has_existing_value' => $hasExistingValue,
+            // Persist only a short owner-visible excerpt. The source DOCX remains private.
+            'current_value_excerpt' => $hasExistingValue ? mb_substr($existingValue, 0, 160) : null,
             'suggested_path' => $proposal['path'] ?? null,
             'confidence' => $proposal['confidence'] ?? null,
         ];
+
         if ($proposal && ! isset($usedPaths[$proposal['path']])) {
             $suggested[$id] = $proposal['path'];
             $usedPaths[$proposal['path']] = true;
         }
+    }
+
+    /** @return array{label:string,value:string,proposal:array{path:string,confidence:int}}|null */
+    private function splitInlineLabel(string $text): ?array
+    {
+        $colon = mb_strpos($text, ':');
+        if ($colon === false) {
+            return null;
+        }
+
+        $label = $this->cleanLabel(mb_substr($text, 0, $colon));
+        $proposal = $this->catalog->suggest($label);
+        if ($proposal === null) {
+            return null;
+        }
+
+        return [
+            'label' => $label,
+            'value' => trim(mb_substr($text, $colon + 1)),
+            'proposal' => $proposal,
+        ];
+    }
+
+    private function cleanLabel(string $value): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value, " :._\t\n\r");
+    }
+
+    private function looksLikeLabel(string $value): bool
+    {
+        $value = trim($value);
+        return str_ends_with($value, ':') || preg_match('/_{3,}|\.{4,}$/u', $value) === 1;
+    }
+
+    private function looksLikeBlank(string $value): bool
+    {
+        return preg_match('/^(?:[_\.\-\s]+)$/u', $value) === 1;
+    }
+
+    /** @param list<array{0:int,1:int}> $ranges */
+    private function insideRanges(int $offset, array $ranges): bool
+    {
+        foreach ($ranges as [$start, $end]) {
+            if ($offset >= $start && $offset < $end) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function text(string $fragment): string
