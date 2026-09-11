@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Filament\App\Pages;
+
+use App\Actions\Planning\StartPlanningExperiment;
+use App\Enums\RoleCode;
+use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Models\Group;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Illuminate\Validation\ValidationException;
+
+class StartPlanning extends Page
+{
+    protected static ?string $title = 'Nueva planeación';
+    protected static ?string $navigationLabel = 'Nueva planeación';
+    protected static ?string $slug = 'nueva-planeacion';
+    protected static ?int $navigationSort = 25;
+    protected string $view = 'filament.app.pages.start-planning';
+
+    public ?int $group_id = null;
+    public string $starts_on = '';
+    public string $ends_on = '';
+    public string $work_focus = '';
+    public string $context_note = '';
+
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        return $user
+            && $user->status === 'active'
+            && $user->hasVerifiedEmail()
+            && $user->hasRole(RoleCode::Customer);
+    }
+
+    protected function getViewData(): array
+    {
+        return [
+            'groups' => PlanningRequestResource::eligibleGroupOptions(),
+        ];
+    }
+
+    public function selectedGroup(): ?Group
+    {
+        if (! $this->group_id) {
+            return null;
+        }
+
+        return Group::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->with(['grade', 'profile'])
+            ->find($this->group_id);
+    }
+
+    public function start(): void
+    {
+        $data = $this->validate([
+            'group_id' => ['required', 'integer'],
+            'starts_on' => ['required', 'date'],
+            'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
+            'work_focus' => ['required', 'string', 'min:3', 'max:255'],
+            'context_note' => ['nullable', 'string', 'max:8000'],
+        ], [
+            'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
+            'starts_on.required' => 'Indica la fecha de inicio.',
+            'ends_on.required' => 'Indica la fecha final.',
+            'ends_on.after_or_equal' => 'La fecha final no puede ser anterior a la inicial.',
+            'work_focus.required' => 'Cuéntanos qué necesitas trabajar.',
+        ]);
+
+        try {
+            $request = app(StartPlanningExperiment::class)->execute(
+                auth()->user(),
+                (int) $data['group_id'],
+                $data['starts_on'],
+                $data['ends_on'],
+                $data['work_focus'],
+                $data['context_note'] ?? null,
+            );
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
+                throw ValidationException::withMessages([
+                    'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil pedagógico.',
+                ]);
+            }
+            throw $e;
+        }
+
+        Notification::make()
+            ->success()
+            ->title('Ya tenemos el punto de partida')
+            ->body('Ahora revisa las conexiones curriculares antes de generar la planeación.')
+            ->send();
+
+        $this->redirect(PlanningRequestResource::getUrl('edit', ['record' => $request]));
+    }
+}
