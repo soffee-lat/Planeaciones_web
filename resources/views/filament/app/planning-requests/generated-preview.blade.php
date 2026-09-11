@@ -37,10 +37,11 @@
                 @foreach ($sessions as $session)
                     @php
                         $moments = is_array($session['moments'] ?? null) ? $session['moments'] : [];
+                        $sessionTitleSuffix = ! empty($session['title']) ? ' · ' . (string) $session['title'] : '';
                     @endphp
                     <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
                         <div class="font-semibold text-gray-950 dark:text-white">
-                            Sesión {{ $session['sequence'] ?? $loop->iteration }}@if (! empty($session['title'])) · {{ $session['title'] }}@endif
+                            Sesión {{ $session['sequence'] ?? $loop->iteration }}{{ $sessionTitleSuffix }}
                         </div>
                         @if (! empty($session['specific_goal']))
                             <div class="mt-1 text-gray-600 dark:text-gray-300">{{ $session['specific_goal'] }}</div>
@@ -48,10 +49,11 @@
                         @foreach ($moments as $moment)
                             @php
                                 $activities = is_array($moment['activities'] ?? null) ? $moment['activities'] : [];
+                                $minutesSuffix = isset($moment['minutes']) ? ' · ' . (string) $moment['minutes'] . ' min' : '';
                             @endphp
                             <div class="mt-3">
                                 <div class="font-medium text-gray-900 dark:text-gray-100">
-                                    {{ ucfirst((string) ($moment['type'] ?? 'Momento')) }}@if (isset($moment['minutes'])) · {{ $moment['minutes'] }} min@endif
+                                    {{ ucfirst((string) ($moment['type'] ?? 'Momento')) }}{{ $minutesSuffix }}
                                 </div>
                                 <ul class="mt-1 list-disc space-y-1 ps-5 text-gray-700 dark:text-gray-200">
                                     @foreach ($activities as $activity)
