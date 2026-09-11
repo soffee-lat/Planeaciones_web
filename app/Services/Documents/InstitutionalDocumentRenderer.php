@@ -17,9 +17,15 @@ use Illuminate\Support\Facades\Storage;
 final class InstitutionalDocumentRenderer
 {
     public const FORMAT_RENDERER = 'institutional-v1';
-    public const RENDERER_VERSION = 'institutional-v1.1.0';
+    public const RENDERER_VERSION = 'institutional-v1.2.0';
 
-    public function __construct(private CanonicalPlanValidator $validator, private InstitutionalFormatMapping $mapping, private InstitutionalDocxTemplateEngine $template, private StandardPdfRenderer $pdf) {}
+    public function __construct(
+        private CanonicalPlanValidator $validator,
+        private InstitutionalFormatMapping $mapping,
+        private InstitutionalDynamicFieldResolver $dynamicFields,
+        private InstitutionalDocxTemplateEngine $template,
+        private StandardPdfRenderer $pdf,
+    ) {}
 
     /** @return array{0:RenderedArtifact,1:RenderedArtifact} */
     public function render(DocumentVersion $version, FormatVersion $formatVersion): array
@@ -62,7 +68,11 @@ final class InstitutionalDocumentRenderer
             || (int) $source->owner_id !== (int) $formatVersion->format?->owner_id) {
             throw new DocumentFormatException('FORMAT_SAMPLE_RENDERER_NOT_SUPPORTED');
         }
-        $normalized = $this->mapping->validate($formatVersion, $formatVersion->mapping);
+        $rawMapping = is_array($formatVersion->mapping) ? $formatVersion->mapping : [];
+        $normalized = $this->mapping->validate(
+            $formatVersion,
+            $this->dynamicFields->augment($formatVersion, $rawMapping),
+        );
         $storage = Storage::disk($source->disk);
         if (! $storage->exists($source->path)) throw new DocumentFormatException('FORMAT_SOURCE_BYTES_MISSING');
         $bytes = $storage->get($source->path);
