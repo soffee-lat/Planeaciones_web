@@ -12,6 +12,7 @@ use App\Enums\FormatSampleStatus;
 use App\Enums\InstitutionalFormatStatus;
 use App\Exceptions\DocumentFormatException;
 use App\Models\FormatVersionSample;
+use App\Services\Documents\OfficeOpenXmlPackage;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesInstitutionalFormatScenario;
 use Tests\Feature\PedagogyTestCase;
@@ -29,9 +30,44 @@ class InstitutionalFormatPipelineTest extends PedagogyTestCase
         $this->assertNotEmpty($version->validation_report['analysis']['anchors']);
         $this->assertSame([], $version->validation_report['analysis']['placeholders']);
         $this->assertTrue($version->validation_report['analysis']['has_tables']);
+        $this->assertSame('blank_template', $version->validation_report['analysis']['source_content_mode']);
         $this->assertSame(2, $version->mapping['schema_version']);
         $this->assertNotEmpty($version->mapping['anchors']);
         $this->assertSame(InstitutionalFormatStatus::Configuring, $version->format->status);
+    }
+
+    public function test_planeacion_ya_llena_se_usa_como_evidencia_y_su_contenido_se_reemplaza(): void
+    {
+        $owner = $this->customer();
+        $draft = $this->institutionalDraftFromBytes($owner->id, $this->institutionalFilledTemplateBytes());
+        $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+
+        $analysis = $version->validation_report['analysis'];
+        $this->assertSame('filled_example', $analysis['source_content_mode']);
+        $this->assertGreaterThanOrEqual(5, $analysis['existing_value_count']);
+        $this->assertContains('filled_example_content_will_be_replaced', $analysis['warnings']);
+
+        $pdaAnchor = collect($analysis['anchors'])->first(
+            fn (array $anchor): bool => ($anchor['suggested_path'] ?? null) === 'curricular_alignment.pdas',
+        );
+        $this->assertIsArray($pdaAnchor);
+        $this->assertTrue((bool) $pdaAnchor['has_existing_value']);
+        $this->assertSame('PDA ANTERIOR QUE DEBE REEMPLAZARSE', $pdaAnchor['current_value_excerpt']);
+        $this->assertSame('replace_target', $pdaAnchor['replacement_mode']);
+
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($version, $owner);
+        $docx = Storage::disk('private')->get($sample->docxFile->path);
+        $xml = OfficeOpenXmlPackage::fromBytes($docx)->get('word/document.xml');
+
+        $this->assertStringContainsString('FORMATO INSTITUCIONAL DEMO', $xml);
+        $this->assertStringContainsString('PDA:', $xml);
+        $this->assertStringContainsString('MUESTRA', $xml);
+        $this->assertStringNotContainsString('PDA ANTERIOR QUE DEBE REEMPLAZARSE', $xml);
+        $this->assertStringNotContainsString('ACTIVIDAD ANTERIOR DE INICIO', $xml);
+        $this->assertStringNotContainsString('ACTIVIDAD ANTERIOR DE DESARROLLO', $xml);
+        $this->assertStringNotContainsString('ACTIVIDAD ANTERIOR DE CIERRE', $xml);
+        $this->assertStringNotContainsString('LISTA DE COTEJO ANTERIOR', $xml);
+        $this->assertStringNotContainsString('PROPÓSITO ANTERIOR DEL PROYECTO', $xml);
     }
 
     public function test_placeholders_siguen_siendo_compatibles_pero_no_son_requisito(): void
