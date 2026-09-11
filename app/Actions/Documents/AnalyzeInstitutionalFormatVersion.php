@@ -70,12 +70,53 @@ final class AnalyzeInstitutionalFormatVersion
                     is_array($suggested['placeholders'] ?? null) ? $suggested['placeholders'] : [],
                     is_array($existing['placeholders'] ?? null) ? $existing['placeholders'] : [],
                 );
-                foreach ($suggested['ignored_zones'] as $ignored) {
-                    unset($suggested['anchors'][(string) $ignored]);
-                    foreach ($suggested['fragments'] as $id => $fragment) {
-                        if (is_array($fragment) && (string) ($fragment['zone_id'] ?? '') === (string) $ignored) {
-                            unset($suggested['fragments'][$id]);
-                        }
+            }
+
+            // A line with several label:value pairs must never be treated as one
+            // replaceable field. It needs precise fragment selection in the visual
+            // designer (e.g. GRADO: 3°  GRUPO: A).
+            $zoneText = [];
+            foreach ((array) ($analysis['document_zones'] ?? []) as $zone) {
+                if (is_array($zone) && is_string($zone['id'] ?? null)) {
+                    $zoneText[$zone['id']] = (string) ($zone['text_excerpt'] ?? '');
+                }
+            }
+            foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                if (! is_array($anchor)) {
+                    continue;
+                }
+                $id = (string) ($anchor['id'] ?? '');
+                $target = (string) ($anchor['target_id'] ?? $id);
+                if (substr_count($zoneText[$target] ?? '', ':') > 1) {
+                    unset($suggested['anchors'][$id]);
+                }
+            }
+
+            // Precise manual fragments are authoritative. Re-analysis can suggest
+            // other zones, but it cannot restore a whole-zone binding on top of a
+            // value the teacher already selected explicitly.
+            $fragmentZones = [];
+            foreach ($suggested['fragments'] as $fragment) {
+                if (is_array($fragment) && is_string($fragment['zone_id'] ?? null)) {
+                    $fragmentZones[$fragment['zone_id']] = true;
+                }
+            }
+            foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                if (! is_array($anchor)) {
+                    continue;
+                }
+                $id = (string) ($anchor['id'] ?? '');
+                $target = (string) ($anchor['target_id'] ?? $id);
+                if (isset($fragmentZones[$id]) || isset($fragmentZones[$target])) {
+                    unset($suggested['anchors'][$id]);
+                }
+            }
+
+            foreach ($suggested['ignored_zones'] as $ignored) {
+                unset($suggested['anchors'][(string) $ignored]);
+                foreach ($suggested['fragments'] as $id => $fragment) {
+                    if (is_array($fragment) && (string) ($fragment['zone_id'] ?? '') === (string) $ignored) {
+                        unset($suggested['fragments'][$id]);
                     }
                 }
             }
