@@ -24,7 +24,7 @@ final class InstitutionalFormatVisualBindingController
         $user = auth()->user();
         $this->assertOwner($format, $user);
 
-        $version = $format->versions()->orderByDesc('number')->firstOrFail();
+        $version = $format->versions()->reorder()->orderByDesc('number')->firstOrFail();
         if ($version->published_at !== null) {
             throw new DocumentFormatException('FORMAT_MAPPING_STATE_INVALID');
         }
