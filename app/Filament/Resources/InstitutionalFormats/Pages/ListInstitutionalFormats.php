@@ -4,6 +4,7 @@ namespace App\Filament\Resources\InstitutionalFormats\Pages;
 
 use App\Actions\Documents\AnalyzeInstitutionalFormatVersion;
 use App\Actions\Documents\CreateInstitutionalFormatDraft;
+use App\Actions\Documents\RenderInstitutionalFormatSample;
 use App\Filament\Resources\InstitutionalFormats\InstitutionalFormatResource;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -44,10 +45,12 @@ class ListInstitutionalFormats extends ListRecords
                         if ($path === '' || ! Storage::disk('private')->exists($path)) {
                             throw new \RuntimeException('FORMAT_SOURCE_UPLOAD_MISSING');
                         }
+
                         $actor = auth()->user();
                         if (! $actor instanceof User) {
                             throw new \RuntimeException('FORMAT_OWNER_REQUIRED');
                         }
+
                         $bytes = Storage::disk('private')->get($path);
                         $version = app(CreateInstitutionalFormatDraft::class)->execute(
                             $actor,
@@ -57,11 +60,29 @@ class ListInstitutionalFormats extends ListRecords
                             $actor,
                         );
                         $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($version, $actor);
+
+                        $mapping = is_array($version->mapping) ? $version->mapping : [];
+                        $hasMapping = (is_array($mapping['anchors'] ?? null) && $mapping['anchors'] !== [])
+                            || (is_array($mapping['placeholders'] ?? null) && $mapping['placeholders'] !== []);
+                        $previewReady = false;
+
+                        if ($hasMapping) {
+                            try {
+                                app(RenderInstitutionalFormatSample::class)->execute($version, $actor);
+                                $previewReady = true;
+                            } catch (\Throwable $previewError) {
+                                report($previewError);
+                            }
+                        }
+
                         Notification::make()
                             ->success()
-                            ->title('Formato analizado')
-                            ->body('Detectamos la estructura del Word y preparamos una propuesta de campos. Revísala y genera una muestra.')
+                            ->title($previewReady ? 'Preparamos un ejemplo de tu formato' : 'Analizamos tu formato')
+                            ->body($previewReady
+                                ? 'Abre el ejemplo para comprobar cómo se llenará. Si algo no corresponde, puedes corregir lo que entendimos.'
+                                : 'Encontramos la estructura del Word. Revisa lo que entendimos para indicarnos qué datos deben ir en cada zona.')
                             ->send();
+
                         $this->redirect(InstitutionalFormatResource::getUrl('view', ['record' => $version->format_id]));
                     } catch (\Throwable $error) {
                         report($error);
