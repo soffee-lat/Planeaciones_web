@@ -8,7 +8,7 @@ use App\Support\AI\CanonicalJson;
 
 final class InstitutionalFormatMapping
 {
-    private const ALLOWED_ROOTS = ['planning','curricular_alignment','context','pedagogical_design','sessions','assessment_plan','resources','adaptation_notes'];
+    private const ALLOWED_ROOTS = ['planning','curricular_alignment','context','pedagogical_design','sessions','assessment_plan','resources','adaptation_notes','custom'];
 
     /** @param array<string,mixed> $mapping @return array<string,mixed> */
     public function validate(FormatVersion $version, array $mapping): array
@@ -31,14 +31,29 @@ final class InstitutionalFormatMapping
                 $availableAnchors[$anchor['id']] = true;
             }
         }
+        foreach (($analysis['document_zones'] ?? []) as $zone) {
+            if (is_array($zone) && is_string($zone['id'] ?? null)) {
+                $availableAnchors[$zone['id']] = true;
+            }
+        }
+
+        $customFields = $this->normalizeCustomFields($mapping['custom_fields'] ?? []);
         $availableTokens = array_fill_keys(array_map('strval', is_array($analysis['placeholders'] ?? null) ? $analysis['placeholders'] : []), true);
-        $anchors = $this->normalizeMap($mapping['anchors'] ?? [], $availableAnchors, 'FORMAT_MAPPING_ANCHOR_MISMATCH');
-        $placeholders = $this->normalizeMap($mapping['placeholders'] ?? [], $availableTokens, 'FORMAT_MAPPING_PLACEHOLDER_MISMATCH');
+        $anchors = $this->normalizeMap($mapping['anchors'] ?? [], $availableAnchors, 'FORMAT_MAPPING_ANCHOR_MISMATCH', $customFields);
+        $placeholders = $this->normalizeMap($mapping['placeholders'] ?? [], $availableTokens, 'FORMAT_MAPPING_PLACEHOLDER_MISMATCH', $customFields);
+        $ignoredZones = $this->normalizeIgnoredZones($mapping['ignored_zones'] ?? [], $availableAnchors);
+
         if ($anchors === [] && $placeholders === []) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
         }
 
-        return ['schema_version' => 2, 'anchors' => $anchors, 'placeholders' => $placeholders];
+        return [
+            'schema_version' => 2,
+            'anchors' => $anchors,
+            'placeholders' => $placeholders,
+            'custom_fields' => $customFields,
+            'ignored_zones' => $ignoredZones,
+        ];
     }
 
     public function hash(array $mapping): string
@@ -55,14 +70,24 @@ final class InstitutionalFormatMapping
     /** @return array{anchors:array<string,string>,placeholders:array<string,string>} */
     public function sampleValues(array $mapping): array
     {
-        return $this->mappedValues($mapping, fn (string $path): string => match ($path) {
-            'sessions' => 'MUESTRA · Sesión 1: inicio, desarrollo y cierre; Sesión 2: aplicación y evaluación.',
-            'sessions.opening' => 'MUESTRA · Recuperación de saberes previos y presentación del reto.',
-            'sessions.development' => 'MUESTRA · Actividades guiadas, colaborativas y de aplicación.',
-            'sessions.closing' => 'MUESTRA · Socialización, reflexión y cierre.',
-            'curricular_alignment.contents' => 'MUESTRA · Contenido curricular relacionado con el proyecto.',
-            'curricular_alignment.pdas' => 'MUESTRA · Proceso de Desarrollo de Aprendizaje correspondiente.',
-            default => 'MUESTRA · ' . str_replace(['_', '.'], [' ', ' / '], $path),
+        $customFields = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
+
+        return $this->mappedValues($mapping, function (string $path) use ($customFields): string {
+            if (str_starts_with($path, 'custom.')) {
+                $key = substr($path, strlen('custom.'));
+                $label = (string) data_get($customFields, $key . '.label', str_replace('_', ' ', $key));
+                return 'MUESTRA · ' . $label;
+            }
+
+            return match ($path) {
+                'sessions' => 'MUESTRA · Sesión 1: inicio, desarrollo y cierre; Sesión 2: aplicación y evaluación.',
+                'sessions.opening' => 'MUESTRA · Recuperación de saberes previos y presentación del reto.',
+                'sessions.development' => 'MUESTRA · Actividades guiadas, colaborativas y de aplicación.',
+                'sessions.closing' => 'MUESTRA · Socialización, reflexión y cierre.',
+                'curricular_alignment.contents' => 'MUESTRA · Contenido curricular relacionado con el proyecto.',
+                'curricular_alignment.pdas' => 'MUESTRA · Proceso de Desarrollo de Aprendizaje correspondiente.',
+                default => 'MUESTRA · ' . str_replace(['_', '.'], [' ', ' / '], $path),
+            };
         });
     }
 
@@ -80,8 +105,8 @@ final class InstitutionalFormatMapping
         return ['anchors' => $anchors, 'placeholders' => $placeholders];
     }
 
-    /** @param mixed $raw @param array<string,bool> $available @return array<string,string> */
-    private function normalizeMap(mixed $raw, array $available, string $mismatchCode): array
+    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,string>> $customFields @return array<string,string> */
+    private function normalizeMap(mixed $raw, array $available, string $mismatchCode, array $customFields): array
     {
         if ($raw === null) {
             return [];
@@ -99,11 +124,61 @@ final class InstitutionalFormatMapping
             if (! isset($available[$key])) {
                 throw new DocumentFormatException($mismatchCode);
             }
-            $this->assertPath($path);
+            $this->assertPath($path, $customFields);
             $normalized[$key] = $path;
         }
         ksort($normalized, SORT_STRING);
         return $normalized;
+    }
+
+    /** @param mixed $raw @return array<string,array{label:string,type:string,instruction:string}> */
+    private function normalizeCustomFields(mixed $raw): array
+    {
+        if ($raw === null || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELDS_INVALID');
+        }
+
+        $normalized = [];
+        foreach ($raw as $key => $definition) {
+            $key = trim((string) $key);
+            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1 || ! is_array($definition)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELDS_INVALID');
+            }
+            $label = trim((string) ($definition['label'] ?? ''));
+            $type = trim((string) ($definition['type'] ?? 'long_text'));
+            $instruction = trim((string) ($definition['instruction'] ?? ''));
+            if ($label === '' || mb_strlen($label) > 120 || ! in_array($type, ['text', 'long_text', 'date', 'list', 'table', 'repeating_block'], true) || mb_strlen($instruction) > 1000) {
+                throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELDS_INVALID');
+            }
+            $normalized[$key] = ['label' => $label, 'type' => $type, 'instruction' => $instruction];
+        }
+        ksort($normalized, SORT_STRING);
+        return $normalized;
+    }
+
+    /** @param mixed $raw @param array<string,bool> $available @return list<string> */
+    private function normalizeIgnoredZones(mixed $raw, array $available): array
+    {
+        if ($raw === null || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
+        }
+        $zones = [];
+        foreach ($raw as $zone) {
+            $zone = trim((string) $zone);
+            if ($zone === '' || ! isset($available[$zone])) {
+                throw new DocumentFormatException('FORMAT_MAPPING_ANCHOR_MISMATCH');
+            }
+            $zones[$zone] = true;
+        }
+        $values = array_keys($zones);
+        sort($values, SORT_STRING);
+        return $values;
     }
 
     /** @param array<string,mixed> $analysis @param array<string,mixed> $mapping */
@@ -118,7 +193,7 @@ final class InstitutionalFormatMapping
         foreach ($mapping['placeholders'] as $token => $path) {
             $token = trim((string) $token);
             $path = trim((string) $path);
-            $this->assertPath($path);
+            $this->assertPath($path, []);
             $normalized[$token] = $path;
         }
         ksort($normalized, SORT_STRING);
@@ -128,7 +203,8 @@ final class InstitutionalFormatMapping
         return ['schema_version' => 1, 'placeholders' => $normalized];
     }
 
-    private function assertPath(string $path): void
+    /** @param array<string,array<string,string>> $customFields */
+    private function assertPath(string $path, array $customFields): void
     {
         if (preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/', $path) !== 1) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
@@ -136,6 +212,12 @@ final class InstitutionalFormatMapping
         $root = explode('.', $path, 2)[0];
         if (! in_array($root, self::ALLOWED_ROOTS, true)) {
             throw new DocumentFormatException('FORMAT_MAPPING_PATH_NOT_ALLOWED:' . $path);
+        }
+        if ($root === 'custom') {
+            $key = substr($path, strlen('custom.'));
+            if ($key === '' || ! isset($customFields[$key])) {
+                throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELD_NOT_DEFINED:' . $path);
+            }
         }
     }
 
