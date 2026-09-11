@@ -19,6 +19,7 @@ final class ManualGenerationPackageBuilder
         private GenerationPromptPolicy $promptPolicy,
         private ManualAiConfiguration $manualConfiguration,
         private PromptRenderer $promptRenderer,
+        private FormatAwareGenerationSchema $formatAwareSchema,
     ) {}
 
     public function build(AiExecution $execution): AiManualPackage
@@ -38,15 +39,21 @@ final class ManualGenerationPackageBuilder
 
         $this->promptPolicy->assertReady($prompt);
 
+        $promptInputSnapshot = $input->inputSnapshot;
+        if (($input->formatContext['format_version_id'] ?? null) !== null) {
+            $promptInputSnapshot['format_context'] = $input->formatContext;
+        }
+        $outputSchema = $this->formatAwareSchema->extend($prompt->output_schema, $input->formatContext);
+
         $supported = [
             'request_id' => $input->requestId,
             'input_revision' => $input->inputRevision,
-            'input_snapshot' => CanonicalJson::encode($input->inputSnapshot),
+            'input_snapshot' => CanonicalJson::encode($promptInputSnapshot),
             'commercial_snapshot' => CanonicalJson::encode($input->commercialSnapshot),
             'planning_units' => $input->planningUnits,
             'segments' => CanonicalJson::encode($input->segments),
             'input_manifest' => CanonicalJson::encode($input->inputManifest),
-            'output_schema' => CanonicalJson::encode($prompt->output_schema),
+            'output_schema' => CanonicalJson::encode($outputSchema),
             'output_schema_version' => $input->outputSchemaVersion,
             'correlation_id' => $input->correlationId,
         ];
@@ -75,6 +82,7 @@ final class ManualGenerationPackageBuilder
                 'input_revision' => $input->inputRevision,
                 'correlation_id' => $input->correlationId,
             ],
+            'format_context' => $input->formatContext,
             'prompt' => [
                 'template_key' => $template->key,
                 'version_id' => (int) $prompt->id,
@@ -85,7 +93,7 @@ final class ManualGenerationPackageBuilder
             ],
             'output' => [
                 'schema_version' => $prompt->schema_version,
-                'schema' => $prompt->output_schema,
+                'schema' => $outputSchema,
                 'return_json_only' => true,
             ],
             'input_manifest' => $input->inputManifest,
