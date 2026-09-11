@@ -21,7 +21,8 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
             ->get(route('institutional-formats.designer', $version->format_id))
             ->assertOk()
             ->assertSee('Diseñador visual de formato')
-            ->assertSee('Selecciona directamente una zona del documento');
+            ->assertSee('Selecciona directamente una zona del documento')
+            ->assertSee('Generar y ver ejemplo');
 
         $this->actingAs($owner)
             ->get(route('institutional-formats.source', $version->format_id))
@@ -91,6 +92,36 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $this->assertSame($path, $mapping['anchors'][$zone['id']]);
     }
 
+    public function test_zona_visual_puede_marcarse_como_no_modificable_y_quitarse_despues(): void
+    {
+        $owner = $this->customer();
+        $version = $this->analyzedInstitutional($owner->id);
+        $zone = collect($version->validation_report['analysis']['document_zones'])->first();
+        $this->assertNotNull($zone);
+
+        $this->actingAs($owner)
+            ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+                'zone_id' => $zone['id'],
+                'mode' => 'ignore',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ignored', true);
+
+        $mapping = $version->fresh()->mapping;
+        $this->assertContains($zone['id'], $mapping['ignored_zones']);
+        $this->assertArrayNotHasKey($zone['id'], $mapping['anchors']);
+
+        $this->actingAs($owner)
+            ->postJson(route('institutional-formats.visual-binding', $version->format_id), [
+                'zone_id' => $zone['id'],
+                'mode' => 'unbind',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ignored', false);
+
+        $this->assertNotContains($zone['id'], $version->fresh()->mapping['ignored_zones']);
+    }
+
     public function test_renderer_puede_usar_campo_manual_en_zona_que_heuristica_no_reconocio(): void
     {
         Storage::fake('private');
@@ -116,5 +147,20 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $this->assertStringNotContainsString('Texto institucional fijo', $bytes);
         $this->assertStringContainsString('MUESTRA', $bytes);
         $this->assertStringContainsString('Producto final', $bytes);
+    }
+
+    public function test_disenador_genera_muestra_con_configuracion_visual_actual(): void
+    {
+        $owner = $this->customer();
+        $version = $this->analyzedInstitutional($owner->id);
+
+        $response = $this->actingAs($owner)
+            ->postJson(route('institutional-formats.visual-preview', $version->format_id))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertNotEmpty($response->json('pdf_url'));
+        $this->assertNotEmpty($response->json('docx_url'));
+        $this->assertSame('sample_ready', $version->fresh()->validation_report['status']);
     }
 }
