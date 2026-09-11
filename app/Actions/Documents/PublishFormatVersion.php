@@ -14,13 +14,18 @@ use App\Models\FormatVersionSample;
 use App\Models\User;
 use App\Services\Documents\DocumentRendererRegistry;
 use App\Services\Documents\InstitutionalDocumentRenderer;
+use App\Services\Documents\InstitutionalDynamicFieldResolver;
 use App\Services\Documents\InstitutionalFormatMapping;
 use App\Support\AI\CanonicalJson;
 use Illuminate\Support\Facades\DB;
 
 final class PublishFormatVersion
 {
-    public function __construct(private DocumentRendererRegistry $renderers, private InstitutionalFormatMapping $mapping) {}
+    public function __construct(
+        private DocumentRendererRegistry $renderers,
+        private InstitutionalFormatMapping $mapping,
+        private InstitutionalDynamicFieldResolver $dynamicFields,
+    ) {}
 
     public function execute(FormatVersion $version, User $actor): FormatVersion
     {
@@ -49,7 +54,11 @@ final class PublishFormatVersion
                 throw new DocumentFormatException('FORMAT_VERSION_SAMPLE_NOT_APPROVED');
             }
 
-            $normalized = $this->mapping->validate($locked, $locked->mapping);
+            $rawMapping = is_array($locked->mapping) ? $locked->mapping : [];
+            $normalized = $this->mapping->validate(
+                $locked,
+                $this->dynamicFields->augment($locked, $rawMapping),
+            );
             if (! $this->renderers->supports($locked)) {
                 throw new DocumentFormatException('FORMAT_VERSION_RENDERER_NOT_SUPPORTED');
             }
