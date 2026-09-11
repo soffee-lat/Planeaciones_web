@@ -75,7 +75,20 @@ final class AnalyzeInstitutionalFormatVersion
             $locked->forceFill([
                 'validation_report' => ['status' => 'analysis_complete', 'analysis' => $analysis],
             ])->save();
-            $normalized = $this->mapping->validate($locked->fresh(), $suggested);
+
+            $hasRequestedMapping = (is_array($suggested['anchors'] ?? null) && $suggested['anchors'] !== [])
+                || (is_array($suggested['placeholders'] ?? null) && $suggested['placeholders'] !== []);
+
+            $normalized = $hasRequestedMapping
+                ? $this->mapping->validate($locked->fresh(), $suggested)
+                : [
+                    'schema_version' => 2,
+                    'anchors' => [],
+                    'placeholders' => [],
+                    'custom_fields' => is_array($suggested['custom_fields'] ?? null) ? $suggested['custom_fields'] : [],
+                    'ignored_zones' => is_array($suggested['ignored_zones'] ?? null) ? array_values($suggested['ignored_zones']) : [],
+                ];
+
             $hasMapping = ($normalized['anchors'] ?? []) !== [] || ($normalized['placeholders'] ?? []) !== [];
 
             $locked->forceFill([
