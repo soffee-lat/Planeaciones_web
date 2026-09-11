@@ -110,11 +110,7 @@ final class InstitutionalFormatSourceInspector
         ];
     }
 
-    /**
-     * @param list<array<string,mixed>> $anchors
-     * @param array<string,string> $suggested
-     * @param array<string,bool> $usedPaths
-     */
+    /** @param list<array<string,mixed>> $anchors @param array<string,string> $suggested @param array<string,bool> $usedPaths */
     private function collectTableAnchors(string $xml, array &$anchors, array &$suggested, array &$usedPaths): void
     {
         preg_match_all('/<w:tc\b[^>]*>.*?<\/w:tc>/s', $xml, $allCells);
@@ -137,7 +133,7 @@ final class InstitutionalFormatSourceInspector
                 }
 
                 $inline = $this->splitInlineLabel($text);
-                if ($inline !== null) {
+                if ($inline !== null && trim($inline['value']) !== '') {
                     $this->addAnchor(
                         $anchors,
                         $suggested,
@@ -153,7 +149,8 @@ final class InstitutionalFormatSourceInspector
                     continue;
                 }
 
-                $proposal = $this->catalog->suggest($this->cleanLabel($text));
+                $label = $inline['label'] ?? $this->cleanLabel($text);
+                $proposal = $inline['proposal'] ?? $this->catalog->suggest($label);
                 if ($proposal === null && ! $this->looksLikeLabel($text)) {
                     continue;
                 }
@@ -176,7 +173,7 @@ final class InstitutionalFormatSourceInspector
                     $usedPaths,
                     'c:' . $sourceIndex,
                     'cell',
-                    $this->cleanLabel($text),
+                    $label,
                     $targetIndex !== null ? 'c:' . $targetIndex : 'c:' . $sourceIndex,
                     $targetIndex !== null ? 'replace_target' : 'append_after_label',
                     $targetValue,
@@ -188,11 +185,7 @@ final class InstitutionalFormatSourceInspector
         }
     }
 
-    /**
-     * @param list<array<string,mixed>> $anchors
-     * @param array<string,string> $suggested
-     * @param array<string,bool> $usedPaths
-     */
+    /** @param list<array<string,mixed>> $anchors @param array<string,string> $suggested @param array<string,bool> $usedPaths */
     private function collectParagraphAnchors(string $xml, array &$anchors, array &$suggested, array &$usedPaths): void
     {
         preg_match_all('/<w:tbl\b[^>]*>.*?<\/w:tbl>/s', $xml, $tables, PREG_OFFSET_CAPTURE);
@@ -209,10 +202,7 @@ final class InstitutionalFormatSourceInspector
             if ($this->insideRanges($offset, $tableRanges)) {
                 continue;
             }
-            $items[] = [
-                'index' => (int) $index,
-                'text' => $this->text((string) $paragraph[0]),
-            ];
+            $items[] = ['index' => (int) $index, 'text' => $this->text((string) $paragraph[0])];
         }
 
         $itemCount = count($items);
@@ -224,7 +214,7 @@ final class InstitutionalFormatSourceInspector
             }
 
             $inline = $this->splitInlineLabel($text);
-            if ($inline !== null) {
+            if ($inline !== null && trim($inline['value']) !== '') {
                 $this->addAnchor(
                     $anchors,
                     $suggested,
@@ -240,8 +230,8 @@ final class InstitutionalFormatSourceInspector
                 continue;
             }
 
-            $label = $this->cleanLabel($text);
-            $proposal = $this->catalog->suggest($label);
+            $label = $inline['label'] ?? $this->cleanLabel($text);
+            $proposal = $inline['proposal'] ?? $this->catalog->suggest($label);
             if ($proposal === null && ! $this->looksLikeLabel($text)) {
                 continue;
             }
@@ -271,24 +261,9 @@ final class InstitutionalFormatSourceInspector
         }
     }
 
-    /**
-     * @param list<array<string,mixed>> $anchors
-     * @param array<string,string> $suggested
-     * @param array<string,bool> $usedPaths
-     * @param array{path:string,confidence:int}|null $proposal
-     */
-    private function addAnchor(
-        array &$anchors,
-        array &$suggested,
-        array &$usedPaths,
-        string $id,
-        string $kind,
-        string $label,
-        string $targetId,
-        string $replacementMode,
-        string $existingValue,
-        ?array $proposal,
-    ): void {
+    /** @param list<array<string,mixed>> $anchors @param array<string,string> $suggested @param array<string,bool> $usedPaths @param array{path:string,confidence:int}|null $proposal */
+    private function addAnchor(array &$anchors, array &$suggested, array &$usedPaths, string $id, string $kind, string $label, string $targetId, string $replacementMode, string $existingValue, ?array $proposal): void
+    {
         $label = trim($label);
         if ($label === '' || mb_strlen($label) > 120) {
             return;
@@ -304,7 +279,6 @@ final class InstitutionalFormatSourceInspector
             'target_id' => $targetId,
             'replacement_mode' => $replacementMode,
             'has_existing_value' => $hasExistingValue,
-            // Persist only a short owner-visible excerpt. The source DOCX remains private.
             'current_value_excerpt' => $hasExistingValue ? mb_substr($existingValue, 0, 160) : null,
             'suggested_path' => $proposal['path'] ?? null,
             'confidence' => $proposal['confidence'] ?? null,
