@@ -35,11 +35,10 @@ final class ConfigureInstitutionalFormatMapping
             $existing = is_array($locked->mapping) ? $locked->mapping : [];
             $analysis = is_array(data_get($locked->validation_report, 'analysis')) ? data_get($locked->validation_report, 'analysis') : [];
 
-            if (! array_key_exists('custom_fields', $incoming)) {
-                $incoming['custom_fields'] = is_array($existing['custom_fields'] ?? null) ? $existing['custom_fields'] : [];
-            }
-            if (! array_key_exists('ignored_zones', $incoming)) {
-                $incoming['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
+            foreach (['custom_fields', 'ignored_zones', 'fragments'] as $key) {
+                if (! array_key_exists($key, $incoming)) {
+                    $incoming[$key] = is_array($existing[$key] ?? null) ? $existing[$key] : [];
+                }
             }
 
             if ($preserveVisualBindings) {
@@ -66,7 +65,9 @@ final class ConfigureInstitutionalFormatMapping
             if (! is_array($report['analysis'] ?? null)) {
                 throw new DocumentFormatException('FORMAT_ANALYSIS_REQUIRED');
             }
-            $hasRenderableMapping = ($normalized['anchors'] ?? []) !== [] || ($normalized['placeholders'] ?? []) !== [];
+            $hasRenderableMapping = ($normalized['anchors'] ?? []) !== []
+                || ($normalized['placeholders'] ?? []) !== []
+                || ($normalized['fragments'] ?? []) !== [];
             $report['status'] = $hasRenderableMapping ? 'mapping_ready' : 'analysis_complete';
             unset($report['sample']);
             $locked->forceFill([
