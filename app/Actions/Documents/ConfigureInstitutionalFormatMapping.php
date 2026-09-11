@@ -20,18 +20,59 @@ final class ConfigureInstitutionalFormatMapping
     {
         $version->loadMissing('format');
         $this->assertOwner($version, $actor);
+
         return DB::transaction(function () use ($version, $mapping): FormatVersion {
             $locked = FormatVersion::query()->with(['format', 'sourceFile'])->whereKey($version->id)->lockForUpdate()->firstOrFail();
             if ($locked->published_at !== null || $locked->format?->kind !== InstitutionalFormatKind::Institutional) {
                 throw new DocumentFormatException('FORMAT_MAPPING_STATE_INVALID');
             }
-            $normalized = $this->mapping->validate($locked, $mapping);
+
+            $incoming = $mapping;
+            $existing = is_array($locked->mapping) ? $locked->mapping : [];
+            $analysis = is_array(data_get($locked->validation_report, 'analysis')) ? data_get($locked->validation_report, 'analysis') : [];
+
+            if (! array_key_exists('custom_fields', $incoming)) {
+                $incoming['custom_fields'] = is_array($existing['custom_fields'] ?? null) ? $existing['custom_fields'] : [];
+            }
+            if (! array_key_exists('ignored_zones', $incoming)) {
+                $incoming['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
+            }
+
+            // The older guided editor only exposes automatically detected anchors.
+            // Preserve manual zones and custom fields created in the visual builder
+            // when that editor saves its subset of the mapping.
+            $incomingAnchors = is_array($incoming['anchors'] ?? null) ? $incoming['anchors'] : [];
+            $existingAnchors = is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [];
+            $automaticIds = [];
+            foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                if (is_array($anchor) && is_string($anchor['id'] ?? null)) {
+                    $automaticIds[$anchor['id']] = true;
+                }
+            }
+            foreach ($existingAnchors as $id => $path) {
+                $id = (string) $id;
+                $path = (string) $path;
+                if (! isset($automaticIds[$id]) || str_starts_with($path, 'custom.')) {
+                    $incomingAnchors[$id] ??= $path;
+                }
+            }
+            $incoming['anchors'] = $incomingAnchors;
+
+            $normalized = $this->mapping->validate($locked, $incoming);
             $report = $locked->validation_report ?? [];
-            if (! is_array($report['analysis'] ?? null)) throw new DocumentFormatException('FORMAT_ANALYSIS_REQUIRED');
+            if (! is_array($report['analysis'] ?? null)) {
+                throw new DocumentFormatException('FORMAT_ANALYSIS_REQUIRED');
+            }
             $report['status'] = 'mapping_ready';
             unset($report['sample']);
-            $locked->forceFill(['mapping' => $normalized, 'schema_version' => 2, 'renderer' => 'institutional-v1', 'validation_report' => $report])->save();
+            $locked->forceFill([
+                'mapping' => $normalized,
+                'schema_version' => 2,
+                'renderer' => 'institutional-v1',
+                'validation_report' => $report,
+            ])->save();
             $locked->format->forceFill(['status' => InstitutionalFormatStatus::Configuring->value])->save();
+
             return $locked->fresh(['format', 'sourceFile']);
         }, attempts: 3);
     }
