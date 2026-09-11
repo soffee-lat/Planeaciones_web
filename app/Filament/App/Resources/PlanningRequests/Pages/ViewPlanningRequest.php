@@ -8,6 +8,7 @@ use App\Actions\Documents\PublishPlanningDelivery;
 use App\Actions\Planning\AuthorizePlanningRequestForProcessing;
 use App\Actions\Planning\RequestClientCorrection;
 use App\Actions\Planning\WithdrawClientCorrection;
+use App\Actions\Validation\SubmitPilotFeedback;
 use App\Enums\CorrectionRequestStatus;
 use App\Enums\PlanningRequestStatus;
 use App\Exceptions\ClientCorrectionException;
@@ -77,6 +78,17 @@ class ViewPlanningRequest extends ViewRecord
             View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
                 'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
             ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
+
+            View::make('filament.app.planning-requests.pilot-feedback')
+                ->viewData(fn (): array => [
+                    'request' => $this->getRecord(),
+                    'feedback' => $this->getRecord()->feedback()->first(),
+                    'savedTimeOptions' => SubmitPilotFeedback::SAVED_TIME_OPTIONS,
+                    'helpfulOptions' => SubmitPilotFeedback::MOST_HELPFUL_OPTIONS,
+                    'nextPlanningOptions' => SubmitPilotFeedback::NEXT_PLANNING_OPTIONS,
+                ])
+                ->visible(fn (): bool => $this->getRecord()->creation_mode === 'quick' && $this->getRecord()->deliveries()->exists())
+                ->columnSpanFull(),
         ]);
     }
 
