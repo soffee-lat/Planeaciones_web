@@ -31,8 +31,13 @@ final class InstitutionalFormatVisualBindingController
 
         $data = $request->validate([
             'zone_id' => ['required', 'string', 'max:80'],
+            'binding_id' => ['nullable', 'string', 'max:80'],
             'mode' => ['required', 'in:bind,custom,ignore,unbind'],
             'field_path' => ['nullable', 'string', 'max:160'],
+            'fragment_start' => ['nullable', 'integer', 'min:0', 'max:50000'],
+            'fragment_end' => ['nullable', 'integer', 'min:1', 'max:50000'],
+            'fragment_text' => ['nullable', 'string', 'max:1000'],
+            'label_hint' => ['nullable', 'string', 'max:160'],
             'custom_label' => ['nullable', 'string', 'max:120'],
             'custom_type' => ['nullable', 'in:text,long_text,date,list,table,repeating_block'],
             'custom_instruction' => ['nullable', 'string', 'max:1000'],
@@ -58,10 +63,17 @@ final class InstitutionalFormatVisualBindingController
 
         $mapping = is_array($version->mapping) ? $version->mapping : [];
         $mapping['schema_version'] = 2;
-        $mapping['anchors'] = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
-        $mapping['placeholders'] = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
-        $mapping['custom_fields'] = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
-        $mapping['ignored_zones'] = is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : [];
+        foreach (['anchors', 'placeholders', 'fragments', 'custom_fields', 'ignored_zones'] as $key) {
+            $mapping[$key] = is_array($mapping[$key] ?? null) ? $mapping[$key] : [];
+        }
+
+        $bindingId = trim((string) ($data['binding_id'] ?? ''));
+        $hasFragment = isset($data['fragment_start'], $data['fragment_end'])
+            && trim((string) ($data['fragment_text'] ?? '')) !== '';
+
+        if ($hasFragment && (int) $data['fragment_end'] <= (int) $data['fragment_start']) {
+            throw new DocumentFormatException('FORMAT_MAPPING_FRAGMENT_INVALID');
+        }
 
         $mapping['ignored_zones'] = array_values(array_filter(
             $mapping['ignored_zones'],
@@ -70,66 +82,133 @@ final class InstitutionalFormatVisualBindingController
 
         if ($data['mode'] === 'bind') {
             $fieldPath = trim((string) ($data['field_path'] ?? ''));
-            $allowed = $catalog->options();
-            foreach ($mapping['custom_fields'] as $key => $definition) {
-                if (is_array($definition)) {
-                    $allowed['custom.' . $key] = (string) ($definition['label'] ?? $key);
-                }
-            }
-            if ($fieldPath === '' || ! array_key_exists($fieldPath, $allowed)) {
-                throw new DocumentFormatException('FORMAT_MAPPING_PATH_NOT_ALLOWED:' . $fieldPath);
-            }
-            $mapping['anchors'][$zoneId] = $fieldPath;
+            $this->assertAllowedField($fieldPath, $mapping, $catalog);
+            $this->bind($mapping, $analysis, $zoneId, $bindingId, $hasFragment, $data, $fieldPath);
         } elseif ($data['mode'] === 'custom') {
             $label = trim((string) ($data['custom_label'] ?? ''));
             if ($label === '') {
                 throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELDS_INVALID');
             }
-            $base = Str::of($label)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->toString();
-            if ($base === '' || ! preg_match('/^[a-z]/', $base)) {
-                $base = 'campo_' . substr(hash('sha256', $label), 0, 8);
-            }
-            $base = substr($base, 0, 50);
-            $key = $base;
-            $suffix = 2;
-            while (isset($mapping['custom_fields'][$key])) {
-                $key = substr($base, 0, 55) . '_' . $suffix++;
-            }
-            $mapping['custom_fields'][$key] = [
-                'label' => $label,
-                'type' => (string) ($data['custom_type'] ?? 'long_text'),
-                'instruction' => trim((string) ($data['custom_instruction'] ?? '')),
-            ];
-            $mapping['anchors'][$zoneId] = 'custom.' . $key;
+            $path = $this->createCustomField($mapping, $label, $data);
+            $this->bind($mapping, $analysis, $zoneId, $bindingId, $hasFragment, $data, $path);
         } elseif ($data['mode'] === 'ignore') {
-            unset($mapping['anchors'][$zoneId]);
+            $this->removeWholeZoneBindings($mapping, $analysis, $zoneId);
             $mapping['ignored_zones'][] = $zoneId;
         } elseif ($data['mode'] === 'unbind') {
-            unset($mapping['anchors'][$zoneId]);
-        }
-
-        $configured = $configure->execute($version, $mapping, $user, preserveVisualBindings: false);
-        $normalized = is_array($configured->mapping) ? $configured->mapping : [];
-        $path = $normalized['anchors'][$zoneId] ?? null;
-
-        $label = null;
-        if (is_string($path)) {
-            if (str_starts_with($path, 'custom.')) {
-                $key = substr($path, strlen('custom.'));
-                $label = (string) data_get($normalized, 'custom_fields.' . $key . '.label', $key);
+            if ($bindingId !== '' && isset($mapping['fragments'][$bindingId])) {
+                unset($mapping['fragments'][$bindingId]);
             } else {
-                $label = $catalog->labelFor($path);
+                unset($mapping['anchors'][$zoneId]);
+                foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+                    if (is_array($anchor) && (string) ($anchor['target_id'] ?? '') === $zoneId) {
+                        unset($mapping['anchors'][(string) ($anchor['id'] ?? '')]);
+                    }
+                }
             }
         }
+
+        $mapping['ignored_zones'] = array_values(array_unique(array_map('strval', $mapping['ignored_zones'])));
+        $configured = app(ConfigureInstitutionalFormatMapping::class)->execute($version, $mapping, $user, preserveVisualBindings: false);
+        $normalized = is_array($configured->mapping) ? $configured->mapping : [];
 
         return response()->json([
             'ok' => true,
             'zone_id' => $zoneId,
-            'field_path' => $path,
-            'field_label' => $label,
-            'ignored' => in_array($zoneId, (array) ($normalized['ignored_zones'] ?? []), true),
             'mapping' => $normalized,
         ]);
+    }
+
+    /** @param array<string,mixed> $mapping */
+    private function assertAllowedField(string $fieldPath, array $mapping, InstitutionalFormatFieldCatalog $catalog): void
+    {
+        $allowed = $catalog->options();
+        foreach ((array) ($mapping['custom_fields'] ?? []) as $key => $definition) {
+            if (is_array($definition)) {
+                $allowed['custom.' . $key] = (string) ($definition['label'] ?? $key);
+            }
+        }
+        if ($fieldPath === '' || ! array_key_exists($fieldPath, $allowed)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_PATH_NOT_ALLOWED:' . $fieldPath);
+        }
+    }
+
+    /** @param array<string,mixed> $mapping @param array<string,mixed> $data @return string */
+    private function createCustomField(array &$mapping, string $label, array $data): string
+    {
+        $base = Str::of($label)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '_')->trim('_')->toString();
+        if ($base === '' || ! preg_match('/^[a-z]/', $base)) {
+            $base = 'campo_' . substr(hash('sha256', $label), 0, 8);
+        }
+        $base = substr($base, 0, 50);
+        $key = $base;
+        $suffix = 2;
+        while (isset($mapping['custom_fields'][$key])) {
+            $key = substr($base, 0, 55) . '_' . $suffix++;
+        }
+        $mapping['custom_fields'][$key] = [
+            'label' => $label,
+            'type' => (string) ($data['custom_type'] ?? 'long_text'),
+            'instruction' => trim((string) ($data['custom_instruction'] ?? '')),
+        ];
+
+        return 'custom.' . $key;
+    }
+
+    /** @param array<string,mixed> $mapping @param array<string,mixed> $analysis @param array<string,mixed> $data */
+    private function bind(array &$mapping, array $analysis, string $zoneId, string $bindingId, bool $hasFragment, array $data, string $fieldPath): void
+    {
+        if (! $hasFragment) {
+            $this->removeFragmentsForZone($mapping, $zoneId);
+            $mapping['anchors'][$zoneId] = $fieldPath;
+            return;
+        }
+
+        $this->removeWholeZoneBindings($mapping, $analysis, $zoneId, removeFragments: false);
+        $start = (int) $data['fragment_start'];
+        $end = (int) $data['fragment_end'];
+        $sourceText = trim((string) $data['fragment_text']);
+        $id = $bindingId;
+        if ($id === '' || ! isset($mapping['fragments'][$id])) {
+            $id = 'f_' . substr(hash('sha256', $zoneId . '|' . $start . '|' . $end . '|' . $sourceText), 0, 20);
+        }
+
+        $mapping['fragments'][$id] = [
+            'zone_id' => $zoneId,
+            'start' => $start,
+            'end' => $end,
+            'source_text' => $sourceText,
+            'label_hint' => trim((string) ($data['label_hint'] ?? '')),
+            'field_path' => $fieldPath,
+        ];
+    }
+
+    /** @param array<string,mixed> $mapping @param array<string,mixed> $analysis */
+    private function removeWholeZoneBindings(array &$mapping, array $analysis, string $zoneId, bool $removeFragments = true): void
+    {
+        unset($mapping['anchors'][$zoneId]);
+        foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
+            if (! is_array($anchor)) {
+                continue;
+            }
+            $id = (string) ($anchor['id'] ?? '');
+            $target = (string) ($anchor['target_id'] ?? '');
+            if ($id === $zoneId || $target === $zoneId) {
+                unset($mapping['anchors'][$id]);
+            }
+        }
+        if ($removeFragments) {
+            $this->removeFragmentsForZone($mapping, $zoneId);
+        }
+    }
+
+    /** @param array<string,mixed> $mapping */
+    private function removeFragmentsForZone(array &$mapping, string $zoneId): void
+    {
+        foreach ((array) ($mapping['fragments'] ?? []) as $id => $fragment) {
+            if (is_array($fragment) && (string) ($fragment['zone_id'] ?? '') === $zoneId) {
+                unset($mapping['fragments'][$id]);
+            }
+        }
     }
 
     private function assertOwner(InstitutionalFormat $format, mixed $user): void
