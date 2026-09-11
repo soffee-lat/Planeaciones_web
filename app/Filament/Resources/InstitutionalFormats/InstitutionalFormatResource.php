@@ -7,6 +7,7 @@ use App\Filament\Resources\InstitutionalFormats\Pages\ListInstitutionalFormats;
 use App\Filament\Resources\InstitutionalFormats\Pages\ViewInstitutionalFormat;
 use App\Models\InstitutionalFormat;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -24,10 +25,7 @@ class InstitutionalFormatResource extends Resource
     protected static ?string $pluralModelLabel = 'Mis formatos';
     protected static ?int $navigationSort = 25;
 
-    public static function form(Schema $schema): Schema
-    {
-        return $schema->components([]);
-    }
+    public static function form(Schema $schema): Schema { return $schema->components([]); }
 
     public static function getEloquentQuery(): Builder
     {
@@ -39,31 +37,31 @@ class InstitutionalFormatResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table
-            ->columns([
-                TextColumn::make('name')->label('Formato')->searchable()->sortable(),
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->badge()
-                    ->formatStateUsing(fn ($state): string => match ($state->value ?? $state) {
-                        'pending_analysis' => 'Analizando',
-                        'configuring' => 'Por revisar',
-                        'ready' => 'Listo para usar',
-                        'unsupported' => 'Necesita otro archivo',
-                        'archived' => 'Archivado',
-                        default => (string) ($state->value ?? $state),
-                    })
-                    ->color(fn ($state): string => match ($state->value ?? $state) {
-                        'ready' => 'success',
-                        'unsupported' => 'danger',
-                        'configuring' => 'warning',
-                        default => 'gray',
-                    }),
-                TextColumn::make('updated_at')->label('Última actualización')->dateTime('d/m/Y H:i')->sortable(),
-            ])
-            ->recordActions([
-                ViewAction::make()->label('Revisar'),
-            ]);
+        return $table->columns([
+            TextColumn::make('name')->label('Formato')->searchable()->sortable(),
+            TextColumn::make('status')->label('Estado')->badge()->formatStateUsing(fn ($state): string => match ($state->value ?? $state) {
+                'pending_analysis' => 'Pendiente de análisis',
+                'configuring' => 'Configurando',
+                'ready' => 'Listo',
+                'unsupported' => 'No compatible',
+                'archived' => 'Archivado',
+                default => (string) ($state->value ?? $state),
+            })->color(fn ($state): string => match ($state->value ?? $state) {
+                'ready' => 'success',
+                'unsupported' => 'danger',
+                'configuring' => 'warning',
+                default => 'gray',
+            }),
+            TextColumn::make('versions_count')->counts('versions')->label('Versiones'),
+            TextColumn::make('updated_at')->label('Actualizado')->dateTime('d/m/Y H:i')->sortable(),
+        ])->recordActions([
+            Action::make('designer')
+                ->label('Diseñador visual')
+                ->icon('heroicon-o-cursor-arrow-rays')
+                ->color('primary')
+                ->url(fn (InstitutionalFormat $record): string => route('institutional-formats.designer', $record)),
+            ViewAction::make()->label('Resumen'),
+        ]);
     }
 
     public static function getPages(): array
