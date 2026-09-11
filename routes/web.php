@@ -4,6 +4,7 @@ use App\Http\Controllers\CurriculumMapController;
 use App\Http\Controllers\InstitutionalFormatDesignerController;
 use App\Http\Controllers\InstitutionalFormatVisualBindingController;
 use App\Http\Controllers\InstitutionalFormatVisualPreviewController;
+use App\Http\Controllers\PlanningFeedbackController;
 use App\Http\Controllers\PrivateDeliveryDownloadController;
 use App\Http\Controllers\PrivateFormatSampleDownloadController;
 use App\Http\Controllers\PrivateInstitutionalFormatSourceController;
@@ -27,6 +28,8 @@ Route::middleware('auth')->group(function (): void {
             ->name('planning.curriculum-map.add');
         Route::post('/app/planning-requests/{planningRequest}/curriculum-map/confirm', [CurriculumMapController::class, 'confirm'])
             ->name('planning.curriculum-map.confirm');
+        Route::post('/app/planning-requests/{planningRequest}/feedback', PlanningFeedbackController::class)
+            ->name('planning.feedback.store');
     });
 
     Route::get('/app/institutional-formats/{format}/designer', InstitutionalFormatDesignerController::class)
