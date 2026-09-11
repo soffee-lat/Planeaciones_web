@@ -42,7 +42,7 @@ final class InstitutionalDynamicFieldResolver
             $label = trim((string) ($anchor['label'] ?? ''));
             $suggestedPath = trim((string) ($anchor['suggested_path'] ?? ''));
 
-            if ($id === '' || $label === '' || isset($anchors[$id]) || $suggestedPath !== '') {
+            if ($id === '' || $label === '' || isset($anchors[$id]) || $suggestedPath !== '' || $this->manualOnly($label)) {
                 continue;
             }
             if (isset($ignored[$id]) || ($targetId !== '' && isset($ignored[$targetId]))) {
@@ -72,6 +72,10 @@ final class InstitutionalDynamicFieldResolver
             }
 
             $label = Str::of($token)->lower()->replace(['_', '-', '.'], ' ')->headline()->toString();
+            if ($this->manualOnly($label)) {
+                continue;
+            }
+
             $key = $this->keyFor($label, 'token:' . $token);
             $customFields[$key] ??= [
                 'label' => $label,
@@ -114,5 +118,21 @@ final class InstitutionalDynamicFieldResolver
         $base = rtrim($base, '_');
 
         return $base . '_' . $suffix;
+    }
+
+    private function manualOnly(string $label): bool
+    {
+        $text = mb_strtolower(Str::ascii($label));
+
+        foreach ([
+            'firma', 'sello', 'curp', 'telefono', 'direccion', 'nombre del alumno',
+            'nombre de alumno', 'diagnostico', 'folio', 'autorizacion',
+        ] as $term) {
+            if (str_contains($text, $term)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
