@@ -26,8 +26,8 @@ final class CurriculumMapService
     public function state(User $actor, PlanningRequest $request, bool $recordShown = true): array
     {
         $this->assertEditable($actor, $request);
-
         $request->refresh();
+
         $suggestion = $this->suggest($request);
         $suggestionFingerprint = $this->suggestionFingerprint($request, $suggestion);
 
@@ -58,15 +58,13 @@ final class CurriculumMapService
             'axis' => array_fill_keys(array_map('intval', $suggestion['axis_ids']), 'suggested'),
         ];
 
-        $decisionTypes = [
-            ProductEventType::CurriculumSuggestionAccepted->value,
-            ProductEventType::CurriculumSuggestionRejected->value,
-            ProductEventType::CurriculumSelectionAdded->value,
-        ];
-
         $decisionEvents = ProductEvent::query()
             ->where('planning_request_id', $request->id)
-            ->whereIn('event_type', $decisionTypes)
+            ->whereIn('event_type', [
+                ProductEventType::CurriculumSuggestionAccepted->value,
+                ProductEventType::CurriculumSuggestionRejected->value,
+                ProductEventType::CurriculumSelectionAdded->value,
+            ])
             ->orderBy('id')
             ->get();
 
@@ -90,21 +88,21 @@ final class CurriculumMapService
             };
         }
 
-        $contentIds = array_keys($statuses['content']);
-        $pdaIds = array_keys($statuses['pda']);
-        $axisIds = array_keys($statuses['axis']);
-
         $contents = CurricularContent::query()
             ->with('formativeField')
-            ->whereIn('id', $contentIds ?: [0])
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->whereIn('id', array_keys($statuses['content']) ?: [0])
             ->orderBy('sort_order')->orderBy('code')
             ->get()->keyBy('id');
         $pdas = Pda::query()
-            ->whereIn('id', $pdaIds ?: [0])
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->where('grade_id', $request->grade_id)
+            ->whereIn('id', array_keys($statuses['pda']) ?: [0])
             ->orderBy('sort_order')->orderBy('code')
             ->get()->keyBy('id');
         $axes = ArticulatingAxis::query()
-            ->whereIn('id', $axisIds ?: [0])
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->whereIn('id', array_keys($statuses['axis']) ?: [0])
             ->orderBy('sort_order')->orderBy('code')
             ->get()->keyBy('id');
 
@@ -113,7 +111,6 @@ final class CurriculumMapService
             'pdas' => $this->acceptedIds($statuses['pda']),
             'axes' => $this->acceptedIds($statuses['axis']),
         ];
-        $pendingCount = $this->pendingCount($statuses);
 
         return [
             'request' => $request,
@@ -125,7 +122,7 @@ final class CurriculumMapService
             'pdas' => $pdas,
             'axes' => $axes,
             'selected' => $selected,
-            'pending_count' => $pendingCount,
+            'pending_count' => $this->pendingCount($statuses),
             'catalog' => $this->catalogOptions($request),
         ];
     }
@@ -139,7 +136,6 @@ final class CurriculumMapService
             throw new \RuntimeException('CURRICULUM_MAP_ENTITY_NOT_AVAILABLE');
         }
 
-        $origin = $state['origins'][$entityType][$entityId] ?? 'suggested';
         $this->events->record(
             $actor,
             $accept ? ProductEventType::CurriculumSuggestionAccepted : ProductEventType::CurriculumSuggestionRejected,
@@ -147,7 +143,7 @@ final class CurriculumMapService
             metadata: [
                 'entity_type' => $entityType,
                 'entity_id' => $entityId,
-                'origin' => $origin,
+                'origin' => $state['origins'][$entityType][$entityId] ?? 'suggested',
                 'suggestion_fingerprint' => $state['suggestion_fingerprint'],
             ],
         );
@@ -178,6 +174,22 @@ final class CurriculumMapService
         $this->assertCompatibleEntity($request, $entityType, $entityId);
 
         $state = $this->state($actor, $request, false);
+
+        // Un PDA nunca debe quedar huérfano en el mapa. Si el docente agrega
+        // uno cuyo contenido no estaba incluido, agregamos también el contenido.
+        if ($entityType === 'pda') {
+            $pda = Pda::query()->findOrFail($entityId);
+            $contentId = (int) $pda->curricular_content_id;
+            if (($state['statuses']['content'][$contentId] ?? null) !== 'accepted') {
+                $this->events->record($actor, ProductEventType::CurriculumSelectionAdded, request: $request, metadata: [
+                    'entity_type' => 'content',
+                    'entity_id' => $contentId,
+                    'origin' => 'teacher_added',
+                    'suggestion_fingerprint' => $state['suggestion_fingerprint'],
+                ]);
+            }
+        }
+
         $this->events->record($actor, ProductEventType::CurriculumSelectionAdded, request: $request, metadata: [
             'entity_type' => $entityType,
             'entity_id' => $entityId,
@@ -206,20 +218,32 @@ final class CurriculumMapService
             ->pluck('curricular_content_id')
             ->map(fn ($id) => (int) $id)
             ->unique()
+            ->values()
             ->all();
-        foreach ($selected['contents'] as $contentId) {
-            if (! in_array((int) $contentId, $pdaContentIds, true)) {
+        $selectedContentIds = $this->sortedInts($selected['contents']);
+
+        foreach ($selectedContentIds as $contentId) {
+            if (! in_array($contentId, $pdaContentIds, true)) {
                 throw new \RuntimeException('CURRICULUM_MAP_CONTENT_WITHOUT_PDA:' . $contentId);
+            }
+        }
+        foreach ($pdaContentIds as $contentId) {
+            if (! in_array($contentId, $selectedContentIds, true)) {
+                throw new \RuntimeException('CURRICULUM_MAP_PDA_WITHOUT_CONTENT:' . $contentId);
             }
         }
 
         $synced = $this->syncSelections->execute($actor, $request, [
-            'contents' => $selected['contents'],
+            'contents' => $selectedContentIds,
             'pdas' => $selected['pdas'],
             'axes' => $selected['axes'],
         ]);
 
-        $selectionFingerprint = $this->selectionFingerprint($synced, $selected);
+        $selectionFingerprint = $this->selectionFingerprint($synced, [
+            'contents' => $selectedContentIds,
+            'pdas' => $selected['pdas'],
+            'axes' => $selected['axes'],
+        ]);
 
         $confirmed = DB::transaction(function () use ($synced, $selectionFingerprint): PlanningRequest {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($synced->id);
@@ -237,7 +261,7 @@ final class CurriculumMapService
         $this->events->record($actor, ProductEventType::CurriculumMapConfirmed, request: $confirmed, metadata: [
             'selection_revision' => (int) $confirmed->selection_revision,
             'fingerprint' => $selectionFingerprint,
-            'content_count' => count($selected['contents']),
+            'content_count' => count($selectedContentIds),
             'pda_count' => count($selected['pdas']),
             'axis_count' => count($selected['axes']),
         ]);
@@ -294,9 +318,21 @@ final class CurriculumMapService
     /** @param array<string,mixed> $suggestion */
     private function suggestionFingerprint(PlanningRequest $request, array $suggestion): string
     {
+        // La huella depende del contexto que alimenta la sugerencia y del
+        // resultado sugerido; NO de input_revision, porque sincronizar pivotes
+        // incrementa esa revisión y no debe borrar las decisiones recién tomadas.
         $payload = [
             'strategy' => $suggestion['strategy_version'],
-            'input_revision' => (int) $request->input_revision,
+            'curriculum_version_id' => (int) $request->curriculum_version_id,
+            'grade_id' => (int) $request->grade_id,
+            'input' => [
+                'project' => (string) ($request->project ?? ''),
+                'topic' => (string) ($request->topic ?? ''),
+                'book_pages' => (string) ($request->book_pages ?? ''),
+                'required_activities' => (string) ($request->required_activities ?? ''),
+                'special_events' => (string) ($request->special_events ?? ''),
+                'comments' => (string) ($request->comments ?? ''),
+            ],
             'contents' => $this->sortedInts($suggestion['content_ids']),
             'pdas' => $this->sortedInts($suggestion['pda_ids']),
             'axes' => $this->sortedInts($suggestion['axis_ids']),
