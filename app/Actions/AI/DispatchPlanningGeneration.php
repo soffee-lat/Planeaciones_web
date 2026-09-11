@@ -117,6 +117,9 @@ final class DispatchPlanningGeneration
             }
 
             $input = $this->inputBuilder->build($fresh, $prompt, $correlationId, $operationKey);
+            $resolvedFormatVersionId = isset($input->formatContext['format_version_id'])
+                ? (int) $input->formatContext['format_version_id']
+                : null;
 
             /** @var UsageReservation|null $planningReservation */
             $planningReservation = UsageReservation::query()
@@ -137,7 +140,7 @@ final class DispatchPlanningGeneration
             /** @var AiExecution $execution */
             $execution = AiExecution::query()->create([
                 'request_id' => $fresh->id,
-                'format_version_id' => null,
+                'format_version_id' => $resolvedFormatVersionId,
                 'stage' => AiExecutionStage::Generation->value,
                 'mode' => $mode->value,
                 'provider' => null,
@@ -162,6 +165,7 @@ final class DispatchPlanningGeneration
             ]);
 
             $fresh->forceFill([
+                'format_version_id' => $resolvedFormatVersionId,
                 'status' => PlanningRequestStatus::GENERACION_IA->value,
                 'lock_version' => (int) $fresh->lock_version + 1,
             ])->save();
