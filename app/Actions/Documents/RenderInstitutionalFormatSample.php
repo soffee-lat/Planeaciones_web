@@ -10,6 +10,7 @@ use App\Models\FormatVersion;
 use App\Models\FormatVersionSample;
 use App\Models\User;
 use App\Services\Documents\InstitutionalDocumentRenderer;
+use App\Services\Documents\InstitutionalDynamicFieldResolver;
 use App\Services\Documents\InstitutionalFormatMapping;
 use App\Services\Documents\InstitutionalFormatSampleStorage;
 use App\Support\AI\CanonicalJson;
@@ -17,7 +18,12 @@ use Illuminate\Support\Facades\DB;
 
 final class RenderInstitutionalFormatSample
 {
-    public function __construct(private InstitutionalDocumentRenderer $renderer, private InstitutionalFormatMapping $mapping, private InstitutionalFormatSampleStorage $storage) {}
+    public function __construct(
+        private InstitutionalDocumentRenderer $renderer,
+        private InstitutionalFormatMapping $mapping,
+        private InstitutionalDynamicFieldResolver $dynamicFields,
+        private InstitutionalFormatSampleStorage $storage,
+    ) {}
 
     public function execute(FormatVersion $version, User $actor): FormatVersionSample
     {
@@ -27,7 +33,7 @@ final class RenderInstitutionalFormatSample
             throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
         }
 
-        $normalized = $this->mapping->validate($version, $version->mapping);
+        $normalized = $this->normalizedMapping($version);
         $fingerprint = $this->fingerprint($version, $normalized);
         $existing = FormatVersionSample::query()
             ->where('format_version_id', $version->id)
@@ -46,7 +52,7 @@ final class RenderInstitutionalFormatSample
                 throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             }
 
-            $current = $this->mapping->validate($locked, $locked->mapping);
+            $current = $this->normalizedMapping($locked);
             $currentFingerprint = $this->fingerprint($locked, $current);
             if ($currentFingerprint !== $fingerprint || $current !== $normalized) {
                 throw new DocumentFormatException('FORMAT_SAMPLE_STALE');
@@ -85,6 +91,13 @@ final class RenderInstitutionalFormatSample
 
             return $sample->fresh(['formatVersion', 'docxFile', 'pdfFile']);
         }, attempts: 3);
+    }
+
+    /** @return array<string,mixed> */
+    private function normalizedMapping(FormatVersion $version): array
+    {
+        $raw = is_array($version->mapping) ? $version->mapping : [];
+        return $this->mapping->validate($version, $this->dynamicFields->augment($version, $raw));
     }
 
     /** @param array<string,mixed> $normalized */
