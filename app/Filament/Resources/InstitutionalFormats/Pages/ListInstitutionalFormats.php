@@ -37,7 +37,7 @@ class ListInstitutionalFormats extends ListRecords
                         ->acceptedFileTypes([CreateInstitutionalFormatDraft::DOCX_MIME])
                         ->maxSize(10240)
                         ->required()
-                        ->helperText('Puede ser una plantilla vacía o una planeación anterior ya llena. No necesitas borrar el contenido ni agregar códigos: si tiene información previa, la usaremos solo para entender dónde va cada dato y la reemplazaremos en las nuevas planeaciones.'),
+                        ->helperText('Puedes subir una plantilla vacía o una planeación ya llena. No necesitas modificar el Word: en el siguiente paso podrás señalar visualmente qué zonas debe llenar el sistema.'),
                 ])
                 ->action(function (array $data): void {
                     $path = (string) ($data['source'] ?? '');
@@ -75,21 +75,15 @@ class ListInstitutionalFormats extends ListRecords
                             }
                         }
 
-                        $filledExample = data_get($version->validation_report, 'analysis.source_content_mode') === 'filled_example';
-
                         Notification::make()
                             ->success()
-                            ->title($previewReady ? 'Preparamos un ejemplo de tu formato' : 'Analizamos tu formato')
+                            ->title('Tu Word está listo para revisar')
                             ->body($previewReady
-                                ? ($filledExample
-                                    ? 'Detectamos que el Word ya tenía una planeación. La usamos solo como referencia para ubicar campos y en el ejemplo reemplazamos ese contenido por datos ficticios nuevos.'
-                                    : 'Abre el ejemplo para comprobar cómo se llenará. Si algo no corresponde, puedes corregir lo que entendimos.')
-                                : ($filledExample
-                                    ? 'Detectamos contenido de una planeación anterior. No se copiará a futuras planeaciones; revisa lo que entendimos para indicarnos qué dato corresponde a cada zona.'
-                                    : 'Encontramos la estructura del Word. Revisa lo que entendimos para indicarnos qué datos deben ir en cada zona.'))
+                                ? 'Marcamos nuestras sugerencias. Haz clic sobre cualquier zona para confirmar, cambiar o crear un campo.'
+                                : 'Haz clic sobre las zonas que quieras llenar automáticamente y dinos qué información debe ir ahí.')
                             ->send();
 
-                        $this->redirect(InstitutionalFormatResource::getUrl('view', ['record' => $version->format_id]));
+                        $this->redirect(route('institutional-formats.designer', $version->format_id));
                     } catch (\Throwable $error) {
                         report($error);
                         Notification::make()->danger()->title('No se pudo cargar el formato')->body($error->getMessage())->send();
