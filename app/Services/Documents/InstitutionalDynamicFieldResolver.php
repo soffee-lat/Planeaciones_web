@@ -33,7 +33,10 @@ final class InstitutionalDynamicFieldResolver
         $customFields = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
         $ignored = array_fill_keys(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : []), true);
 
-        $anchors = $this->augmentRepeatedSessionBlocks($analysis, $anchors);
+        $sessionMapping = $this->augmentRepeatedSessionBlocks($analysis, $anchors, $fragments);
+        $anchors = $sessionMapping['anchors'];
+        $fragments = $sessionMapping['fragments'];
+        $handledAnchorIds = $sessionMapping['handled_anchor_ids'];
 
         foreach ((array) ($analysis['anchors'] ?? []) as $anchor) {
             if (! is_array($anchor)) {
@@ -45,7 +48,7 @@ final class InstitutionalDynamicFieldResolver
             $label = trim((string) ($anchor['label'] ?? ''));
             $suggestedPath = trim((string) ($anchor['suggested_path'] ?? ''));
 
-            if ($id === '' || $label === '' || isset($anchors[$id]) || $suggestedPath !== '' || $this->manualOnly($label)) {
+            if ($id === '' || $label === '' || isset($anchors[$id]) || isset($handledAnchorIds[$id]) || $suggestedPath !== '' || $this->manualOnly($label)) {
                 continue;
             }
             if (isset($ignored[$id]) || ($targetId !== '' && isset($ignored[$targetId]))) {
@@ -108,9 +111,10 @@ final class InstitutionalDynamicFieldResolver
     /**
      * @param array<string,mixed> $analysis
      * @param array<string,string> $anchors
-     * @return array<string,string>
+     * @param array<string,array<string,mixed>> $fragments
+     * @return array{anchors:array<string,string>,fragments:array<string,array<string,mixed>>,handled_anchor_ids:array<string,bool>}
      */
-    private function augmentRepeatedSessionBlocks(array $analysis, array $anchors): array
+    private function augmentRepeatedSessionBlocks(array $analysis, array $anchors, array $fragments): array
     {
         $zones = [];
         foreach ((array) ($analysis['document_zones'] ?? []) as $zone) {
@@ -130,7 +134,7 @@ final class InstitutionalDynamicFieldResolver
         usort($zones, static fn (array $a, array $b): int => $a['index'] <=> $b['index']);
 
         if ($zones === []) {
-            return $anchors;
+            return ['anchors' => $anchors, 'fragments' => $fragments, 'handled_anchor_ids' => []];
         }
 
         $analysisAnchors = [];
@@ -149,8 +153,10 @@ final class InstitutionalDynamicFieldResolver
         }
 
         if ($starts === []) {
-            return $anchors;
+            return ['anchors' => $anchors, 'fragments' => $fragments, 'handled_anchor_ids' => []];
         }
+
+        $handledAnchorIds = [];
 
         foreach ($starts as $sessionIndex => $startPosition) {
             $endPosition = $starts[$sessionIndex + 1] ?? count($zones);
@@ -168,6 +174,7 @@ final class InstitutionalDynamicFieldResolver
 
                 if ($this->isStructuralSessionHeader($text)) {
                     unset($anchors[$id]);
+                    $handledAnchorIds[$id] = true;
                     continue;
                 }
 
@@ -233,23 +240,44 @@ final class InstitutionalDynamicFieldResolver
                     continue;
                 }
                 if (str_starts_with($text, 'propuesta de evaluacion')) {
-                    unset($anchors[$id]);
-                    $anchors[$id] = $prefix . 'render.assessment';
+                    $this->mapWholeZone($anchors, $fragments, $handledAnchorIds, $zone, $prefix . 'render.assessment', 'Propuesta de evaluación');
                     continue;
                 }
                 if (str_starts_with($text, 'evidencia')) {
-                    unset($anchors[$id]);
-                    $anchors[$id] = $prefix . 'render.evidence';
+                    $this->mapWholeZone($anchors, $fragments, $handledAnchorIds, $zone, $prefix . 'render.evidence', 'Evidencias');
                     continue;
                 }
                 if (str_starts_with($text, 'instrumento')) {
-                    unset($anchors[$id]);
-                    $anchors[$id] = $prefix . 'render.instruments';
+                    $this->mapWholeZone($anchors, $fragments, $handledAnchorIds, $zone, $prefix . 'render.instruments', 'Instrumento');
                 }
             }
         }
 
-        return $anchors;
+        return ['anchors' => $anchors, 'fragments' => $fragments, 'handled_anchor_ids' => $handledAnchorIds];
+    }
+
+    /** @param array<string,string> $anchors @param array<string,array<string,mixed>> $fragments @param array<string,bool> $handledAnchorIds @param array{id:string,index:int,text:string} $zone */
+    private function mapWholeZone(array &$anchors, array &$fragments, array &$handledAnchorIds, array $zone, string $path, string $label): void
+    {
+        $id = (string) $zone['id'];
+        $sourceText = trim((string) $zone['text']);
+        unset($anchors[$id]);
+        $handledAnchorIds[$id] = true;
+
+        if ($sourceText === '') {
+            $anchors[$id] = $path;
+            return;
+        }
+
+        $fragmentId = 'f_' . substr(hash('sha256', $id . '|' . $path . '|' . $sourceText), 0, 20);
+        $fragments[$fragmentId] = [
+            'zone_id' => $id,
+            'start' => 0,
+            'end' => mb_strlen($sourceText),
+            'source_text' => $sourceText,
+            'label_hint' => $label,
+            'field_path' => $path,
+        ];
     }
 
     /** @param list<array{id:string,index:int,text:string}> $block */
