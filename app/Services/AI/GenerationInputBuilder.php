@@ -7,10 +7,13 @@ use App\Exceptions\AiPipelineException;
 use App\Models\AiExecution;
 use App\Models\PlanningRequest;
 use App\Models\PromptVersion;
+use App\Services\Documents\PlanningFormatGenerationContext;
 use App\Support\AI\CanonicalJson;
 
 final class GenerationInputBuilder
 {
+    public function __construct(private PlanningFormatGenerationContext $formatContext) {}
+
     public function build(
         PlanningRequest $request,
         PromptVersion $promptVersion,
@@ -44,6 +47,8 @@ final class GenerationInputBuilder
             'units' => (int) $segment->units,
         ])->values()->all();
 
+        $formatContext = $this->formatContext->build($request);
+
         $inputManifest = [
             'schema_version' => 1,
             'request_input_version_id' => (int) $inputVersion->id,
@@ -51,6 +56,8 @@ final class GenerationInputBuilder
             'input_snapshot_sha256' => CanonicalJson::hash($inputVersion->snapshot),
             'commercial_snapshot_sha256' => CanonicalJson::hash($request->calculation_snapshot),
             'segments_sha256' => CanonicalJson::hash($segments),
+            'format_version_id' => $formatContext['format_version_id'] ?? null,
+            'format_context_sha256' => CanonicalJson::hash($formatContext),
             'prompt_version_id' => (int) $promptVersion->id,
             'prompt_checksum' => (string) $promptVersion->checksum,
             'output_schema_version' => (string) $promptVersion->schema_version,
@@ -64,6 +71,7 @@ final class GenerationInputBuilder
             commercialSnapshot: $request->calculation_snapshot,
             planningUnits: (int) $request->planning_units,
             segments: $segments,
+            formatContext: $formatContext,
             inputManifest: $inputManifest,
             promptVersionId: (int) $promptVersion->id,
             outputSchemaVersion: (string) $promptVersion->schema_version,
