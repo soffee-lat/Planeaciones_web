@@ -51,14 +51,17 @@ final class AnalyzeInstitutionalFormatVersion
                 'schema_version' => 2,
                 'anchors' => [],
                 'placeholders' => [],
+                'fragments' => [],
                 'custom_fields' => [],
                 'ignored_zones' => [],
             ];
+            $suggested['fragments'] = is_array($suggested['fragments'] ?? null) ? $suggested['fragments'] : [];
             $existing = is_array($locked->mapping) ? $locked->mapping : [];
 
             if (($existing['schema_version'] ?? null) === 2) {
                 $suggested['custom_fields'] = is_array($existing['custom_fields'] ?? null) ? $existing['custom_fields'] : [];
                 $suggested['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
+                $suggested['fragments'] = is_array($existing['fragments'] ?? null) ? $existing['fragments'] : $suggested['fragments'];
                 $suggested['anchors'] = array_replace(
                     is_array($suggested['anchors'] ?? null) ? $suggested['anchors'] : [],
                     is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [],
@@ -69,6 +72,11 @@ final class AnalyzeInstitutionalFormatVersion
                 );
                 foreach ($suggested['ignored_zones'] as $ignored) {
                     unset($suggested['anchors'][(string) $ignored]);
+                    foreach ($suggested['fragments'] as $id => $fragment) {
+                        if (is_array($fragment) && (string) ($fragment['zone_id'] ?? '') === (string) $ignored) {
+                            unset($suggested['fragments'][$id]);
+                        }
+                    }
                 }
             }
 
@@ -77,7 +85,8 @@ final class AnalyzeInstitutionalFormatVersion
             ])->save();
 
             $hasRequestedMapping = (is_array($suggested['anchors'] ?? null) && $suggested['anchors'] !== [])
-                || (is_array($suggested['placeholders'] ?? null) && $suggested['placeholders'] !== []);
+                || (is_array($suggested['placeholders'] ?? null) && $suggested['placeholders'] !== [])
+                || (is_array($suggested['fragments'] ?? null) && $suggested['fragments'] !== []);
 
             $normalized = $hasRequestedMapping
                 ? $this->mapping->validate($locked->fresh(), $suggested)
@@ -85,11 +94,14 @@ final class AnalyzeInstitutionalFormatVersion
                     'schema_version' => 2,
                     'anchors' => [],
                     'placeholders' => [],
+                    'fragments' => [],
                     'custom_fields' => is_array($suggested['custom_fields'] ?? null) ? $suggested['custom_fields'] : [],
                     'ignored_zones' => is_array($suggested['ignored_zones'] ?? null) ? array_values($suggested['ignored_zones']) : [],
                 ];
 
-            $hasMapping = ($normalized['anchors'] ?? []) !== [] || ($normalized['placeholders'] ?? []) !== [];
+            $hasMapping = ($normalized['anchors'] ?? []) !== []
+                || ($normalized['placeholders'] ?? []) !== []
+                || ($normalized['fragments'] ?? []) !== [];
 
             $locked->forceFill([
                 'mapping' => $normalized,
