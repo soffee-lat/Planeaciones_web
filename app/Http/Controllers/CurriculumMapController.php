@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleCode;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
 use App\Services\Planning\CurriculumMapService;
@@ -89,7 +90,8 @@ class CurriculumMapController
     private function ownedDraft(Request $httpRequest, PlanningRequest $planningRequest): PlanningRequest
     {
         $user = $httpRequest->user();
-        abort_unless($user && (int) $planningRequest->owner_id === (int) $user->id, 404);
+        abort_unless($user && $user->hasVerifiedEmail() && $user->hasRole(RoleCode::Customer), 403);
+        abort_unless((int) $planningRequest->owner_id === (int) $user->id, 404);
         abort_unless($planningRequest->isDraft(), 409, 'El mapa curricular sólo puede editarse mientras la planeación está en borrador.');
 
         return $planningRequest;
@@ -102,6 +104,7 @@ class CurriculumMapController
             $code === 'CURRICULUM_MAP_CONTENT_REQUIRED' => 'El mapa necesita al menos un contenido.',
             $code === 'CURRICULUM_MAP_PDA_REQUIRED' => 'El mapa necesita al menos un PDA.',
             str_starts_with($code, 'CURRICULUM_MAP_CONTENT_WITHOUT_PDA:') => 'Cada contenido seleccionado debe conservar al menos un PDA relacionado.',
+            str_starts_with($code, 'CURRICULUM_MAP_PDA_WITHOUT_CONTENT:') => 'Cada PDA incluido debe pertenecer a uno de los contenidos del mapa.',
             $code === 'CURRICULUM_MAP_ENTITY_NOT_COMPATIBLE' => 'Esa opción no pertenece al currículo y grado de esta planeación.',
             $code === 'CURRICULUM_MAP_ENTITY_NOT_AVAILABLE' => 'Esa sugerencia ya no está disponible en el mapa actual.',
             default => 'No pudimos aplicar ese cambio al mapa curricular. Recarga la página e inténtalo de nuevo.',
