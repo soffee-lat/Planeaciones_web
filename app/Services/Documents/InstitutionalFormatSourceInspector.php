@@ -59,6 +59,7 @@ final class InstitutionalFormatSourceInspector
         $placeholders = array_values(array_unique(array_map('strval', $tokenMatches[1] ?? [])));
         sort($placeholders, SORT_STRING);
 
+        $documentZones = $this->collectDocumentZones($xml);
         $anchors = [];
         $suggestedAnchors = [];
         $usedPaths = [];
@@ -93,21 +94,55 @@ final class InstitutionalFormatSourceInspector
 
         return [
             'status' => 'analyzed',
-            'mapping_strategy' => 'anchors_v2',
+            'mapping_strategy' => 'visual_zones_v1',
             'source_content_mode' => $existingValueCount > 0 ? 'filled_example' : 'blank_template',
             'existing_value_count' => $existingValueCount,
+            'document_zones' => $documentZones,
+            'document_zone_count' => count($documentZones),
             'anchors' => $anchors,
             'placeholders' => $placeholders,
             'suggested_mapping' => [
                 'schema_version' => 2,
                 'anchors' => $suggestedAnchors,
                 'placeholders' => $suggestedPlaceholders,
+                'custom_fields' => [],
+                'ignored_zones' => [],
             ],
             'entry_count' => count($names),
             'has_tables' => str_contains($xml, '<w:tbl'),
             'warnings' => $warnings,
             'source_sha256' => $file->sha256,
         ];
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function collectDocumentZones(string $xml): array
+    {
+        $zones = [];
+
+        preg_match_all('/<w:tc\b[^>]*>.*?<\/w:tc>/s', $xml, $cells);
+        foreach ($cells[0] ?? [] as $index => $cell) {
+            $text = trim($this->text((string) $cell));
+            $zones[] = [
+                'id' => 'c:' . $index,
+                'kind' => 'cell',
+                'is_blank' => $text === '' || $this->looksLikeBlank($text),
+                'text_excerpt' => $text === '' ? null : mb_substr(preg_replace('/\s+/u', ' ', $text) ?? $text, 0, 220),
+            ];
+        }
+
+        preg_match_all('/<w:p\b[^>]*>.*?<\/w:p>/s', $xml, $paragraphs);
+        foreach ($paragraphs[0] ?? [] as $index => $paragraph) {
+            $text = trim($this->text((string) $paragraph));
+            $zones[] = [
+                'id' => 'p:' . $index,
+                'kind' => 'paragraph',
+                'is_blank' => $text === '' || $this->looksLikeBlank($text),
+                'text_excerpt' => $text === '' ? null : mb_substr(preg_replace('/\s+/u', ' ', $text) ?? $text, 0, 220),
+            ];
+        }
+
+        return $zones;
     }
 
     /** @param list<array<string,mixed>> $anchors @param array<string,string> $suggested @param array<string,bool> $usedPaths */
@@ -155,10 +190,6 @@ final class InstitutionalFormatSourceInspector
                     continue;
                 }
 
-                // In planning tables the most common structure is label | value.
-                // Once the current cell is a recognized label, the next cell in
-                // the same row is the replacement target even if its old content
-                // also contains words such as "PDA" or "evaluación".
                 $targetIndex = null;
                 $targetValue = '';
                 if ($local + 1 < $count) {
