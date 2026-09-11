@@ -43,7 +43,7 @@ final class InstitutionalFormatMapping
         $placeholders = $this->normalizeMap($mapping['placeholders'] ?? [], $availableTokens, 'FORMAT_MAPPING_PLACEHOLDER_MISMATCH', $customFields);
         $ignoredZones = $this->normalizeIgnoredZones($mapping['ignored_zones'] ?? [], $availableAnchors);
 
-        if ($anchors === [] && $placeholders === []) {
+        if ($anchors === [] && $placeholders === [] && $ignoredZones === [] && $customFields === []) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
         }
 
