@@ -17,19 +17,13 @@ use Illuminate\Support\Facades\DB;
 
 final class RenderInstitutionalFormatSample
 {
-    public function __construct(
-        private InstitutionalDocumentRenderer $renderer,
-        private InstitutionalFormatMapping $mapping,
-        private InstitutionalFormatSampleStorage $storage,
-    ) {}
+    public function __construct(private InstitutionalDocumentRenderer $renderer, private InstitutionalFormatMapping $mapping, private InstitutionalFormatSampleStorage $storage) {}
 
     public function execute(FormatVersion $version, User $actor): FormatVersionSample
     {
-        $this->assertAdmin($actor);
         $version = FormatVersion::query()->with(['format', 'sourceFile'])->findOrFail($version->id);
-        if ($version->published_at !== null
-            || $version->format?->kind !== InstitutionalFormatKind::Institutional
-            || ! $version->sourceFile) {
+        $this->assertOwner($version, $actor);
+        if ($version->published_at !== null || $version->format?->kind !== InstitutionalFormatKind::Institutional || ! $version->sourceFile) {
             throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
         }
         $normalized = $this->mapping->validate($version, $version->mapping);
@@ -39,23 +33,15 @@ final class RenderInstitutionalFormatSample
             'mapping' => $normalized,
             'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
         ]);
-
-        $existing = FormatVersionSample::query()
-            ->where('format_version_id', $version->id)
-            ->where('fingerprint', $fingerprint)
-            ->first();
-        if ($existing) {
-            return $existing->fresh(['docxFile', 'pdfFile']);
-        }
+        $existing = FormatVersionSample::query()->where('format_version_id', $version->id)->where('fingerprint', $fingerprint)->first();
+        if ($existing) return $existing->fresh(['docxFile', 'pdfFile']);
 
         $rendered = $this->renderer->renderSample($version);
         $files = $this->storage->persist($version, $fingerprint, $rendered['docx'], $rendered['pdf']);
 
         return DB::transaction(function () use ($version, $actor, $normalized, $fingerprint, $files): FormatVersionSample {
             $locked = FormatVersion::query()->with(['format', 'sourceFile'])->whereKey($version->id)->lockForUpdate()->firstOrFail();
-            if ($locked->published_at !== null || ! $locked->sourceFile) {
-                throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
-            }
+            if ($locked->published_at !== null || ! $locked->sourceFile) throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             $current = $this->mapping->validate($locked, $locked->mapping);
             $currentFingerprint = CanonicalJson::hash([
                 'source_file_id' => (int) $locked->source_file_id,
@@ -63,15 +49,9 @@ final class RenderInstitutionalFormatSample
                 'mapping' => $current,
                 'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
             ]);
-            if ($currentFingerprint !== $fingerprint || $current !== $normalized) {
-                throw new DocumentFormatException('FORMAT_SAMPLE_STALE');
-            }
+            if ($currentFingerprint !== $fingerprint || $current !== $normalized) throw new DocumentFormatException('FORMAT_SAMPLE_STALE');
 
-            $sample = FormatVersionSample::query()
-                ->where('format_version_id', $locked->id)
-                ->where('fingerprint', $fingerprint)
-                ->lockForUpdate()
-                ->first();
+            $sample = FormatVersionSample::query()->where('format_version_id', $locked->id)->where('fingerprint', $fingerprint)->lockForUpdate()->first();
             if (! $sample) {
                 $sample = FormatVersionSample::query()->create([
                     'format_version_id' => $locked->id,
@@ -88,24 +68,19 @@ final class RenderInstitutionalFormatSample
                     'reviewed_at' => null,
                 ]);
             }
-
             $report = $locked->validation_report ?? [];
             $report['status'] = 'sample_ready';
-            $report['sample'] = [
-                'id' => (int) $sample->id,
-                'fingerprint' => $fingerprint,
-                'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION,
-            ];
+            $report['sample'] = ['id' => (int) $sample->id, 'fingerprint' => $fingerprint, 'renderer_version' => InstitutionalDocumentRenderer::RENDERER_VERSION];
             $locked->forceFill(['validation_report' => $report])->save();
-
             return $sample->fresh(['formatVersion', 'docxFile', 'pdfFile']);
         }, attempts: 3);
     }
 
-    private function assertAdmin(User $actor): void
+    private function assertOwner(FormatVersion $version, User $actor): void
     {
-        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Administrator)) {
-            throw new DocumentFormatException('FORMAT_VERSION_ADMIN_REQUIRED');
+        if ($actor->status !== 'active' || ! $actor->hasVerifiedEmail() || ! $actor->hasRole(RoleCode::Customer)
+            || (int) $version->format?->owner_id !== (int) $actor->id) {
+            throw new DocumentFormatException('FORMAT_OWNER_REQUIRED');
         }
     }
 }

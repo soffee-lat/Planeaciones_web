@@ -18,63 +18,33 @@ use Illuminate\Database\Eloquent\Builder;
 class InstitutionalFormatResource extends Resource
 {
     protected static ?string $model = InstitutionalFormat::class;
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+    protected static ?string $navigationLabel = 'Mis formatos';
+    protected static ?string $modelLabel = 'Formato';
+    protected static ?string $pluralModelLabel = 'Mis formatos';
+    protected static ?int $navigationSort = 25;
 
-    protected static ?string $navigationLabel = 'Formatos institucionales';
-
-    protected static ?string $modelLabel = 'Formato institucional';
-
-    protected static ?string $pluralModelLabel = 'Formatos institucionales';
-
-    public static function form(Schema $schema): Schema
-    {
-        return $schema->components([]);
-    }
+    public static function form(Schema $schema): Schema { return $schema->components([]); }
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()
-            ->where('kind', InstitutionalFormatKind::Institutional->value)
-            ->with(['owner', 'versions']);
+        return parent::getEloquentQuery()->where('kind', InstitutionalFormatKind::Institutional->value)->where('owner_id', auth()->id())->with(['owner', 'versions']);
     }
 
     public static function table(Table $table): Table
     {
-        return $table
-            ->columns([
-                TextColumn::make('name')->label('Formato')->searchable()->sortable(),
-                TextColumn::make('owner.name')->label('Docente')->searchable()->sortable(),
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->badge()
-                    ->formatStateUsing(fn ($state): string => match ($state->value ?? $state) {
-                        'pending_analysis' => 'Pendiente de análisis',
-                        'configuring' => 'Configurando',
-                        'ready' => 'Listo',
-                        'unsupported' => 'No compatible',
-                        'archived' => 'Archivado',
-                        default => (string) ($state->value ?? $state),
-                    })
-                    ->color(fn ($state): string => match ($state->value ?? $state) {
-                        'ready' => 'success',
-                        'unsupported' => 'danger',
-                        'configuring' => 'warning',
-                        default => 'gray',
-                    }),
-                TextColumn::make('versions_count')->counts('versions')->label('Versiones'),
-                TextColumn::make('updated_at')->label('Actualizado')->dateTime('d/m/Y H:i')->sortable(),
-            ])
-            ->recordActions([
-                ViewAction::make()->label('Gestionar'),
-            ]);
+        return $table->columns([
+            TextColumn::make('name')->label('Formato')->searchable()->sortable(),
+            TextColumn::make('status')->label('Estado')->badge()->formatStateUsing(fn ($state): string => match ($state->value ?? $state) {
+                'pending_analysis' => 'Pendiente de análisis', 'configuring' => 'Configurando', 'ready' => 'Listo', 'unsupported' => 'No compatible', 'archived' => 'Archivado', default => (string) ($state->value ?? $state),
+            })->color(fn ($state): string => match ($state->value ?? $state) {'ready' => 'success', 'unsupported' => 'danger', 'configuring' => 'warning', default => 'gray'}),
+            TextColumn::make('versions_count')->counts('versions')->label('Versiones'),
+            TextColumn::make('updated_at')->label('Actualizado')->dateTime('d/m/Y H:i')->sortable(),
+        ])->recordActions([ViewAction::make()->label('Gestionar')]);
     }
 
     public static function getPages(): array
     {
-        return [
-            'index' => ListInstitutionalFormats::route('/'),
-            'view' => ViewInstitutionalFormat::route('/{record}'),
-        ];
+        return ['index' => ListInstitutionalFormats::route('/'), 'view' => ViewInstitutionalFormat::route('/{record}')];
     }
 }
