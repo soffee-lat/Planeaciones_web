@@ -6,7 +6,7 @@ use App\Exceptions\DocumentFormatException;
 
 final class InstitutionalDocxTemplateEngine
 {
-    /** @param array{anchors:array<string,string>,placeholders:array<string,string>} $values @param array<string,mixed> $analysis */
+    /** @param array{anchors:array<string,string>,placeholders:array<string,string>,fragments?:array<string,array<string,mixed>>} $values @param array<string,mixed> $analysis */
     public function render(string $sourceBytes, array $values, array $analysis): string
     {
         $package = OfficeOpenXmlPackage::fromBytes($sourceBytes);
@@ -17,6 +17,43 @@ final class InstitutionalDocxTemplateEngine
             if (str_contains($xml, $needle)) {
                 $xml = str_replace($needle, $this->xml($value), $xml);
             }
+        }
+
+        $fragmentCells = [];
+        $fragmentParagraphs = [];
+        foreach (($values['fragments'] ?? []) as $fragment) {
+            if (! is_array($fragment)) {
+                continue;
+            }
+            $zoneId = (string) ($fragment['zone_id'] ?? '');
+            $value = trim((string) ($fragment['value'] ?? ''));
+            if ($zoneId === '' || $value === '') {
+                continue;
+            }
+            $operation = [
+                'start' => (int) ($fragment['start'] ?? -1),
+                'end' => (int) ($fragment['end'] ?? -1),
+                'value' => $value,
+                'source_text' => (string) ($fragment['source_text'] ?? ''),
+            ];
+            if ($operation['start'] < 0 || $operation['end'] <= $operation['start']) {
+                continue;
+            }
+            if (str_starts_with($zoneId, 'c:')) {
+                $fragmentCells[(int) substr($zoneId, 2)][] = $operation;
+            } elseif (str_starts_with($zoneId, 'p:')) {
+                $fragmentParagraphs[(int) substr($zoneId, 2)][] = $operation;
+            }
+        }
+
+        // Precise value fragments are applied first. Their offsets refer to the
+        // untouched source document and therefore must not see earlier whole-zone
+        // replacements that could change the visible text length.
+        if ($fragmentParagraphs !== []) {
+            $xml = $this->applyFragmentOperations($xml, '/<w:p\b[^>]*>.*?<\/w:p>/s', $fragmentParagraphs);
+        }
+        if ($fragmentCells !== []) {
+            $xml = $this->applyFragmentOperations($xml, '/<w:tc\b[^>]*>.*?<\/w:tc>/s', $fragmentCells);
         }
 
         $anchorsById = [];
@@ -88,6 +125,85 @@ final class InstitutionalDocxTemplateEngine
         $package->replace('word/document.xml', $xml);
 
         return $package->toBytes();
+    }
+
+    /** @param array<int,list<array{start:int,end:int,value:string,source_text:string}>> $operations */
+    private function applyFragmentOperations(string $xml, string $pattern, array $operations): string
+    {
+        $index = -1;
+
+        return preg_replace_callback($pattern, function (array $match) use (&$index, $operations): string {
+            $index++;
+            if (! isset($operations[$index])) {
+                return $match[0];
+            }
+
+            $fragment = $match[0];
+            $ranges = $operations[$index];
+            usort($ranges, static fn (array $a, array $b): int => $b['start'] <=> $a['start']);
+
+            foreach ($ranges as $range) {
+                $visible = $this->visibleText($fragment);
+                $selected = mb_substr($visible, $range['start'], $range['end'] - $range['start']);
+                if ($selected === '' || trim($selected) !== trim($range['source_text'])) {
+                    throw new DocumentFormatException('FORMAT_TEMPLATE_FRAGMENT_STALE');
+                }
+                $fragment = $this->replaceVisibleRange($fragment, $range['start'], $range['end'], $range['value']);
+            }
+
+            return $fragment;
+        }, $xml) ?? $xml;
+    }
+
+    private function replaceVisibleRange(string $fragment, int $start, int $end, string $replacement): string
+    {
+        $cursor = 0;
+        $inserted = false;
+
+        $result = preg_replace_callback(
+            '/(<w:t\b[^>]*>)(.*?)(<\/w:t>)/s',
+            function (array $match) use (&$cursor, &$inserted, $start, $end, $replacement): string {
+                $decoded = html_entity_decode(strip_tags((string) $match[2]), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                $length = mb_strlen($decoded);
+                $nodeStart = $cursor;
+                $nodeEnd = $cursor + $length;
+                $cursor = $nodeEnd;
+
+                if ($end <= $nodeStart || $start >= $nodeEnd) {
+                    return $match[0];
+                }
+
+                $localStart = max(0, $start - $nodeStart);
+                $localEnd = min($length, $end - $nodeStart);
+                $before = mb_substr($decoded, 0, $localStart);
+                $after = mb_substr($decoded, $localEnd);
+                $middle = '';
+
+                if (! $inserted) {
+                    $middle = $replacement;
+                    $inserted = true;
+                }
+
+                return $match[1] . $this->xml($before . $middle . $after) . $match[3];
+            },
+            $fragment,
+        );
+
+        if (! $inserted || ! is_string($result)) {
+            throw new DocumentFormatException('FORMAT_TEMPLATE_FRAGMENT_STALE');
+        }
+
+        return $result;
+    }
+
+    private function visibleText(string $fragment): string
+    {
+        preg_match_all('/<w:t\b[^>]*>(.*?)<\/w:t>/s', $fragment, $texts);
+        $value = '';
+        foreach ($texts[1] ?? [] as $text) {
+            $value .= html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_XML1, 'UTF-8');
+        }
+        return $value;
     }
 
     /** @param array<int,array{value:string,mode:string,label:string}> $operations */
