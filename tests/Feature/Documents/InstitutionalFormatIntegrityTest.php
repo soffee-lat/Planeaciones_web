@@ -22,66 +22,33 @@ class InstitutionalFormatIntegrityTest extends PedagogyTestCase
 
     public function test_bd_bloquea_publicacion_institucional_sin_muestra_aprobada_real(): void
     {
-        $owner = $this->customer();
-        $version = $this->configuredInstitutional($owner->id);
-        $admin = $this->admin();
+        $owner = $this->customer(); $version = $this->configuredInstitutional($owner->id);
         $this->expectException(QueryException::class);
-        DB::transaction(function () use ($version, $admin): void {
+        DB::transaction(function () use ($version, $owner): void {
             $version->format->update(['status' => InstitutionalFormatStatus::Ready->value]);
-            $version->forceFill([
-                'validation_report' => [
-                    'status' => 'approved',
-                    'analysis' => $version->validation_report['analysis'],
-                    'sample' => ['id' => 999999],
-                ],
-                'approved_by' => $admin->id,
-                'published_at' => now(),
-            ])->save();
+            $version->forceFill(['validation_report' => ['status' => 'approved', 'analysis' => $version->validation_report['analysis'], 'sample' => ['id' => 999999]], 'approved_by' => $owner->id, 'published_at' => now()])->save();
         });
     }
 
     public function test_bd_bloquea_muestra_con_archivos_de_otro_propietario(): void
     {
-        $owner = $this->customer();
-        $other = $this->customer();
-        $version = $this->configuredInstitutional($owner->id);
-        $docx = StoredFile::factory()->create([
-            'owner_id' => $other->id,
-            'category' => FileCategory::FormatSample->value,
-            'scan_status' => FileScanStatus::Clean->value,
-            'request_id' => null,
-            'detected_mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        ]);
-        $pdf = StoredFile::factory()->create([
-            'owner_id' => $other->id,
-            'category' => FileCategory::FormatSample->value,
-            'scan_status' => FileScanStatus::Clean->value,
-            'request_id' => null,
-            'detected_mime' => 'application/pdf',
-        ]);
+        $owner = $this->customer(); $other = $this->customer(); $version = $this->configuredInstitutional($owner->id);
+        $docx = StoredFile::factory()->create(['owner_id' => $other->id, 'category' => FileCategory::FormatSample->value, 'scan_status' => FileScanStatus::Clean->value, 'request_id' => null, 'detected_mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+        $pdf = StoredFile::factory()->create(['owner_id' => $other->id, 'category' => FileCategory::FormatSample->value, 'scan_status' => FileScanStatus::Clean->value, 'request_id' => null, 'detected_mime' => 'application/pdf']);
         $this->expectException(QueryException::class);
         FormatVersionSample::query()->create([
-            'format_version_id' => $version->id,
-            'source_file_id' => $version->source_file_id,
-            'mapping_snapshot' => $version->mapping,
-            'renderer_version' => 'institutional-v1.0.0',
-            'fingerprint' => str_repeat('a', 64),
-            'docx_file_id' => $docx->id,
-            'pdf_file_id' => $pdf->id,
-            'status' => FormatSampleStatus::Pending->value,
-            'created_by' => $this->admin()->id,
+            'format_version_id' => $version->id, 'source_file_id' => $version->source_file_id, 'mapping_snapshot' => $version->mapping,
+            'renderer_version' => 'institutional-v1.0.0', 'fingerprint' => str_repeat('a', 64), 'docx_file_id' => $docx->id, 'pdf_file_id' => $pdf->id,
+            'status' => FormatSampleStatus::Pending->value, 'created_by' => $owner->id,
         ]);
     }
 
     public function test_muestra_aprobada_es_inmutable(): void
     {
-        $owner = $this->customer();
-        $version = $this->configuredInstitutional($owner->id);
-        $admin = $this->admin();
-        $sample = app(RenderInstitutionalFormatSample::class)->execute($version, $admin);
-        $sample = app(ReviewInstitutionalFormatSample::class)->approve($sample, $admin, 'Aprobada.');
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('FORMAT_SAMPLE_TERMINAL_IMMUTABLE');
+        $owner = $this->customer(); $version = $this->configuredInstitutional($owner->id);
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($version, $owner);
+        $sample = app(ReviewInstitutionalFormatSample::class)->approve($sample, $owner, 'Aprobada.');
+        $this->expectException(RuntimeException::class); $this->expectExceptionMessage('FORMAT_SAMPLE_TERMINAL_IMMUTABLE');
         $sample->update(['review_note' => 'Intento de cambio posterior']);
     }
 }
