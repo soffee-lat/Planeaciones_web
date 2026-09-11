@@ -164,8 +164,11 @@ class InstitutionalFormatVisualDesignerTest extends PedagogyTestCase
         $line = 'GRADO: 3°  GRUPO: A';
         $draft = $this->institutionalDraft($owner->id, [], false, [$line]);
         $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+
+        // document_zones normaliza espacios para mostrar un excerpt legible,
+        // pero los offsets de fragmento siguen apuntando al texto visible original.
         $zone = collect($version->validation_report['analysis']['document_zones'])
-            ->first(fn (array $zone): bool => ($zone['text_excerpt'] ?? null) === $line);
+            ->first(fn (array $zone): bool => ($zone['text_excerpt'] ?? null) === 'GRADO: 3° GRUPO: A');
         $this->assertNotNull($zone);
 
         $this->actingAs($owner)->postJson(route('institutional-formats.visual-binding', $version->format_id), [
