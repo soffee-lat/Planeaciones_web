@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Documents;
 
+use App\Actions\Documents\AnalyzeInstitutionalFormatVersion;
 use App\Actions\Documents\CreateInstitutionalFormatDraft;
 use App\Actions\Documents\RenderInstitutionalFormatSample;
 use App\Exceptions\DocumentFormatException;
@@ -35,6 +36,22 @@ class InstitutionalFormatAdminTest extends PedagogyTestCase
             ->assertSee('Cuando el ejemplo se vea bien')
             ->assertSee('Campos encontrados')
             ->assertSee('Qué hacer ahora');
+    }
+
+    public function test_detalle_de_planeacion_llena_explica_que_el_contenido_anterior_se_reemplaza(): void
+    {
+        $owner = $this->customer();
+        $draft = $this->institutionalDraftFromBytes($owner->id, $this->institutionalFilledTemplateBytes());
+        $version = app(AnalyzeInstitutionalFormatVersion::class)->execute($draft['version'], $owner);
+        app(RenderInstitutionalFormatSample::class)->execute($version, $owner);
+
+        $this->actingAs($owner)
+            ->get('/app/institutional-formats/' . $version->format_id)
+            ->assertOk()
+            ->assertSee('Parece una planeación ya llena')
+            ->assertSee('Contenido anterior que será reemplazado')
+            ->assertSee('PDA ANTERIOR QUE DEBE REEMPLAZARSE')
+            ->assertSee('esos datos se reemplazan y no se mezclan con los nuevos');
     }
 
     public function test_cliente_crea_su_propio_borrador_privado(): void
