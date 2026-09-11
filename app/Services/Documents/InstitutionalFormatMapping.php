@@ -5,6 +5,7 @@ namespace App\Services\Documents;
 use App\Exceptions\DocumentFormatException;
 use App\Models\FormatVersion;
 use App\Support\AI\CanonicalJson;
+use Carbon\CarbonImmutable;
 
 final class InstitutionalFormatMapping
 {
@@ -74,23 +75,7 @@ final class InstitutionalFormatMapping
     {
         $customFields = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
 
-        return $this->mappedValues($mapping, function (string $path) use ($customFields): string {
-            if (str_starts_with($path, 'custom.')) {
-                $key = substr($path, strlen('custom.'));
-                $label = (string) data_get($customFields, $key . '.label', str_replace('_', ' ', $key));
-                return 'MUESTRA · ' . $label;
-            }
-
-            return match ($path) {
-                'sessions' => 'MUESTRA · Sesión 1: inicio, desarrollo y cierre; Sesión 2: aplicación y evaluación.',
-                'sessions.opening' => 'MUESTRA · Recuperación de saberes previos y presentación del reto.',
-                'sessions.development' => 'MUESTRA · Actividades guiadas, colaborativas y de aplicación.',
-                'sessions.closing' => 'MUESTRA · Socialización, reflexión y cierre.',
-                'curricular_alignment.contents' => 'MUESTRA · Contenido curricular relacionado con el proyecto.',
-                'curricular_alignment.pdas' => 'MUESTRA · Proceso de Desarrollo de Aprendizaje correspondiente.',
-                default => 'MUESTRA · ' . str_replace(['_', '.'], [' ', ' / '], $path),
-            };
-        });
+        return $this->mappedValues($mapping, fn (string $path): string => $this->sampleValue($path, $customFields));
     }
 
     /** @param array<string,mixed> $mapping @param callable(string):string $resolver */
@@ -291,6 +276,9 @@ final class InstitutionalFormatMapping
     /** @param array<string,mixed> $canonical */
     private function resolve(array $canonical, string $path): string
     {
+        if (preg_match('/^sessions\.(\d+)\.(.+)$/', $path, $match) === 1) {
+            return $this->resolveIndexedSession($canonical, (int) $match[1], (string) $match[2]);
+        }
         if (str_starts_with($path, 'sessions.')) {
             $type = substr($path, strlen('sessions.'));
             $items = [];
@@ -310,6 +298,256 @@ final class InstitutionalFormatMapping
         return $this->stringify(data_get($canonical, $path));
     }
 
+    /** @param array<string,mixed> $canonical */
+    private function resolveIndexedSession(array $canonical, int $index, string $field): string
+    {
+        $session = $canonical['sessions'][$index] ?? null;
+        if (! is_array($session)) {
+            return '';
+        }
+
+        if (str_starts_with($field, 'render.')) {
+            $renderField = substr($field, strlen('render.'));
+            $value = $this->resolveIndexedSession($canonical, $index, match ($renderField) {
+                'grade' => 'grade',
+                'group' => 'group',
+                'title' => 'title',
+                'date' => 'date',
+                'fields' => 'fields',
+                'axes' => 'axes',
+                'contents' => 'contents',
+                'pdas' => 'pdas',
+                'resources_physical' => 'resources.physical',
+                'resources_digital' => 'resources.digital',
+                'homework' => 'homework',
+                'assessment' => 'assessment',
+                'evidence' => 'evidence',
+                'instruments' => 'instruments',
+                default => $renderField,
+            });
+            if ($value === '') {
+                return '';
+            }
+
+            $label = match ($renderField) {
+                'grade' => 'GRADO',
+                'group' => 'GRUPO',
+                'title' => 'TITULO DEL PROYECTO',
+                'date' => 'FECHA',
+                'fields' => 'CAMPO FORMATIVO',
+                'axes' => 'EJE ARTICULADOR',
+                'contents' => 'CONTENIDO',
+                'pdas' => 'PDA',
+                'resources_physical' => 'FÍSICOS',
+                'resources_digital' => 'DIGITALES',
+                'homework' => 'TAREA',
+                'assessment' => 'PROPUESTA DE EVALUACIÓN',
+                'evidence' => 'EVIDENCIAS',
+                'instruments' => 'INSTRUMENTO',
+                default => mb_strtoupper(str_replace('_', ' ', $renderField)),
+            };
+
+            return $label . ': ' . $value;
+        }
+
+        return match ($field) {
+            'grade' => $this->stringify(data_get($canonical, 'curricular_alignment.grade.name')),
+            'group' => $this->stringify(data_get($canonical, 'context.group_name')),
+            'title' => trim((string) ($session['title'] ?? '')),
+            'date' => $this->formatSessionDate((string) ($session['date'] ?? '')),
+            'fields' => $this->expandCodes($canonical, (array) ($session['field_codes'] ?? []), 'curricular_alignment.fields', 'name'),
+            'axes' => $this->expandCodes($canonical, (array) ($session['axis_codes'] ?? []), 'curricular_alignment.articulating_axes', 'name'),
+            'contents' => $this->expandCodes($canonical, (array) ($session['content_codes'] ?? []), 'curricular_alignment.contents', 'full_text'),
+            'pdas' => $this->expandCodes($canonical, (array) ($session['pda_codes'] ?? []), 'curricular_alignment.pdas', 'full_text'),
+            'resources.physical' => $this->sessionResources($canonical, $session, false),
+            'resources.digital' => $this->sessionResources($canonical, $session, true),
+            'opening', 'development', 'closing' => $this->sessionMoment($session, $field),
+            'homework' => trim((string) ($session['homework_or_extension'] ?? '')),
+            'assessment' => $this->sessionAssessment($session),
+            'evidence' => $this->stringify(data_get($session, 'formative_assessment.evidence')),
+            'instruments' => $this->sessionInstruments($canonical, $session),
+            default => $this->stringify(data_get($session, $field)),
+        };
+    }
+
+    /** @param array<string,mixed> $canonical @param list<mixed> $codes */
+    private function expandCodes(array $canonical, array $codes, string $collectionPath, string $valueKey): string
+    {
+        $wanted = array_fill_keys(array_map('strval', $codes), true);
+        $values = [];
+        foreach ((array) data_get($canonical, $collectionPath, []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $code = (string) ($row['code'] ?? '');
+            if ($code === '' || ! isset($wanted[$code])) {
+                continue;
+            }
+            $value = trim((string) ($row[$valueKey] ?? $row['name'] ?? $row['title'] ?? $code));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return implode('; ', array_values(array_unique($values)));
+    }
+
+    /** @param array<string,mixed> $session */
+    private function sessionMoment(array $session, string $type): string
+    {
+        $items = [];
+        foreach ((array) ($session['moments'] ?? []) as $moment) {
+            if (! is_array($moment) || ($moment['type'] ?? null) !== $type) {
+                continue;
+            }
+            foreach ((array) ($moment['activities'] ?? []) as $activity) {
+                if (! is_array($activity)) {
+                    continue;
+                }
+                $instruction = trim((string) ($activity['instruction'] ?? ''));
+                if ($instruction !== '') {
+                    $items[] = $instruction;
+                }
+            }
+        }
+
+        return implode("\n", $items);
+    }
+
+    /** @param array<string,mixed> $canonical @param array<string,mixed> $session */
+    private function sessionResources(array $canonical, array $session, bool $digital): string
+    {
+        $materials = [];
+        foreach ((array) ($session['moments'] ?? []) as $moment) {
+            if (! is_array($moment)) continue;
+            foreach ((array) ($moment['activities'] ?? []) as $activity) {
+                if (! is_array($activity)) continue;
+                foreach ((array) ($activity['materials'] ?? []) as $material) {
+                    $value = trim((string) $material);
+                    if ($value !== '') {
+                        $materials[] = $value;
+                    }
+                }
+            }
+        }
+
+        $resourcePath = $digital ? 'resources.digital_resources' : 'resources.physical_materials';
+        foreach ((array) data_get($canonical, $resourcePath, []) as $resource) {
+            $value = trim((string) $resource);
+            if ($value !== '') {
+                $materials[] = $value;
+            }
+        }
+
+        $materials = array_values(array_unique($materials));
+        if ($digital) {
+            $materials = array_values(array_filter($materials, static function (string $value): bool {
+                $text = mb_strtolower($value);
+                return str_contains($text, 'http') || str_contains($text, 'www.') || str_contains($text, 'youtube')
+                    || str_contains($text, 'video') || str_contains($text, 'digital') || str_contains($text, 'proyector')
+                    || str_contains($text, 'computadora') || str_contains($text, 'tablet');
+            }));
+        }
+
+        return implode(', ', $materials);
+    }
+
+    /** @param array<string,mixed> $session */
+    private function sessionAssessment(array $session): string
+    {
+        $parts = [];
+        $criteria = $this->stringify(data_get($session, 'formative_assessment.criteria'));
+        $feedback = trim((string) data_get($session, 'formative_assessment.feedback_strategy', ''));
+        if ($criteria !== '') {
+            $parts[] = 'Criterios: ' . $criteria;
+        }
+        if ($feedback !== '') {
+            $parts[] = 'Retroalimentación: ' . $feedback;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /** @param array<string,mixed> $canonical @param array<string,mixed> $session */
+    private function sessionInstruments(array $canonical, array $session): string
+    {
+        $wanted = array_fill_keys(array_map('strval', (array) data_get($session, 'formative_assessment.instrument_ids', [])), true);
+        $values = [];
+        foreach ((array) data_get($canonical, 'assessment_plan.instruments', []) as $instrument) {
+            if (! is_array($instrument)) continue;
+            $id = (string) ($instrument['id'] ?? '');
+            if ($id === '' || ! isset($wanted[$id])) continue;
+            $name = trim((string) ($instrument['name'] ?? $instrument['type'] ?? $id));
+            if ($name !== '') {
+                $values[] = $name;
+            }
+        }
+
+        return implode('; ', array_values(array_unique($values)));
+    }
+
+    private function formatSessionDate(string $date): string
+    {
+        if ($date === '') {
+            return '';
+        }
+
+        try {
+            return mb_strtoupper(CarbonImmutable::parse($date)->locale('es')->translatedFormat('l d \\d\\e F \\d\\e\\l Y'));
+        } catch (\Throwable) {
+            return $date;
+        }
+    }
+
+    /** @param array<string,array<string,string>> $customFields */
+    private function sampleValue(string $path, array $customFields): string
+    {
+        if (str_starts_with($path, 'custom.')) {
+            $key = substr($path, strlen('custom.'));
+            $label = (string) data_get($customFields, $key . '.label', str_replace('_', ' ', $key));
+            return 'MUESTRA · ' . $label;
+        }
+
+        if (preg_match('/^sessions\.(\d+)\.(.+)$/', $path, $match) === 1) {
+            $sessionNumber = (int) $match[1] + 1;
+            $field = (string) $match[2];
+            if (str_starts_with($field, 'render.')) {
+                $renderField = substr($field, strlen('render.'));
+                $label = match ($renderField) {
+                    'grade' => 'GRADO', 'group' => 'GRUPO', 'title' => 'TITULO DEL PROYECTO', 'date' => 'FECHA',
+                    'fields' => 'CAMPO FORMATIVO', 'axes' => 'EJE ARTICULADOR', 'contents' => 'CONTENIDO', 'pdas' => 'PDA',
+                    'resources_physical' => 'FÍSICOS', 'resources_digital' => 'DIGITALES', 'homework' => 'TAREA',
+                    'assessment' => 'PROPUESTA DE EVALUACIÓN', 'evidence' => 'EVIDENCIAS', 'instruments' => 'INSTRUMENTO',
+                    default => mb_strtoupper(str_replace('_', ' ', $renderField)),
+                };
+                return $label . ': MUESTRA · Sesión ' . $sessionNumber;
+            }
+
+            return match ($field) {
+                'title' => 'MUESTRA · Proyecto de la sesión ' . $sessionNumber,
+                'date' => 'MUESTRA · Fecha de la sesión ' . $sessionNumber,
+                'fields' => 'MUESTRA · Campo formativo de la sesión ' . $sessionNumber,
+                'axes' => 'MUESTRA · Eje articulador de la sesión ' . $sessionNumber,
+                'contents' => 'MUESTRA · Contenido de la sesión ' . $sessionNumber,
+                'pdas' => 'MUESTRA · PDA de la sesión ' . $sessionNumber,
+                'opening' => 'MUESTRA · Inicio de la sesión ' . $sessionNumber,
+                'development' => 'MUESTRA · Desarrollo de la sesión ' . $sessionNumber,
+                'closing' => 'MUESTRA · Cierre de la sesión ' . $sessionNumber,
+                default => 'MUESTRA · Sesión ' . $sessionNumber . ' · ' . str_replace(['_', '.'], [' ', ' / '], $field),
+            };
+        }
+
+        return match ($path) {
+            'sessions' => 'MUESTRA · Sesión 1: inicio, desarrollo y cierre; Sesión 2: aplicación y evaluación.',
+            'sessions.opening' => 'MUESTRA · Recuperación de saberes previos y presentación del reto.',
+            'sessions.development' => 'MUESTRA · Actividades guiadas, colaborativas y de aplicación.',
+            'sessions.closing' => 'MUESTRA · Socialización, reflexión y cierre.',
+            'curricular_alignment.contents' => 'MUESTRA · Contenido curricular relacionado con el proyecto.',
+            'curricular_alignment.pdas' => 'MUESTRA · Proceso de Desarrollo de Aprendizaje correspondiente.',
+            default => 'MUESTRA · ' . str_replace(['_', '.'], [' ', ' / '], $path),
+        };
+    }
+
     private function stringify(mixed $value): string
     {
         if ($value === null) return '';
@@ -319,7 +557,7 @@ final class InstitutionalFormatMapping
         $parts = [];
         foreach ($value as $key => $item) {
             if (is_array($item) && ! array_is_list($item)) {
-                $text = trim((string) ($item['full_text'] ?? $item['title'] ?? $item['name'] ?? $item['code'] ?? ''));
+                $text = trim((string) ($item['full_text'] ?? $item['title'] ?? $item['name'] ?? $item['instruction'] ?? $item['code'] ?? ''));
             } else {
                 $text = $this->stringify($item);
             }
