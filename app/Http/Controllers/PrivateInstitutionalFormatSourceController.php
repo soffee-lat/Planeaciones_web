@@ -23,17 +23,18 @@ final class PrivateInstitutionalFormatSourceController
             throw new AccessDeniedHttpException();
         }
 
-        $version = $format->versions()->with('sourceFile')->orderByDesc('number')->firstOrFail();
+        $version = $format->versions()->reorder()->with('sourceFile')->orderByDesc('number')->firstOrFail();
         $file = $version->sourceFile;
         if (! $file || ! Storage::disk($file->disk)->exists($file->path)) {
             throw new NotFoundHttpException();
         }
 
         $bytes = Storage::disk($file->disk)->get($file->path);
+        $safeName = str_replace(["\r", "\n", '"'], '', $file->original_name ?: 'formato.docx');
 
         return response($bytes, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'Content-Disposition' => 'inline; filename="' . addslashes($file->original_name ?: 'formato.docx') . '"',
+            'Content-Disposition' => 'inline; filename="' . $safeName . '"',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
