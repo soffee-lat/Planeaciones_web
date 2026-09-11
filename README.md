@@ -1,6 +1,6 @@
 # Planeaciones
 
-Aplicación Laravel 13 + Filament 5 sobre PostgreSQL. Tres paneles aislados: `/app` (docente cliente), `/review` (revisor) y `/admin` (administración). Diseño y fases en `ARCHITECTURE.md`, `TASKS.md`, `PERMISSIONS.md`, `WORKFLOWS.md`, `AI_PIPELINE.md`, `DATABASE.md`, `CURRICULUM.md` y `MVP.md`.
+Aplicación Laravel 13 + Filament 5 sobre PostgreSQL. Tres paneles aislados: `/app` (docente cliente), `/review` (revisor) y `/admin` (administración). Diseño y fases en `ARCHITECTURE.md`, `TASKS.md`, `PERMISSIONS.md`, `WORKFLOWS.md`, `AI_PIPELINE.md`, `DATABASE.md`, `CURRICULUM.md` y `MVP.md`. El cierre verificado de Fase 6 está documentado en [`docs/PHASE6_CLOSURE.md`](docs/PHASE6_CLOSURE.md).
 
 ## Desarrollo local en Windows
 
@@ -23,10 +23,10 @@ Si la instancia aislada está detenida, arrancar **el clúster existente** desde
 
 `.runtime/pgdata/postgresql.conf` fija `127.0.0.1:55432`; no es Docker ni un túnel. `.env.testing` usa `planeaciones_test` y `tests/TestCase.php` exige PostgreSQL con nombre terminado en `_test`. No sustituir el puerto por 5432 ni inicializar otro clúster para resolver una instancia detenida.
 
-Pruebas (suite completa):
+Pruebas (suite completa). El cierre de Fase 6 demostró que `128M` puede terminar el proceso cerca del final de la suite larga, por lo que para una corrida integral se usa `512M`:
 
 ```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit --testdox
+.\tools\php.ps1 -d memory_limit=512M vendor/phpunit/phpunit/phpunit --do-not-cache-result
 ```
 
 Pruebas específicas de contratos IA / Fase 4A:
@@ -186,7 +186,7 @@ Evidencia local de cierre: `ReviewerCompensationTest` **9 / 45** y `ReviewerComp
 
 ### Fase 6A — archivos y formatos
 
-Materializa `files`, `institutional_formats`, `format_versions` y `document_version_files`, conecta `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las FK diferidas de `ai_executions`. `EnsureStandardFormat` publica de forma idempotente el formato estándar v1; `PublishFormatVersion` exige fuente institucional limpia, mapping y muestra aprobada; `PlanningFormatResolver` aplica prioridad explícito → preferencia de grupo → estándar sin permitir formatos de otro docente. Esta subfase **no renderiza aún DOCX/PDF**: deja la base íntegra para 6B.
+Materializa `files`, `institutional_formats`, `format_versions` y `document_version_files`, conecta `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las FK diferidas de `ai_executions`. `EnsureStandardFormat` publica de forma idempotente el formato estándar v1; `PlanningFormatResolver` aplica prioridad explícito → preferencia de grupo → estándar sin permitir formatos de otro docente.
 
 Evidencia local de cierre: `FormatFoundationTest` **10 / 20**; regresiones de grupos, solicitudes, contratos IA, importación de generación, pipeline E2E y revisión humana verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
 
@@ -194,18 +194,35 @@ Evidencia local de cierre: `FormatFoundationTest` **10 / 20**; regresiones de gr
 
 Implementa el pipeline real de render sobre `CanonicalPlanV1 + FormatVersion`: `DispatchDocumentRendering` congela la versión actual y el formato resuelto, crea un `DocumentRenderRun` idempotente y transiciona `APROBADA → GENERANDO_DOCUMENTO`; el job procesa el run con el renderer estándar, persiste DOCX/PDF en storage privado, enlaza `DocumentVersionFile` y solo entonces mueve la solicitud a `LISTA_PARA_ENTREGAR`. Los fallos quedan recuperables y los formatos institucionales sin renderer explícito se bloquean sin fabricar salidas falsas. PostgreSQL valida versión actual, autorización comercial, run y artefactos antes de aceptar estados de render/entrega.
 
-Evidencia local de cierre: `DocumentRenderingTest` **9 / 63** y `DocumentRenderingIntegrityTest` **4 / 8**; `FormatFoundationTest`, revisión humana, pipeline E2E y hardening comercial verdes; suite completa **514 tests / 1822 assertions**, sin fallos, ejecutada dos veces. `git diff --check` limpio. La entrega privada al docente y la retención quedan para 6C.
+Evidencia local de cierre histórica: `DocumentRenderingTest` **9 / 63** y `DocumentRenderingIntegrityTest` **4 / 8**; suite completa **514 tests / 1822 assertions**, sin fallos.
 
 ### Fase 6C — entrega privada y retención
 
-El candidato 6C materializa `deliveries`, `delivery_files` y `delivery_downloads`, publica una entrega idempotente sobre la `DocumentVersion` y `DocumentRenderRun` exactos, y habilita descarga autenticada desde `/app` únicamente al propietario. Los bytes siguen en storage privado; cada acceso queda auditado. La retención de resultados se configura con `DOCUMENT_RESULT_RETENTION_DAYS` y `documents:purge-expired` elimina bytes expirados sin borrar metadatos ni historial. PostgreSQL protege identidad de entrega, set exacto DOCX/PDF, evento de estado y retención no decreciente.
+Materializa `deliveries`, `delivery_files` y `delivery_downloads`, publica una entrega idempotente sobre la `DocumentVersion` y `DocumentRenderRun` exactos, y habilita descarga autenticada desde `/app` únicamente al propietario. Los bytes siguen en storage privado; cada acceso queda auditado. La retención de resultados se configura con `DOCUMENT_RESULT_RETENTION_DAYS` y `documents:purge-expired` elimina bytes expirados sin borrar metadatos ni historial.
 
-Pruebas específicas de 4C:
+### Fase 6D — correcciones del cliente
 
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualGenerationResultImportTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationResultIntegrityTest.php --do-not-cache-result
+La corrección posterior a entrega conserva la entrega anterior, valida ventana contractual y `correction_limit_snapshot`, consume una ronda `client_correction` únicamente al aceptar el trabajo y crea una nueva `DocumentVersion` hija que vuelve a auditoría antes de una nueva entrega. Cerrada previamente en `phase-6d-complete`.
+
+### Fase 6E/6F — formato institucional self-service, notificaciones y cierre
+
+El flujo institucional final pertenece al docente cliente: sube su DOCX, el sistema analiza estructura, propone mappings, el docente corrige desde el diseñador visual, genera una muestra, la aprueba y publica su versión. `/admin` ya no expone el CRUD operativo de formatos institucionales ajenos.
+
+El diseñador visual soporta bindings precisos por fragmento: en `FECHA: 11/09/2026` se reemplaza `11/09/2026` y se conserva `FECHA:`; en una línea con `GRADO` y `GRUPO`, ambos valores pueden convivir como variables independientes. `institutional-v1.1.0` renderiza esos fragmentos y PostgreSQL exige que muestra, mapping y versión del renderer coincidan antes de publicar.
+
+6F incorpora además notificaciones operativas deduplicadas, aviso de renovación próxima y credenciales demo locales estables para pruebas. La evidencia final verificada es:
+
+```text
+Diseñador visual: 10 tests / 59 assertions
+Bloque documental: 48 tests / 224 assertions
+Renderer: 9 tests / 64 assertions
+Suite completa: 577 tests / 2169 assertions / 0 failures
+QA manual con DOCX institucional real: aprobado
 ```
+
+Detalle de arquitectura, QA y limitaciones conocidas: [`docs/PHASE6_CLOSURE.md`](docs/PHASE6_CLOSURE.md).
+
+La expansión del diseñador queda congelada después del cierre. El siguiente sprint es un **MVP de validación curricular**: contexto mínimo → conexiones curriculares propuestas → confirmación docente → generación → formato institucional → DOCX/PDF.
 
 Los contratos versionados viven en `resources/schemas/ai/` y su explicación en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
 
@@ -238,7 +255,7 @@ Si `pdo_pgsql` ya está habilitada en el PHP global (por ejemplo en macOS, Linux
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+<a href="https://img.shields.io/packagist/l/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
 ## About Laravel
