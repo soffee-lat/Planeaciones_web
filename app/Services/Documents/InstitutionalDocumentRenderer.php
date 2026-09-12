@@ -22,7 +22,7 @@ final class InstitutionalDocumentRenderer
     public function __construct(
         private CanonicalPlanValidator $validator,
         private InstitutionalFormatMapping $mapping,
-        private InstitutionalDynamicFieldResolver $dynamicFields,
+        private GenericInstitutionalFieldResolver $dynamicFields,
         private InstitutionalDocxTemplateEngine $template,
         private StandardPdfRenderer $pdf,
     ) {}
