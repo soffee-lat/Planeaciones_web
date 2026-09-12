@@ -43,7 +43,6 @@ final class AdaptiveCanonicalPlanAssembler
 
         $formatContext = $this->formatContext->build($request);
         $result = $this->resultValidator->validate($result->toArray(), $formatContext);
-        $payload = $result->toArray();
         $core = $result->core();
         $coverage = $this->validatedCoverage($curriculum, (array) ($core['pda_coverage'] ?? []));
         $requestSnapshot = is_array($snapshot['request'] ?? null) ? $snapshot['request'] : [];
@@ -85,9 +84,13 @@ final class AdaptiveCanonicalPlanAssembler
                 'assessment_strategy' => (string) $core['assessment_strategy'],
                 'adaptation_considerations' => array_values(array_map('strval', (array) $core['adaptation_considerations'])),
             ],
-            'template_fields' => $result->fields(),
-            ...($result->custom() !== [] ? ['custom' => $result->custom()] : []),
         ];
+        if ($result->fields() !== []) {
+            $canonical['template_fields'] = $result->fields();
+        }
+        if ($result->custom() !== []) {
+            $canonical['custom'] = $result->custom();
+        }
 
         return $this->canonicalValidator->validate($canonical);
     }
