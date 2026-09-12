@@ -16,9 +16,9 @@ class GeneratedPlanDraftValidator
     {
         $schema = $this->loadSchema(resource_path('schemas/ai/generated_plan_draft_v1.schema.json'));
 
-        // `custom` se define dinámicamente por el formato institucional de la
-        // ejecución. El contrato base sigue siendo v1 y se valida sin esa
-        // extensión; después validamos la forma segura de los valores custom.
+        // `custom` se define dinámicamente por el contrato del formato de esta
+        // ejecución. El contrato base sigue siendo v1; la extensión se valida
+        // de forma segura y acotada para admitir listas, tablas y bloques.
         $basePayload = $payload;
         unset($basePayload['custom']);
         $this->schemaValidator->validate($basePayload, $schema);
@@ -38,27 +38,51 @@ class GeneratedPlanDraftValidator
             throw new AiContractException('GENERATED_CUSTOM_OBJECT_REQUIRED', '$.custom');
         }
 
+        $nodes = 0;
         foreach ($custom as $key => $value) {
-            $key = (string) $key;
-            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
-                throw new AiContractException('GENERATED_CUSTOM_KEY_INVALID', '$.custom.' . $key);
-            }
-            if (is_string($value)) {
-                if (trim($value) === '') {
-                    throw new AiContractException('GENERATED_CUSTOM_VALUE_EMPTY', '$.custom.' . $key);
-                }
-                continue;
-            }
-            if (is_array($value) && array_is_list($value) && $value !== []) {
-                foreach ($value as $index => $item) {
-                    if (! is_string($item) || trim($item) === '') {
-                        throw new AiContractException('GENERATED_CUSTOM_LIST_INVALID', '$.custom.' . $key . '[' . $index . ']');
-                    }
-                }
-                continue;
-            }
+            $this->assertCustomKey((string) $key, '$.custom');
+            $this->validateCustomValue($value, '$.custom.' . $key, 0, $nodes);
+        }
+    }
 
-            throw new AiContractException('GENERATED_CUSTOM_VALUE_INVALID', '$.custom.' . $key);
+    private function validateCustomValue(mixed $value, string $path, int $depth, int &$nodes): void
+    {
+        $nodes++;
+        if ($nodes > 500) {
+            throw new AiContractException('GENERATED_CUSTOM_TOO_LARGE', $path);
+        }
+        if ($depth > 5) {
+            throw new AiContractException('GENERATED_CUSTOM_TOO_DEEP', $path);
+        }
+
+        if (is_string($value)) {
+            if (trim($value) === '') {
+                throw new AiContractException('GENERATED_CUSTOM_VALUE_EMPTY', $path);
+            }
+            return;
+        }
+
+        if (! is_array($value) || $value === []) {
+            throw new AiContractException('GENERATED_CUSTOM_VALUE_INVALID', $path);
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $index => $item) {
+                $this->validateCustomValue($item, $path . '[' . $index . ']', $depth + 1, $nodes);
+            }
+            return;
+        }
+
+        foreach ($value as $key => $item) {
+            $this->assertCustomKey((string) $key, $path);
+            $this->validateCustomValue($item, $path . '.' . $key, $depth + 1, $nodes);
+        }
+    }
+
+    private function assertCustomKey(string $key, string $path): void
+    {
+        if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
+            throw new AiContractException('GENERATED_CUSTOM_KEY_INVALID', $path . '.' . $key);
         }
     }
 
