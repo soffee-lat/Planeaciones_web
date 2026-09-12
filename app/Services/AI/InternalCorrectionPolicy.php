@@ -20,18 +20,29 @@ final class InternalCorrectionPolicy
         'adaptation_notes',
     ];
 
+    /** @var list<string> */
+    private const ADAPTIVE_MUTABLE_ROOTS = [
+        'planning',
+        'pedagogical_design',
+        'template_fields',
+        'custom',
+    ];
+
     /** @return list<string> */
-    public function sectionKeys(AuditResult $result): array
+    public function sectionKeys(AuditResult $result, ?string $canonicalSchemaVersion = null): array
     {
         if ($result->passed) {
             return [];
         }
 
+        $adaptive = $canonicalSchemaVersion === CanonicalPlanValidator::ADAPTIVE_SCHEMA_VERSION;
+        $mutableRoots = $adaptive ? self::ADAPTIVE_MUTABLE_ROOTS : self::MUTABLE_ROOTS;
         $keys = [];
+
         foreach ($result->findings as $finding) {
             $path = $finding->jsonPath;
             if ($path === '$') {
-                $keys = [...$keys, ...self::MUTABLE_ROOTS];
+                $keys = [...$keys, ...$mutableRoots];
                 continue;
             }
 
@@ -45,7 +56,8 @@ final class InternalCorrectionPolicy
             }
 
             $first = explode('/', ltrim($path, '/'))[0] ?? '';
-            if (in_array($first, array_slice(self::MUTABLE_ROOTS, 1), true)) {
+            $allowedNonPlanning = array_values(array_filter($mutableRoots, static fn (string $root): bool => $root !== 'planning'));
+            if (in_array($first, $allowedNonPlanning, true)) {
                 $keys[] = $first;
                 continue;
             }
