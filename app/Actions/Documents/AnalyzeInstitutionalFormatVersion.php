@@ -10,12 +10,14 @@ use App\Models\FormatVersion;
 use App\Models\User;
 use App\Services\Documents\InstitutionalFormatMapping;
 use App\Services\Documents\InstitutionalFormatSourceInspector;
+use App\Services\Documents\InstitutionalFormatStructureInspector;
 use Illuminate\Support\Facades\DB;
 
 final class AnalyzeInstitutionalFormatVersion
 {
     public function __construct(
         private InstitutionalFormatSourceInspector $inspector,
+        private InstitutionalFormatStructureInspector $structureInspector,
         private InstitutionalFormatMapping $mapping,
     ) {}
 
@@ -32,6 +34,7 @@ final class AnalyzeInstitutionalFormatVersion
 
         try {
             $analysis = $this->inspector->inspect($version->sourceFile);
+            $analysis = $this->structureInspector->augment($analysis, $version->sourceFile);
         } catch (DocumentFormatException $e) {
             DB::transaction(function () use ($version, $e): void {
                 $locked = FormatVersion::query()->with('format')->whereKey($version->id)->lockForUpdate()->firstOrFail();
@@ -52,16 +55,21 @@ final class AnalyzeInstitutionalFormatVersion
                 'anchors' => [],
                 'placeholders' => [],
                 'fragments' => [],
+                'structures' => [],
                 'custom_fields' => [],
                 'ignored_zones' => [],
             ];
             $suggested['fragments'] = is_array($suggested['fragments'] ?? null) ? $suggested['fragments'] : [];
+            $suggested['structures'] = is_array($suggested['structures'] ?? null) ? $suggested['structures'] : [];
             $existing = is_array($locked->mapping) ? $locked->mapping : [];
+            $existingSchema = (int) ($existing['schema_version'] ?? 0);
 
-            if (($existing['schema_version'] ?? null) === 2) {
+            if ($existingSchema >= 2) {
+                $suggested['schema_version'] = $existingSchema >= 3 ? 3 : 2;
                 $suggested['custom_fields'] = is_array($existing['custom_fields'] ?? null) ? $existing['custom_fields'] : [];
                 $suggested['ignored_zones'] = is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : [];
                 $suggested['fragments'] = is_array($existing['fragments'] ?? null) ? $existing['fragments'] : $suggested['fragments'];
+                $suggested['structures'] = is_array($existing['structures'] ?? null) ? $existing['structures'] : [];
                 $suggested['anchors'] = array_replace(
                     is_array($suggested['anchors'] ?? null) ? $suggested['anchors'] : [],
                     is_array($existing['anchors'] ?? null) ? $existing['anchors'] : [],
@@ -127,26 +135,29 @@ final class AnalyzeInstitutionalFormatVersion
 
             $hasRequestedMapping = (is_array($suggested['anchors'] ?? null) && $suggested['anchors'] !== [])
                 || (is_array($suggested['placeholders'] ?? null) && $suggested['placeholders'] !== [])
-                || (is_array($suggested['fragments'] ?? null) && $suggested['fragments'] !== []);
+                || (is_array($suggested['fragments'] ?? null) && $suggested['fragments'] !== [])
+                || (is_array($suggested['structures'] ?? null) && $suggested['structures'] !== []);
 
             $normalized = $hasRequestedMapping
                 ? $this->mapping->validate($locked->fresh(), $suggested)
                 : [
-                    'schema_version' => 2,
+                    'schema_version' => $existingSchema >= 3 ? 3 : 2,
                     'anchors' => [],
                     'placeholders' => [],
                     'fragments' => [],
+                    'structures' => [],
                     'custom_fields' => is_array($suggested['custom_fields'] ?? null) ? $suggested['custom_fields'] : [],
                     'ignored_zones' => is_array($suggested['ignored_zones'] ?? null) ? array_values($suggested['ignored_zones']) : [],
                 ];
 
             $hasMapping = ($normalized['anchors'] ?? []) !== []
                 || ($normalized['placeholders'] ?? []) !== []
-                || ($normalized['fragments'] ?? []) !== [];
+                || ($normalized['fragments'] ?? []) !== []
+                || ($normalized['structures'] ?? []) !== [];
 
             $locked->forceFill([
                 'mapping' => $normalized,
-                'schema_version' => 2,
+                'schema_version' => (int) ($normalized['schema_version'] ?? 2),
                 'renderer' => 'institutional-v1',
                 'validation_report' => ['status' => $hasMapping ? 'mapping_ready' : 'analysis_complete', 'analysis' => $analysis],
             ])->save();
