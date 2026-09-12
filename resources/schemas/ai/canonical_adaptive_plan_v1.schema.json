@@ -10,8 +10,7 @@
     "planning",
     "context",
     "curricular_alignment",
-    "pedagogical_design",
-    "template_fields"
+    "pedagogical_design"
   ],
   "properties": {
     "schema_version": {"const": "canonical_adaptive_plan_v1"},
