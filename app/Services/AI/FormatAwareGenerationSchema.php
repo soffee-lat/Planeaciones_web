@@ -9,6 +9,10 @@ final class FormatAwareGenerationSchema
      * define qué campos propios necesita; no existe un catálogo universal de
      * formatos escolares.
      *
+     * Los tipos estructurados (`table` y `repeating_block`) pueden declarar
+     * `item_fields`; cuando existen, el schema deja de aceptar objetos libres y
+     * exige exactamente la estructura confirmada por el usuario.
+     *
      * @param array<string,mixed> $baseSchema
      * @param array<string,mixed> $formatContext
      * @return array<string,mixed>
@@ -27,7 +31,7 @@ final class FormatAwareGenerationSchema
                 continue;
             }
 
-            $properties[$key] = $this->schemaFor((string) ($field['type'] ?? 'long_text'));
+            $properties[$key] = $this->schemaFor($field);
 
             if ((bool) ($field['required'] ?? false)) {
                 $required[] = $key;
@@ -57,8 +61,59 @@ final class FormatAwareGenerationSchema
         return $baseSchema;
     }
 
+    /** @param array<string,mixed> $field @return array<string,mixed> */
+    private function schemaFor(array $field): array
+    {
+        $type = (string) ($field['type'] ?? 'long_text');
+
+        if (in_array($type, ['table', 'repeating_block'], true)) {
+            $itemFields = is_array($field['item_fields'] ?? null) ? $field['item_fields'] : [];
+            if ($itemFields === []) {
+                return [
+                    'type' => 'array',
+                    'minItems' => 1,
+                    'items' => [
+                        'type' => 'object',
+                        'additionalProperties' => true,
+                    ],
+                ];
+            }
+
+            $properties = [];
+            $required = [];
+            foreach ($itemFields as $key => $definition) {
+                if (! is_array($definition)) {
+                    continue;
+                }
+                $key = trim((string) $key);
+                if ($key === '') {
+                    continue;
+                }
+                $properties[$key] = $this->scalarSchema((string) ($definition['type'] ?? 'long_text'));
+                if ((bool) ($definition['required'] ?? true)) {
+                    $required[] = $key;
+                }
+            }
+            ksort($properties, SORT_STRING);
+            sort($required, SORT_STRING);
+
+            return [
+                'type' => 'array',
+                'minItems' => 1,
+                'items' => [
+                    'type' => 'object',
+                    'additionalProperties' => false,
+                    'required' => $required,
+                    'properties' => $properties,
+                ],
+            ];
+        }
+
+        return $this->scalarSchema($type);
+    }
+
     /** @return array<string,mixed> */
-    private function schemaFor(string $type): array
+    private function scalarSchema(string $type): array
     {
         return match ($type) {
             'list' => [
@@ -70,14 +125,6 @@ final class FormatAwareGenerationSchema
                 'type' => 'string',
                 'format' => 'date',
                 'minLength' => 10,
-            ],
-            'table', 'repeating_block' => [
-                'type' => 'array',
-                'minItems' => 1,
-                'items' => [
-                    'type' => 'object',
-                    'additionalProperties' => true,
-                ],
             ],
             default => ['type' => 'string', 'minLength' => 1],
         };
