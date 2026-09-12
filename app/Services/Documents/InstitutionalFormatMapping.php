@@ -553,17 +553,40 @@ final class InstitutionalFormatMapping
         if ($value === null) return '';
         if (is_bool($value)) return $value ? 'Sí' : 'No';
         if (is_scalar($value)) return trim((string) $value);
-        if (! is_array($value)) return '';
-        $parts = [];
-        foreach ($value as $key => $item) {
-            if (is_array($item) && ! array_is_list($item)) {
-                $text = trim((string) ($item['full_text'] ?? $item['title'] ?? $item['name'] ?? $item['instruction'] ?? $item['code'] ?? ''));
-            } else {
-                $text = $this->stringify($item);
+        if (! is_array($value) || $value === []) return '';
+
+        // Conserva el comportamiento compacto de los objetos canónicos que ya
+        // tienen un valor representativo conocido.
+        if (! array_is_list($value)) {
+            foreach (['full_text', 'title', 'name', 'instruction', 'code'] as $preferred) {
+                if (array_key_exists($preferred, $value) && is_scalar($value[$preferred])) {
+                    $text = trim((string) $value[$preferred]);
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
             }
-            if ($text === '') continue;
-            $parts[] = is_string($key) && ! is_array($item) ? str_replace('_', ' ', $key) . ': ' . $text : $text;
+
+            // Para tablas/bloques propios del formato no conocemos sus claves.
+            // Las serializamos de forma legible sin imponer un esquema escolar.
+            $parts = [];
+            foreach ($value as $key => $item) {
+                $text = $this->stringify($item);
+                if ($text === '') continue;
+                $label = trim(str_replace('_', ' ', (string) $key));
+                $parts[] = ($label !== '' ? $label . ': ' : '') . $text;
+            }
+            return implode("\n", $parts);
         }
-        return implode('; ', $parts);
+
+        $parts = [];
+        foreach ($value as $item) {
+            $text = $this->stringify($item);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode("\n", $parts);
     }
 }
