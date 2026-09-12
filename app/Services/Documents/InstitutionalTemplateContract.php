@@ -86,22 +86,82 @@ final class InstitutionalTemplateContract
             );
         }
 
+        $structures = [];
+        foreach ((array) ($mapping['structures'] ?? []) as $structureId => $structure) {
+            if (! is_array($structure)) {
+                continue;
+            }
+            $path = trim((string) ($structure['field_path'] ?? ''));
+            if ($path === '') {
+                continue;
+            }
+            $key = str_starts_with($path, 'custom.') ? substr($path, strlen('custom.')) : '';
+            $definition = is_array($custom[$key] ?? null) ? $custom[$key] : [];
+            $itemFields = is_array($definition['item_fields'] ?? null) ? $definition['item_fields'] : [];
+            $bindings = [];
+            foreach ((array) ($structure['bindings'] ?? []) as $zoneId => $binding) {
+                if (! is_array($binding)) {
+                    continue;
+                }
+                if (($binding['source'] ?? null) === 'item') {
+                    $itemKey = (string) ($binding['item_key'] ?? '');
+                    $itemDefinition = is_array($itemFields[$itemKey] ?? null) ? $itemFields[$itemKey] : [];
+                    $bindings[] = [
+                        'zone_id' => (string) $zoneId,
+                        'source' => 'ai',
+                        'item_key' => $itemKey,
+                        'label' => (string) ($itemDefinition['label'] ?? $itemKey),
+                        'type' => (string) ($itemDefinition['type'] ?? 'long_text'),
+                        'required' => (bool) ($itemDefinition['required'] ?? true),
+                        'instruction' => trim((string) ($itemDefinition['instruction'] ?? '')),
+                    ];
+                    continue;
+                }
+                $bindingPath = (string) ($binding['field_path'] ?? '');
+                $bindings[] = [
+                    'zone_id' => (string) $zoneId,
+                    'source' => $this->sourceFor($bindingPath),
+                    'path' => $bindingPath,
+                    'label' => $bindingPath,
+                    'type' => $this->typeFor($bindingPath, $custom),
+                    'required' => false,
+                    'instruction' => $this->instructionFor($bindingPath, $custom),
+                ];
+            }
+
+            $structures[] = [
+                'binding' => ['kind' => 'structure', 'id' => (string) $structureId],
+                'zone_id' => (string) ($structure['zone_id'] ?? ''),
+                'kind' => (string) ($structure['kind'] ?? ''),
+                'path' => $path,
+                'label' => (string) ($definition['label'] ?? $key),
+                'type' => (string) ($definition['type'] ?? 'repeating_block'),
+                'source' => 'ai',
+                'required' => true,
+                'instruction' => trim((string) ($definition['instruction'] ?? '')),
+                'item_fields' => $itemFields,
+                'bindings' => $bindings,
+            ];
+        }
+
         $sourceFile = $version->relationLoaded('sourceFile')
             ? $version->getRelation('sourceFile')
             : null;
 
         return [
-            'schema_version' => 1,
+            'schema_version' => ($structures === [] ? 1 : 2),
             'authority' => 'user_docx',
             'source_sha256' => $sourceFile?->sha256,
             'source_content_mode' => $analysis['source_content_mode'] ?? null,
             'fields' => $fields,
+            'structures' => $structures,
             'ignored_zones' => array_values(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : [])),
             'rules' => [
                 'El DOCX del usuario es la autoridad visual y estructural; no lo rediseñes ni lo normalices a otro formato.',
                 'Genera únicamente los campos cuya fuente sea ai. Los datos de sistema y currículo se resuelven por el sistema.',
                 'Los ejemplos históricos sirven para entender intención, extensión y estilo; no deben copiarse literalmente.',
                 'No supongas que las etiquetas, repeticiones, tablas o secciones de este formato existen en otros formatos.',
+                'La cantidad de elementos repetidos la determina el contenido generado para ese nodo estructural, nunca una regla fija de días, sesiones o grados.',
                 'Los campos manuales, firmas, sellos y zonas ignoradas no deben inventarse.',
             ],
         ];
@@ -138,6 +198,7 @@ final class InstitutionalTemplateContract
     {
         if (str_starts_with($path, 'custom.')) {
             $key = substr($path, strlen('custom.'));
+
             return (string) ($custom[$key]['type'] ?? 'long_text');
         }
         if (in_array($path, [
@@ -158,6 +219,7 @@ final class InstitutionalTemplateContract
     {
         if (str_starts_with($path, 'custom.')) {
             $key = substr($path, strlen('custom.'));
+
             return trim((string) ($custom[$key]['instruction'] ?? ''));
         }
 
