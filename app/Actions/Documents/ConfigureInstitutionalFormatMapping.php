@@ -35,10 +35,13 @@ final class ConfigureInstitutionalFormatMapping
             $existing = is_array($locked->mapping) ? $locked->mapping : [];
             $analysis = is_array(data_get($locked->validation_report, 'analysis')) ? data_get($locked->validation_report, 'analysis') : [];
 
-            foreach (['custom_fields', 'ignored_zones', 'fragments'] as $key) {
+            foreach (['custom_fields', 'ignored_zones', 'fragments', 'structures'] as $key) {
                 if (! array_key_exists($key, $incoming)) {
                     $incoming[$key] = is_array($existing[$key] ?? null) ? $existing[$key] : [];
                 }
+            }
+            if (($incoming['structures'] ?? []) !== [] && (int) ($incoming['schema_version'] ?? 0) < 3) {
+                $incoming['schema_version'] = 3;
             }
 
             if ($preserveVisualBindings) {
@@ -67,12 +70,13 @@ final class ConfigureInstitutionalFormatMapping
             }
             $hasRenderableMapping = ($normalized['anchors'] ?? []) !== []
                 || ($normalized['placeholders'] ?? []) !== []
-                || ($normalized['fragments'] ?? []) !== [];
+                || ($normalized['fragments'] ?? []) !== []
+                || ($normalized['structures'] ?? []) !== [];
             $report['status'] = $hasRenderableMapping ? 'mapping_ready' : 'analysis_complete';
             unset($report['sample']);
             $locked->forceFill([
                 'mapping' => $normalized,
-                'schema_version' => 2,
+                'schema_version' => (int) ($normalized['schema_version'] ?? 2),
                 'renderer' => 'institutional-v1',
                 'validation_report' => $report,
             ])->save();
