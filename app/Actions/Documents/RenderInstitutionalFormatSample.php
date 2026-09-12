@@ -9,8 +9,8 @@ use App\Exceptions\DocumentFormatException;
 use App\Models\FormatVersion;
 use App\Models\FormatVersionSample;
 use App\Models\User;
+use App\Services\Documents\GenericInstitutionalFieldResolver;
 use App\Services\Documents\InstitutionalDocumentRenderer;
-use App\Services\Documents\InstitutionalDynamicFieldResolver;
 use App\Services\Documents\InstitutionalFormatMapping;
 use App\Services\Documents\InstitutionalFormatSampleStorage;
 use App\Support\AI\CanonicalJson;
@@ -21,7 +21,7 @@ final class RenderInstitutionalFormatSample
     public function __construct(
         private InstitutionalDocumentRenderer $renderer,
         private InstitutionalFormatMapping $mapping,
-        private InstitutionalDynamicFieldResolver $dynamicFields,
+        private GenericInstitutionalFieldResolver $dynamicFields,
         private InstitutionalFormatSampleStorage $storage,
     ) {}
 
@@ -33,11 +33,9 @@ final class RenderInstitutionalFormatSample
             throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
         }
 
-        // El mapping derivado (incluidos custom.* detectados automáticamente)
-        // forma parte del contrato de la versión. Debe persistirse antes de
-        // generar la muestra para que mapping_snapshot, fingerprint y las
-        // protecciones de integridad de PostgreSQL comparen exactamente el
-        // mismo documento lógico durante la aprobación.
+        // El mapping derivado (incluidos custom.* detectados de forma genérica)
+        // forma parte del contrato de la versión. No se presupone ninguna
+        // estructura escolar concreta: el Word del usuario es la autoridad.
         $version = $this->synchronizeMapping($version);
         $normalized = $this->mapping->validate($version, $version->mapping);
         $fingerprint = $this->fingerprint($version, $normalized);
@@ -58,9 +56,6 @@ final class RenderInstitutionalFormatSample
                 throw new DocumentFormatException('FORMAT_SAMPLE_STATE_INVALID');
             }
 
-            // No volvemos a derivar aquí: el mapping persistido es el contrato
-            // que la muestra congeló. Si alguien lo cambió mientras se hacía el
-            // render, esta comprobación convierte la muestra en obsoleta.
             $current = $this->mapping->validate($locked, $locked->mapping);
             $currentFingerprint = $this->fingerprint($locked, $current);
             if ($currentFingerprint !== $fingerprint || $current !== $normalized) {
