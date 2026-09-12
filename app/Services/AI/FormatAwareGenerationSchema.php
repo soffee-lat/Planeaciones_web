@@ -5,9 +5,9 @@ namespace App\Services\AI;
 final class FormatAwareGenerationSchema
 {
     /**
-     * Extiende el contrato base solo para la ejecución actual. El esquema base
-     * permanece estable; los campos custom dependen del formato institucional
-     * resuelto para esa planeación.
+     * Extiende el contrato base únicamente para la ejecución actual. El DOCX
+     * define qué campos propios necesita; no existe un catálogo universal de
+     * formatos escolares.
      *
      * @param array<string,mixed> $baseSchema
      * @param array<string,mixed> $formatContext
@@ -27,14 +27,7 @@ final class FormatAwareGenerationSchema
                 continue;
             }
 
-            $type = (string) ($field['type'] ?? 'long_text');
-            $properties[$key] = $type === 'list'
-                ? [
-                    'type' => 'array',
-                    'minItems' => 1,
-                    'items' => ['type' => 'string', 'minLength' => 1],
-                ]
-                : ['type' => 'string', 'minLength' => 1];
+            $properties[$key] = $this->schemaFor((string) ($field['type'] ?? 'long_text'));
 
             if ((bool) ($field['required'] ?? false)) {
                 $required[] = $key;
@@ -62,5 +55,31 @@ final class FormatAwareGenerationSchema
         $baseSchema['required'] = $rootRequired;
 
         return $baseSchema;
+    }
+
+    /** @return array<string,mixed> */
+    private function schemaFor(string $type): array
+    {
+        return match ($type) {
+            'list' => [
+                'type' => 'array',
+                'minItems' => 1,
+                'items' => ['type' => 'string', 'minLength' => 1],
+            ],
+            'date' => [
+                'type' => 'string',
+                'format' => 'date',
+                'minLength' => 10,
+            ],
+            'table', 'repeating_block' => [
+                'type' => 'array',
+                'minItems' => 1,
+                'items' => [
+                    'type' => 'object',
+                    'additionalProperties' => true,
+                ],
+            ],
+            default => ['type' => 'string', 'minLength' => 1],
+        };
     }
 }
