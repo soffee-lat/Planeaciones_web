@@ -37,9 +37,20 @@ class GeneratedPlanDraftValidator
     /** @param array<string,mixed> $payload */
     private function validateAdaptiveEnvelope(array $payload): AdaptiveGeneratedPlan
     {
-        foreach (['core', 'fields', 'custom'] as $required) {
-            if (! array_key_exists($required, $payload) || ! is_array($payload[$required]) || array_is_list($payload[$required])) {
-                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $required);
+        if (! array_key_exists('core', $payload) || ! is_array($payload['core']) || array_is_list($payload['core'])) {
+            throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.core');
+        }
+        foreach (['fields', 'custom'] as $optionalObject) {
+            if (! array_key_exists($optionalObject, $payload)) {
+                continue;
+            }
+            if (! is_array($payload[$optionalObject])) {
+                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
+            }
+            // `{}` se decodifica como `[]` en PHP. Se acepta únicamente vacío;
+            // una lista real no vacía sigue siendo inválida para estos objetos.
+            if ($payload[$optionalObject] !== [] && array_is_list($payload[$optionalObject])) {
+                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
             }
         }
         if (array_diff(array_keys($payload), ['contract_version', 'core', 'fields', 'custom']) !== []) {
@@ -68,13 +79,13 @@ class GeneratedPlanDraftValidator
         }
 
         $nodes = 0;
-        foreach ($payload['fields'] as $path => $value) {
+        foreach ((array) ($payload['fields'] ?? []) as $path => $value) {
             if (! is_string($path) || preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/', $path) !== 1) {
                 throw new AiContractException('ADAPTIVE_GENERATION_FIELD_PATH_INVALID', '$.fields.' . (string) $path);
             }
             $this->validateFlexibleValue($value, '$.fields.' . $path, 0, $nodes);
         }
-        foreach ($payload['custom'] as $key => $value) {
+        foreach ((array) ($payload['custom'] ?? []) as $key => $value) {
             $this->assertCustomKey((string) $key, '$.custom');
             $this->validateFlexibleValue($value, '$.custom.' . $key, 0, $nodes);
         }
