@@ -47,6 +47,13 @@ final class FormatAwareGenerationSchema
         sort($fieldRequired, SORT_STRING);
 
         [$customProperties, $customRequired] = $this->customProperties($formatContext);
+        $rootRequired = ['contract_version', 'core'];
+        if ($fieldProperties !== []) {
+            $rootRequired[] = 'fields';
+        }
+        if ($customProperties !== []) {
+            $rootRequired[] = 'custom';
+        }
 
         return [
             '$schema' => 'https://json-schema.org/draft/2020-12/schema',
@@ -54,7 +61,7 @@ final class FormatAwareGenerationSchema
             'title' => 'AdaptiveTemplateGenerationV1',
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => ['contract_version', 'core', 'fields', 'custom'],
+            'required' => $rootRequired,
             'properties' => [
                 'contract_version' => ['const' => self::ADAPTIVE_CONTRACT_VERSION],
                 'core' => [
