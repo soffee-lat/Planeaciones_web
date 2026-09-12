@@ -31,8 +31,8 @@ class CanonicalPlanValidator
         unset($basePayload['custom']);
         $this->schemaValidator->validate($basePayload, $schema);
         $this->validateCustom($payload['custom'] ?? null);
-        if ($schemaVersion === self::ADAPTIVE_SCHEMA_VERSION) {
-            $this->validateTemplateFields($payload['template_fields'] ?? null);
+        if ($schemaVersion === self::ADAPTIVE_SCHEMA_VERSION && array_key_exists('template_fields', $payload)) {
+            $this->validateTemplateFields($payload['template_fields']);
         }
 
         return new CanonicalPlan($payload);
@@ -40,7 +40,7 @@ class CanonicalPlanValidator
 
     private function validateTemplateFields(mixed $fields): void
     {
-        if (! is_array($fields) || array_is_list($fields)) {
+        if (! is_array($fields) || ($fields !== [] && array_is_list($fields))) {
             throw new AiContractException('CANONICAL_TEMPLATE_FIELDS_OBJECT_REQUIRED', '$.template_fields');
         }
         foreach ($fields as $path => $value) {
@@ -58,7 +58,7 @@ class CanonicalPlanValidator
         if ($custom === null) {
             return;
         }
-        if (! is_array($custom) || array_is_list($custom)) {
+        if (! is_array($custom) || ($custom !== [] && array_is_list($custom))) {
             throw new AiContractException('CANONICAL_CUSTOM_OBJECT_REQUIRED', '$.custom');
         }
 
