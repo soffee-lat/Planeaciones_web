@@ -19,6 +19,7 @@ final class ManualCorrectionPackageBuilder
         private CorrectionPromptPolicy $promptPolicy,
         private ManualAiConfiguration $manualConfiguration,
         private PromptRenderer $promptRenderer,
+        private AdaptiveCorrectionSchema $adaptiveCorrectionSchema,
     ) {}
 
     public function build(AiExecution $execution): AiManualPackage
@@ -40,6 +41,10 @@ final class ManualCorrectionPackageBuilder
         }
         $this->promptPolicy->assertReady($prompt);
 
+        $adaptive = ($input->canonicalPlan->toArray()['schema_version'] ?? null) === CanonicalPlanValidator::ADAPTIVE_SCHEMA_VERSION;
+        $effectiveSchema = $adaptive ? $this->adaptiveCorrectionSchema->build() : $prompt->output_schema;
+        $effectiveSchemaVersion = $adaptive ? AdaptiveCorrectionSchema::CONTRACT_VERSION : (string) $prompt->schema_version;
+
         $sourceContentHash = (string) ($execution->input_manifest['source_content_hash'] ?? '');
         $sourceAuditReportHash = (string) ($execution->input_manifest['source_audit_report_hash'] ?? '');
         $auditReport = $this->auditReportFromFindings($input);
@@ -54,8 +59,8 @@ final class ManualCorrectionPackageBuilder
             'section_keys' => CanonicalJson::encode($input->sectionKeys),
             'correction_round' => $input->correctionRound,
             'input_manifest' => CanonicalJson::encode($execution->input_manifest),
-            'output_schema' => CanonicalJson::encode($prompt->output_schema),
-            'output_schema_version' => (string) $prompt->schema_version,
+            'output_schema' => CanonicalJson::encode($effectiveSchema),
+            'output_schema_version' => $effectiveSchemaVersion,
             'correlation_id' => $input->correlationId,
         ];
 
@@ -105,8 +110,8 @@ final class ManualCorrectionPackageBuilder
                 'rendered' => $renderedPrompt,
             ],
             'output' => [
-                'schema_version' => $prompt->schema_version,
-                'schema' => $prompt->output_schema,
+                'schema_version' => $effectiveSchemaVersion,
+                'schema' => $effectiveSchema,
                 'return_json_only' => true,
             ],
             'input_manifest' => $execution->input_manifest,
@@ -123,6 +128,7 @@ final class ManualCorrectionPackageBuilder
             $this->assertExistingPackage($existing, $disk, $path, $checksum);
             $this->ensureStoredBytes($disk, $path, $json, $checksum);
             $this->finalizeExecution($execution->id, $renderedHash);
+
             return $existing;
         }
 
@@ -133,6 +139,7 @@ final class ManualCorrectionPackageBuilder
             $existing = AiManualPackage::query()->where('ai_execution_id', $locked->id)->first();
             if ($existing) {
                 $this->assertExistingPackage($existing, $disk, $path, $checksum);
+
                 return $existing;
             }
 
