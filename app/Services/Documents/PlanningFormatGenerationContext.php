@@ -12,8 +12,9 @@ use App\Models\PlanningRequest;
 final class PlanningFormatGenerationContext
 {
     public function __construct(
-        private InstitutionalDynamicFieldResolver $dynamicFields,
+        private GenericInstitutionalFieldResolver $dynamicFields,
         private InstitutionalFormatMapping $mapping,
+        private InstitutionalTemplateContract $templateContract,
     ) {}
 
     /** @return array<string,mixed> */
@@ -23,6 +24,7 @@ final class PlanningFormatGenerationContext
         if (! $version) {
             return $this->emptyContext();
         }
+        $version->loadMissing(['format', 'sourceFile']);
         if ($version->renderer !== InstitutionalDocumentRenderer::FORMAT_RENDERER) {
             return $this->baseContext($version);
         }
@@ -34,53 +36,59 @@ final class PlanningFormatGenerationContext
             throw new AiPipelineException('AI_GENERATION_FORMAT_CONTEXT_INVALID', $e->getMessage());
         }
 
-        $usedPaths = $this->usedPaths($normalized);
-        $examples = $this->examplesByPath($version, $normalized);
+        $contract = $this->templateContract->build($version, $normalized);
+        $customDefinitions = is_array($normalized['custom_fields'] ?? null) ? $normalized['custom_fields'] : [];
         $customFields = [];
+        $standardPaths = [];
+        $standardExamples = [];
 
-        foreach ((array) ($normalized['custom_fields'] ?? []) as $key => $definition) {
-            if (! is_array($definition)) {
+        foreach ((array) ($contract['fields'] ?? []) as $field) {
+            if (! is_array($field)) {
                 continue;
             }
-            $path = 'custom.' . (string) $key;
-            if (! isset($usedPaths[$path])) {
+            $path = trim((string) ($field['path'] ?? ''));
+            if ($path === '') {
                 continue;
             }
 
-            $label = trim((string) ($definition['label'] ?? $key));
-            $source = $this->manualOnly($label) ? 'manual' : 'ai';
-            $customFields[] = [
-                'key' => (string) $key,
+            if (! str_starts_with($path, 'custom.')) {
+                $standardPaths[$path] = true;
+                $example = trim((string) ($field['example'] ?? ''));
+                if ($example !== '') {
+                    $standardExamples[$path] ??= $example;
+                }
+                continue;
+            }
+
+            $key = substr($path, strlen('custom.'));
+            $definition = is_array($customDefinitions[$key] ?? null) ? $customDefinitions[$key] : [];
+            if ($key === '' || isset($customFields[$key])) {
+                continue;
+            }
+
+            $customFields[$key] = [
+                'key' => $key,
                 'path' => $path,
-                'label' => $label,
-                'type' => (string) ($definition['type'] ?? 'long_text'),
-                'instruction' => trim((string) ($definition['instruction'] ?? '')),
-                'source' => $source,
-                'required' => $source === 'ai',
-                'example' => $source === 'ai' ? ($examples[$path] ?? null) : null,
+                'label' => (string) ($field['label'] ?? $definition['label'] ?? $key),
+                'type' => (string) ($field['type'] ?? $definition['type'] ?? 'long_text'),
+                'instruction' => trim((string) ($field['instruction'] ?? $definition['instruction'] ?? '')),
+                'source' => (string) ($field['source'] ?? 'ai'),
+                'required' => (bool) ($field['required'] ?? true),
+                'example' => $field['example'] ?? null,
             ];
         }
 
-        usort($customFields, static fn (array $a, array $b): int => strcmp((string) $a['key'], (string) $b['key']));
-
-        $standardPaths = array_values(array_keys(array_filter(
-            $usedPaths,
-            static fn (bool $_, string $path): bool => ! str_starts_with($path, 'custom.'),
-            ARRAY_FILTER_USE_BOTH,
-        )));
-        $standardExamples = array_filter(
-            $examples,
-            static fn (string $_, string $path): bool => ! str_starts_with($path, 'custom.'),
-            ARRAY_FILTER_USE_BOTH,
-        );
+        ksort($customFields, SORT_STRING);
+        ksort($standardPaths, SORT_STRING);
         ksort($standardExamples, SORT_STRING);
 
         return [
             ...$this->baseContext($version),
             'source_content_mode' => data_get($version->validation_report, 'analysis.source_content_mode'),
-            'mapped_standard_paths' => $standardPaths,
+            'mapped_standard_paths' => array_keys($standardPaths),
             'standard_field_examples' => $standardExamples,
-            'custom_fields' => $customFields,
+            'custom_fields' => array_values($customFields),
+            'template_contract' => $contract,
             'example_policy' => 'Los ejemplos sirven solo para entender intención, longitud, organización y estilo. No copies nombres, datos personales ni contenido específico de una planeación anterior.',
         ];
     }
@@ -89,7 +97,7 @@ final class PlanningFormatGenerationContext
     private function baseContext(FormatVersion $version): array
     {
         return [
-            'schema_version' => 1,
+            'schema_version' => 2,
             'format_version_id' => (int) $version->id,
             'format_name' => (string) ($version->format?->name ?? 'Formato de planeación'),
             'renderer' => (string) $version->renderer,
@@ -97,6 +105,7 @@ final class PlanningFormatGenerationContext
             'mapped_standard_paths' => [],
             'standard_field_examples' => [],
             'custom_fields' => [],
+            'template_contract' => null,
             'example_policy' => null,
         ];
     }
@@ -105,7 +114,7 @@ final class PlanningFormatGenerationContext
     private function emptyContext(): array
     {
         return [
-            'schema_version' => 1,
+            'schema_version' => 2,
             'format_version_id' => null,
             'format_name' => null,
             'renderer' => null,
@@ -113,6 +122,7 @@ final class PlanningFormatGenerationContext
             'mapped_standard_paths' => [],
             'standard_field_examples' => [],
             'custom_fields' => [],
+            'template_contract' => null,
             'example_policy' => null,
         ];
     }
@@ -120,7 +130,7 @@ final class PlanningFormatGenerationContext
     private function resolveVersion(PlanningRequest $request): ?FormatVersion
     {
         if ($request->format_version_id !== null) {
-            $version = FormatVersion::query()->with('format')->find($request->format_version_id);
+            $version = FormatVersion::query()->with(['format', 'sourceFile'])->find($request->format_version_id);
             if (! $version || ! $this->usableFor($version, (int) $request->owner_id)) {
                 throw new AiPipelineException('AI_GENERATION_FORMAT_VERSION_NOT_USABLE');
             }
@@ -145,7 +155,7 @@ final class PlanningFormatGenerationContext
         }
 
         $version = FormatVersion::query()
-            ->with('format')
+            ->with(['format', 'sourceFile'])
             ->where('format_id', $format->id)
             ->whereNotNull('published_at')
             ->orderByDesc('number')
@@ -166,72 +176,5 @@ final class PlanningFormatGenerationContext
             && $format !== null
             && $format->status === InstitutionalFormatStatus::Ready
             && ($format->owner_id === null || (int) $format->owner_id === $ownerId);
-    }
-
-    /** @param array<string,mixed> $mapping @return array<string,bool> */
-    private function usedPaths(array $mapping): array
-    {
-        $paths = [];
-        foreach (['anchors', 'placeholders'] as $group) {
-            foreach ((array) ($mapping[$group] ?? []) as $path) {
-                $path = trim((string) $path);
-                if ($path !== '') {
-                    $paths[$path] = true;
-                }
-            }
-        }
-        foreach ((array) ($mapping['fragments'] ?? []) as $fragment) {
-            if (! is_array($fragment)) {
-                continue;
-            }
-            $path = trim((string) ($fragment['field_path'] ?? ''));
-            if ($path !== '') {
-                $paths[$path] = true;
-            }
-        }
-        ksort($paths, SORT_STRING);
-
-        return $paths;
-    }
-
-    /** @param array<string,mixed> $mapping @return array<string,string> */
-    private function examplesByPath(FormatVersion $version, array $mapping): array
-    {
-        $anchorPaths = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
-        $examples = [];
-
-        foreach ((array) data_get($version->validation_report, 'analysis.anchors', []) as $anchor) {
-            if (! is_array($anchor)) {
-                continue;
-            }
-            $id = (string) ($anchor['id'] ?? '');
-            $path = (string) ($anchorPaths[$id] ?? '');
-            $label = trim((string) ($anchor['label'] ?? ''));
-            $example = trim((string) ($anchor['current_value_excerpt'] ?? ''));
-            if ($path === '' || $example === '' || $this->manualOnly($label)) {
-                continue;
-            }
-            $examples[$path] ??= mb_substr($example, 0, 160);
-        }
-
-        ksort($examples, SORT_STRING);
-        return $examples;
-    }
-
-    private function manualOnly(string $label): bool
-    {
-        $text = mb_strtolower($label);
-
-        foreach ([
-            'firma', 'sello', 'curp', 'telefono', 'teléfono', 'direccion', 'dirección',
-            'nombre del alumno', 'nombre de alumno', 'diagnostico', 'diagnóstico',
-            'folio', 'autorizacion', 'autorización',
-        ] as $term) {
-            if (str_contains($text, $term)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
