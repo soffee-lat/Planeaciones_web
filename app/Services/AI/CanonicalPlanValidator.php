@@ -41,27 +41,51 @@ class CanonicalPlanValidator
             throw new AiContractException('CANONICAL_CUSTOM_OBJECT_REQUIRED', '$.custom');
         }
 
+        $nodes = 0;
         foreach ($custom as $key => $value) {
-            $key = (string) $key;
-            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
-                throw new AiContractException('CANONICAL_CUSTOM_KEY_INVALID', '$.custom.' . $key);
+            $this->assertCustomKey((string) $key, '$.custom');
+            $this->validateCustomValue($value, '$.custom.' . $key, 0, $nodes);
+        }
+    }
+
+    private function validateCustomValue(mixed $value, string $path, int $depth, int &$nodes): void
+    {
+        $nodes++;
+        if ($nodes > 500) {
+            throw new AiContractException('CANONICAL_CUSTOM_TOO_LARGE', $path);
+        }
+        if ($depth > 5) {
+            throw new AiContractException('CANONICAL_CUSTOM_TOO_DEEP', $path);
+        }
+
+        if (is_string($value)) {
+            if (trim($value) === '') {
+                throw new AiContractException('CANONICAL_CUSTOM_VALUE_INVALID', $path);
             }
-            if (is_string($value) && trim($value) !== '') {
-                continue;
+            return;
+        }
+
+        if (! is_array($value) || $value === []) {
+            throw new AiContractException('CANONICAL_CUSTOM_VALUE_INVALID', $path);
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $index => $item) {
+                $this->validateCustomValue($item, $path . '[' . $index . ']', $depth + 1, $nodes);
             }
-            if (is_array($value) && array_is_list($value) && $value !== []) {
-                $valid = true;
-                foreach ($value as $item) {
-                    if (! is_string($item) || trim($item) === '') {
-                        $valid = false;
-                        break;
-                    }
-                }
-                if ($valid) {
-                    continue;
-                }
-            }
-            throw new AiContractException('CANONICAL_CUSTOM_VALUE_INVALID', '$.custom.' . $key);
+            return;
+        }
+
+        foreach ($value as $key => $item) {
+            $this->assertCustomKey((string) $key, $path);
+            $this->validateCustomValue($item, $path . '.' . $key, $depth + 1, $nodes);
+        }
+    }
+
+    private function assertCustomKey(string $key, string $path): void
+    {
+        if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
+            throw new AiContractException('CANONICAL_CUSTOM_KEY_INVALID', $path . '.' . $key);
         }
     }
 }
