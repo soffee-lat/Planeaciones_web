@@ -53,6 +53,29 @@ class FormatAwareGenerationSchemaTest extends TestCase
         $this->assertSame('array', $schema['properties']['custom']['properties']['evidencias_extra']['type']);
     }
 
+    public function test_admite_tablas_y_bloques_repetibles_sin_conocer_el_formato(): void
+    {
+        $base = [
+            'type' => 'object',
+            'required' => [],
+            'properties' => [],
+        ];
+
+        $schema = (new FormatAwareGenerationSchema())->extend($base, [
+            'custom_fields' => [
+                ['key' => 'matriz_multigrado', 'type' => 'table', 'source' => 'ai', 'required' => true],
+                ['key' => 'bloques_del_formato', 'type' => 'repeating_block', 'source' => 'ai', 'required' => true],
+                ['key' => 'fecha_especial', 'type' => 'date', 'source' => 'ai', 'required' => false],
+            ],
+        ]);
+
+        $custom = $schema['properties']['custom']['properties'];
+        $this->assertSame('array', $custom['matriz_multigrado']['type']);
+        $this->assertSame('object', $custom['matriz_multigrado']['items']['type']);
+        $this->assertSame('array', $custom['bloques_del_formato']['type']);
+        $this->assertSame('date', $custom['fecha_especial']['format']);
+    }
+
     public function test_sin_formato_dinamico_conserva_esquema_base(): void
     {
         $base = [
