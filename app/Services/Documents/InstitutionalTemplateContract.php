@@ -86,10 +86,14 @@ final class InstitutionalTemplateContract
             );
         }
 
+        $sourceFile = $version->relationLoaded('sourceFile')
+            ? $version->getRelation('sourceFile')
+            : null;
+
         return [
             'schema_version' => 1,
             'authority' => 'user_docx',
-            'source_sha256' => $version->sourceFile?->sha256,
+            'source_sha256' => $sourceFile?->sha256,
             'source_content_mode' => $analysis['source_content_mode'] ?? null,
             'fields' => $fields,
             'ignored_zones' => array_values(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : [])),
