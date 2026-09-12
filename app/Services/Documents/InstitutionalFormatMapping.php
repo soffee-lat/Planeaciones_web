@@ -22,7 +22,9 @@ final class InstitutionalFormatMapping
         if (($mapping['schema_version'] ?? null) === 1) {
             return $this->validateLegacy($analysis, $mapping);
         }
-        if (($mapping['schema_version'] ?? null) !== 2) {
+
+        $schemaVersion = (int) ($mapping['schema_version'] ?? 0);
+        if (! in_array($schemaVersion, [2, 3], true)) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
         }
 
@@ -44,19 +46,27 @@ final class InstitutionalFormatMapping
         $placeholders = $this->normalizeMap($mapping['placeholders'] ?? [], $availableTokens, 'FORMAT_MAPPING_PLACEHOLDER_MISMATCH', $customFields);
         $fragments = $this->normalizeFragments($mapping['fragments'] ?? [], $availableAnchors, $customFields);
         $ignoredZones = $this->normalizeIgnoredZones($mapping['ignored_zones'] ?? [], $availableAnchors);
+        $structures = $schemaVersion >= 3
+            ? $this->normalizeStructures($analysis, $mapping['structures'] ?? [], $customFields)
+            : [];
 
-        if ($anchors === [] && $placeholders === [] && $fragments === [] && $ignoredZones === [] && $customFields === []) {
+        if ($anchors === [] && $placeholders === [] && $fragments === [] && $ignoredZones === [] && $customFields === [] && $structures === []) {
             throw new DocumentFormatException('FORMAT_MAPPING_INVALID');
         }
 
-        return [
-            'schema_version' => 2,
+        $normalized = [
+            'schema_version' => $schemaVersion,
             'anchors' => $anchors,
             'placeholders' => $placeholders,
             'fragments' => $fragments,
             'custom_fields' => $customFields,
             'ignored_zones' => $ignoredZones,
         ];
+        if ($schemaVersion >= 3) {
+            $normalized['structures'] = $structures;
+        }
+
+        return $normalized;
     }
 
     public function hash(array $mapping): string
@@ -64,18 +74,23 @@ final class InstitutionalFormatMapping
         return CanonicalJson::hash($mapping);
     }
 
-    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>} */
+    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>,structures:array<string,array<string,mixed>>} */
     public function values(array $canonical, array $mapping): array
     {
-        return $this->mappedValues($mapping, fn (string $path): string => $this->resolve($canonical, $path));
+        $values = $this->mappedValues($mapping, fn (string $path): string => $this->resolve($canonical, $path));
+        $values['structures'] = $this->structureValues($canonical, $mapping);
+
+        return $values;
     }
 
-    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>} */
+    /** @return array{anchors:array<string,string>,placeholders:array<string,string>,fragments:array<string,array<string,mixed>>,structures:array<string,array<string,mixed>>} */
     public function sampleValues(array $mapping): array
     {
         $customFields = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
+        $values = $this->mappedValues($mapping, fn (string $path): string => $this->sampleValue($path, $customFields));
+        $values['structures'] = $this->sampleStructureValues($mapping, $customFields);
 
-        return $this->mappedValues($mapping, fn (string $path): string => $this->sampleValue($path, $customFields));
+        return $values;
     }
 
     /** @param array<string,mixed> $mapping @param callable(string):string $resolver */
@@ -103,10 +118,96 @@ final class InstitutionalFormatMapping
                 'value' => $resolver($path),
             ];
         }
+
         return ['anchors' => $anchors, 'placeholders' => $placeholders, 'fragments' => $fragments];
     }
 
-    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,string>> $customFields @return array<string,string> */
+    /** @param array<string,mixed> $canonical @param array<string,mixed> $mapping @return array<string,array<string,mixed>> */
+    private function structureValues(array $canonical, array $mapping): array
+    {
+        $result = [];
+        foreach ((array) ($mapping['structures'] ?? []) as $id => $structure) {
+            if (! is_array($structure)) {
+                continue;
+            }
+            $collection = data_get($canonical, (string) ($structure['field_path'] ?? ''), []);
+            if (! is_array($collection) || ! array_is_list($collection)) {
+                $collection = [];
+            }
+
+            $items = [];
+            foreach ($collection as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $values = [];
+                foreach ((array) ($structure['bindings'] ?? []) as $zoneId => $binding) {
+                    if (! is_array($binding)) {
+                        continue;
+                    }
+                    if (($binding['source'] ?? null) === 'item') {
+                        $values[(string) $zoneId] = $this->stringify(data_get($item, (string) ($binding['item_key'] ?? '')));
+                    } elseif (($binding['source'] ?? null) === 'path') {
+                        $values[(string) $zoneId] = $this->resolve($canonical, (string) ($binding['field_path'] ?? ''));
+                    }
+                }
+                $items[] = ['values' => $values];
+            }
+
+            $result[(string) $id] = [
+                'zone_id' => (string) ($structure['zone_id'] ?? ''),
+                'kind' => (string) ($structure['kind'] ?? ''),
+                'field_path' => (string) ($structure['field_path'] ?? ''),
+                'items' => $items,
+            ];
+        }
+
+        return $result;
+    }
+
+    /** @param array<string,mixed> $mapping @param array<string,mixed> $customFields @return array<string,array<string,mixed>> */
+    private function sampleStructureValues(array $mapping, array $customFields): array
+    {
+        $result = [];
+        foreach ((array) ($mapping['structures'] ?? []) as $id => $structure) {
+            if (! is_array($structure)) {
+                continue;
+            }
+            $fieldPath = (string) ($structure['field_path'] ?? '');
+            $fieldKey = str_starts_with($fieldPath, 'custom.') ? substr($fieldPath, strlen('custom.')) : '';
+            $definition = is_array($customFields[$fieldKey] ?? null) ? $customFields[$fieldKey] : [];
+            $itemFields = is_array($definition['item_fields'] ?? null) ? $definition['item_fields'] : [];
+            $items = [];
+
+            for ($sampleIndex = 1; $sampleIndex <= 2; $sampleIndex++) {
+                $values = [];
+                foreach ((array) ($structure['bindings'] ?? []) as $zoneId => $binding) {
+                    if (! is_array($binding)) {
+                        continue;
+                    }
+                    if (($binding['source'] ?? null) === 'item') {
+                        $itemKey = (string) ($binding['item_key'] ?? '');
+                        $label = (string) data_get($itemFields, $itemKey . '.label', str_replace('_', ' ', $itemKey));
+                        $values[(string) $zoneId] = 'MUESTRA ' . $sampleIndex . ' · ' . $label;
+                    } elseif (($binding['source'] ?? null) === 'path') {
+                        $values[(string) $zoneId] = $this->sampleValue((string) ($binding['field_path'] ?? ''), $customFields);
+                    }
+                }
+                $items[] = ['values' => $values];
+            }
+
+            $result[(string) $id] = [
+                'zone_id' => (string) ($structure['zone_id'] ?? ''),
+                'kind' => (string) ($structure['kind'] ?? ''),
+                'field_path' => $fieldPath,
+                'items' => $items,
+            ];
+        }
+
+        return $result;
+    }
+
+    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,mixed>> $customFields @return array<string,string> */
     private function normalizeMap(mixed $raw, array $available, string $mismatchCode, array $customFields): array
     {
         if ($raw === null) {
@@ -129,10 +230,11 @@ final class InstitutionalFormatMapping
             $normalized[$key] = $path;
         }
         ksort($normalized, SORT_STRING);
+
         return $normalized;
     }
 
-    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,string>> $customFields @return array<string,array<string,mixed>> */
+    /** @param mixed $raw @param array<string,bool> $available @param array<string,array<string,mixed>> $customFields @return array<string,array<string,mixed>> */
     private function normalizeFragments(mixed $raw, array $available, array $customFields): array
     {
         if ($raw === null || $raw === []) {
@@ -180,10 +282,11 @@ final class InstitutionalFormatMapping
             ];
         }
         ksort($normalized, SORT_STRING);
+
         return $normalized;
     }
 
-    /** @param mixed $raw @return array<string,array{label:string,type:string,instruction:string}> */
+    /** @param mixed $raw @return array<string,array<string,mixed>> */
     private function normalizeCustomFields(mixed $raw): array
     {
         if ($raw === null || $raw === []) {
@@ -205,9 +308,139 @@ final class InstitutionalFormatMapping
             if ($label === '' || mb_strlen($label) > 120 || ! in_array($type, ['text', 'long_text', 'date', 'list', 'table', 'repeating_block'], true) || mb_strlen($instruction) > 1000) {
                 throw new DocumentFormatException('FORMAT_MAPPING_CUSTOM_FIELDS_INVALID');
             }
-            $normalized[$key] = ['label' => $label, 'type' => $type, 'instruction' => $instruction];
+
+            $itemFields = [];
+            if (in_array($type, ['table', 'repeating_block'], true)) {
+                $itemFields = $this->normalizeItemFields($definition['item_fields'] ?? []);
+            }
+
+            $normalized[$key] = [
+                'label' => $label,
+                'type' => $type,
+                'instruction' => $instruction,
+            ];
+            if ($itemFields !== []) {
+                $normalized[$key]['item_fields'] = $itemFields;
+            }
         }
         ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    /** @param mixed $raw @return array<string,array<string,mixed>> */
+    private function normalizeItemFields(mixed $raw): array
+    {
+        if ($raw === null || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_FIELDS_INVALID');
+        }
+
+        $normalized = [];
+        foreach ($raw as $key => $definition) {
+            $key = trim((string) $key);
+            if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1 || ! is_array($definition)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_FIELDS_INVALID');
+            }
+            $label = trim((string) ($definition['label'] ?? ''));
+            $type = trim((string) ($definition['type'] ?? 'long_text'));
+            $instruction = trim((string) ($definition['instruction'] ?? ''));
+            if ($label === '' || mb_strlen($label) > 120 || ! in_array($type, ['text', 'long_text', 'date', 'list'], true) || mb_strlen($instruction) > 1000) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_FIELDS_INVALID');
+            }
+            $normalized[$key] = [
+                'label' => $label,
+                'type' => $type,
+                'instruction' => $instruction,
+                'required' => (bool) ($definition['required'] ?? true),
+            ];
+        }
+        ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    /** @param array<string,mixed> $analysis @param mixed $raw @param array<string,array<string,mixed>> $customFields @return array<string,array<string,mixed>> */
+    private function normalizeStructures(array $analysis, mixed $raw, array $customFields): array
+    {
+        if ($raw === null || $raw === []) {
+            return [];
+        }
+        if (! is_array($raw)) {
+            throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_INVALID');
+        }
+
+        $zones = [];
+        foreach ((array) ($analysis['structural_zones'] ?? $analysis['document_zones'] ?? []) as $zone) {
+            if (is_array($zone) && is_string($zone['id'] ?? null)) {
+                $zones[$zone['id']] = $zone;
+            }
+        }
+
+        $normalized = [];
+        foreach ($raw as $id => $definition) {
+            $id = trim((string) $id);
+            if (preg_match('/^s_[a-f0-9]{12,64}$/', $id) !== 1 || ! is_array($definition)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_INVALID');
+            }
+            $zoneId = trim((string) ($definition['zone_id'] ?? ''));
+            $kind = trim((string) ($definition['kind'] ?? ''));
+            $fieldPath = trim((string) ($definition['field_path'] ?? ''));
+            $zone = $zones[$zoneId] ?? null;
+            if (! is_array($zone) || ! in_array($kind, ['repeat_row', 'repeat_block'], true)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_INVALID');
+            }
+            if (($kind === 'repeat_row' && ($zone['kind'] ?? null) !== 'row')
+                || ($kind === 'repeat_block' && ! in_array(($zone['kind'] ?? null), ['row', 'table'], true))) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_ZONE_INVALID');
+            }
+            if (! str_starts_with($fieldPath, 'custom.')) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_FIELD_REQUIRED');
+            }
+            $this->assertPath($fieldPath, $customFields);
+            $customKey = substr($fieldPath, strlen('custom.'));
+            $customDefinition = $customFields[$customKey] ?? null;
+            if (! is_array($customDefinition) || ! in_array(($customDefinition['type'] ?? null), ['table', 'repeating_block'], true)) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_FIELD_REQUIRED');
+            }
+            $itemFields = is_array($customDefinition['item_fields'] ?? null) ? $customDefinition['item_fields'] : [];
+            $allowedChildren = array_fill_keys(array_map('strval', is_array($zone['child_zone_ids'] ?? null) ? $zone['child_zone_ids'] : []), true);
+            $bindings = [];
+            foreach ((array) ($definition['bindings'] ?? []) as $childZoneId => $binding) {
+                $childZoneId = trim((string) $childZoneId);
+                if (! isset($allowedChildren[$childZoneId]) || ! is_array($binding)) {
+                    throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_BINDING_INVALID');
+                }
+                $source = trim((string) ($binding['source'] ?? ''));
+                if ($source === 'item') {
+                    $itemKey = trim((string) ($binding['item_key'] ?? ''));
+                    if ($itemKey === '' || ! isset($itemFields[$itemKey])) {
+                        throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_BINDING_INVALID');
+                    }
+                    $bindings[$childZoneId] = ['source' => 'item', 'item_key' => $itemKey];
+                } elseif ($source === 'path') {
+                    $path = trim((string) ($binding['field_path'] ?? ''));
+                    $this->assertPath($path, $customFields);
+                    $bindings[$childZoneId] = ['source' => 'path', 'field_path' => $path];
+                } else {
+                    throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_BINDING_INVALID');
+                }
+            }
+            if ($bindings === []) {
+                throw new DocumentFormatException('FORMAT_MAPPING_STRUCTURE_BINDING_INVALID');
+            }
+            ksort($bindings, SORT_STRING);
+            $normalized[$id] = [
+                'zone_id' => $zoneId,
+                'kind' => $kind,
+                'field_path' => $fieldPath,
+                'bindings' => $bindings,
+            ];
+        }
+        ksort($normalized, SORT_STRING);
+
         return $normalized;
     }
 
@@ -230,6 +463,7 @@ final class InstitutionalFormatMapping
         }
         $values = array_keys($zones);
         sort($values, SORT_STRING);
+
         return $values;
     }
 
@@ -252,10 +486,11 @@ final class InstitutionalFormatMapping
         if (array_keys($normalized) !== $expected) {
             throw new DocumentFormatException('FORMAT_MAPPING_PLACEHOLDER_MISMATCH');
         }
+
         return ['schema_version' => 1, 'placeholders' => $normalized];
     }
 
-    /** @param array<string,array<string,string>> $customFields */
+    /** @param array<string,array<string,mixed>> $customFields */
     private function assertPath(string $path, array $customFields): void
     {
         if (preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/', $path) !== 1) {
@@ -283,9 +518,13 @@ final class InstitutionalFormatMapping
             $type = substr($path, strlen('sessions.'));
             $items = [];
             foreach (($canonical['sessions'] ?? []) as $session) {
-                if (! is_array($session)) continue;
+                if (! is_array($session)) {
+                    continue;
+                }
                 foreach (($session['moments'] ?? []) as $moment) {
-                    if (! is_array($moment) || ($moment['type'] ?? null) !== $type) continue;
+                    if (! is_array($moment) || ($moment['type'] ?? null) !== $type) {
+                        continue;
+                    }
                     foreach (($moment['activities'] ?? []) as $activity) {
                         if (is_array($activity) && trim((string) ($activity['instruction'] ?? '')) !== '') {
                             $items[] = trim((string) $activity['instruction']);
@@ -293,8 +532,10 @@ final class InstitutionalFormatMapping
                     }
                 }
             }
+
             return implode('; ', $items);
         }
+
         return $this->stringify(data_get($canonical, $path));
     }
 
@@ -421,9 +662,13 @@ final class InstitutionalFormatMapping
     {
         $materials = [];
         foreach ((array) ($session['moments'] ?? []) as $moment) {
-            if (! is_array($moment)) continue;
+            if (! is_array($moment)) {
+                continue;
+            }
             foreach ((array) ($moment['activities'] ?? []) as $activity) {
-                if (! is_array($activity)) continue;
+                if (! is_array($activity)) {
+                    continue;
+                }
                 foreach ((array) ($activity['materials'] ?? []) as $material) {
                     $value = trim((string) $material);
                     if ($value !== '') {
@@ -476,9 +721,13 @@ final class InstitutionalFormatMapping
         $wanted = array_fill_keys(array_map('strval', (array) data_get($session, 'formative_assessment.instrument_ids', [])), true);
         $values = [];
         foreach ((array) data_get($canonical, 'assessment_plan.instruments', []) as $instrument) {
-            if (! is_array($instrument)) continue;
+            if (! is_array($instrument)) {
+                continue;
+            }
             $id = (string) ($instrument['id'] ?? '');
-            if ($id === '' || ! isset($wanted[$id])) continue;
+            if ($id === '' || ! isset($wanted[$id])) {
+                continue;
+            }
             $name = trim((string) ($instrument['name'] ?? $instrument['type'] ?? $id));
             if ($name !== '') {
                 $values[] = $name;
@@ -501,12 +750,13 @@ final class InstitutionalFormatMapping
         }
     }
 
-    /** @param array<string,array<string,string>> $customFields */
+    /** @param array<string,array<string,mixed>> $customFields */
     private function sampleValue(string $path, array $customFields): string
     {
         if (str_starts_with($path, 'custom.')) {
             $key = substr($path, strlen('custom.'));
             $label = (string) data_get($customFields, $key . '.label', str_replace('_', ' ', $key));
+
             return 'MUESTRA · ' . $label;
         }
 
@@ -522,6 +772,7 @@ final class InstitutionalFormatMapping
                     'assessment' => 'PROPUESTA DE EVALUACIÓN', 'evidence' => 'EVIDENCIAS', 'instruments' => 'INSTRUMENTO',
                     default => mb_strtoupper(str_replace('_', ' ', $renderField)),
                 };
+
                 return $label . ': MUESTRA · Sesión ' . $sessionNumber;
             }
 
@@ -552,13 +803,19 @@ final class InstitutionalFormatMapping
 
     private function stringify(mixed $value): string
     {
-        if ($value === null) return '';
-        if (is_bool($value)) return $value ? 'Sí' : 'No';
-        if (is_scalar($value)) return trim((string) $value);
-        if (! is_array($value) || $value === []) return '';
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? 'Sí' : 'No';
+        }
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+        if (! is_array($value) || $value === []) {
+            return '';
+        }
 
-        // Conserva el comportamiento compacto de los objetos canónicos que ya
-        // tienen un valor representativo conocido.
         if (! array_is_list($value)) {
             foreach (['full_text', 'title', 'name', 'instruction', 'code'] as $preferred) {
                 if (array_key_exists($preferred, $value) && is_scalar($value[$preferred])) {
@@ -569,15 +826,16 @@ final class InstitutionalFormatMapping
                 }
             }
 
-            // Para tablas/bloques propios del formato no conocemos sus claves.
-            // Las serializamos de forma legible sin imponer un esquema escolar.
             $parts = [];
             foreach ($value as $key => $item) {
                 $text = $this->stringify($item);
-                if ($text === '') continue;
+                if ($text === '') {
+                    continue;
+                }
                 $label = trim(str_replace('_', ' ', (string) $key));
                 $parts[] = ($label !== '' ? $label . ': ' : '') . $text;
             }
+
             return implode("\n", $parts);
         }
 
