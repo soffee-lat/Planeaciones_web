@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CurriculumMapController;
 use App\Http\Controllers\InstitutionalFormatDesignerController;
+use App\Http\Controllers\InstitutionalFormatStructureBindingController;
 use App\Http\Controllers\InstitutionalFormatVisualBindingController;
 use App\Http\Controllers\InstitutionalFormatVisualPreviewController;
 use App\Http\Controllers\PlanningFeedbackController;
@@ -38,6 +39,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('institutional-formats.source');
     Route::post('/app/institutional-formats/{format}/visual-binding', InstitutionalFormatVisualBindingController::class)
         ->name('institutional-formats.visual-binding');
+    Route::post('/app/institutional-formats/{format}/structure-binding', InstitutionalFormatStructureBindingController::class)
+        ->name('institutional-formats.structure-binding');
     Route::post('/app/institutional-formats/{format}/visual-preview', InstitutionalFormatVisualPreviewController::class)
         ->name('institutional-formats.visual-preview');
 });
