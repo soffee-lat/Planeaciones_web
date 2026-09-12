@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Data\AI\CorrectionResult;
 use App\Data\Planning\CanonicalPlan;
+use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
 use App\Models\PlanningRequest;
 use App\Services\Documents\PlanningFormatGenerationContext;
@@ -89,10 +90,8 @@ final class CanonicalPlanCorrectionApplier
                         throw new AiContractException('AI_CORRECTION_CUSTOM_FIELD_NOT_ALLOWED', '$.patch.custom.' . (string) $key);
                     }
                 }
-                $sourcePayload['custom'] = [
-                    ...is_array($sourcePayload['custom'] ?? null) ? $sourcePayload['custom'] : [],
-                    ...$replacement,
-                ];
+                $existingCustom = is_array($sourcePayload['custom'] ?? null) ? $sourcePayload['custom'] : [];
+                $sourcePayload['custom'] = [...$existingCustom, ...$replacement];
                 continue;
             }
 
@@ -105,10 +104,8 @@ final class CanonicalPlanCorrectionApplier
                         throw new AiContractException('AI_CORRECTION_TEMPLATE_FIELD_NOT_ALLOWED', '$.patch.template_fields.' . (string) $path);
                     }
                 }
-                $sourcePayload['template_fields'] = [
-                    ...is_array($sourcePayload['template_fields'] ?? null) ? $sourcePayload['template_fields'] : [],
-                    ...$replacement,
-                ];
+                $existingFields = is_array($sourcePayload['template_fields'] ?? null) ? $sourcePayload['template_fields'] : [];
+                $sourcePayload['template_fields'] = [...$existingFields, ...$replacement];
                 continue;
             }
 
@@ -169,11 +166,13 @@ final class CanonicalPlanCorrectionApplier
             'assessment_plan' => $sourcePayload['assessment_plan'],
             'resources' => $sourcePayload['resources'],
             'adaptation_notes' => $sourcePayload['adaptation_notes'],
-            ...isset($sourcePayload['custom']) ? ['custom' => $sourcePayload['custom']] : [],
         ];
+        if (isset($sourcePayload['custom'])) {
+            $draftPayload['custom'] = $sourcePayload['custom'];
+        }
 
         $draft = $this->draftValidator->validate($draftPayload);
-        if (! $draft instanceof \App\Data\Planning\GeneratedPlanDraft) {
+        if (! $draft instanceof GeneratedPlanDraft) {
             throw new AiContractException('AI_CORRECTION_LEGACY_DRAFT_EXPECTED');
         }
         $corrected = $this->assembler->assemble($request, $draft);
