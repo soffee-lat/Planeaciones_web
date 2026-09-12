@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 class InstitutionalRepeatedSessionMappingTest extends TestCase
 {
-    public function test_reconoce_bloques_diarios_repetidos_y_los_enlaza_con_sesiones_indexadas(): void
+    public function test_no_infiere_sesiones_indexadas_desde_la_forma_de_un_docx_especifico(): void
     {
         $version = new FormatVersion();
         $version->validation_report = [
@@ -38,32 +38,31 @@ class InstitutionalRepeatedSessionMappingTest extends TestCase
 
         $result = (new InstitutionalDynamicFieldResolver())->augment($version, $mapping);
 
-        $this->assertSame('sessions.0.title', $result['anchors']['c:4']);
-        $this->assertSame('sessions.0.date', $result['anchors']['c:5']);
-        $this->assertSame('sessions.0.fields', $result['anchors']['c:6']);
-        $this->assertSame('sessions.0.axes', $result['anchors']['c:7']);
-        $this->assertSame('sessions.0.contents', $result['anchors']['c:8']);
-        $this->assertSame('sessions.0.pdas', $result['anchors']['c:9']);
-        $this->assertSame('sessions.0.opening', $result['anchors']['c:16']);
-        $this->assertSame('sessions.0.development', $result['anchors']['c:18']);
-        $this->assertSame('sessions.0.closing', $result['anchors']['c:20']);
+        $this->assertSame('resources', $result['anchors']['c:10']);
+        $this->assertSame('sessions', $result['anchors']['c:13']);
+        $this->assertSame('sessions', $result['anchors']['c:14']);
+        $this->assertSame('sessions', $result['anchors']['c:15']);
 
-        $this->assertSame('sessions.1.title', $result['anchors']['c:30']);
-        $this->assertSame('sessions.1.date', $result['anchors']['c:31']);
-        $this->assertSame('sessions.1.opening', $result['anchors']['c:42']);
+        $this->assertArrayNotHasKey('c:4', $result['anchors']);
+        $this->assertArrayNotHasKey('c:16', $result['anchors']);
+        $this->assertArrayNotHasKey('c:30', $result['anchors']);
+        $this->assertArrayNotHasKey('c:42', $result['anchors']);
 
-        $this->assertArrayNotHasKey('c:10', $result['anchors']);
-        $this->assertArrayNotHasKey('c:13', $result['anchors']);
-        $this->assertArrayNotHasKey('c:14', $result['anchors']);
-        $this->assertArrayNotHasKey('c:15', $result['anchors']);
-        $this->assertArrayNotHasKey('c:50', $result['anchors']);
-        $this->assertArrayNotHasKey('c:51', $result['anchors']);
+        $this->assertArrayHasKey('c:24', $result['anchors']);
+        $this->assertArrayHasKey('c:50', $result['anchors']);
+        $this->assertArrayHasKey('c:51', $result['anchors']);
+        $this->assertStringStartsWith('custom.', $result['anchors']['c:24']);
+        $this->assertStringStartsWith('custom.', $result['anchors']['c:50']);
+        $this->assertStringStartsWith('custom.', $result['anchors']['c:51']);
+        $this->assertNotSame($result['anchors']['c:24'], $result['anchors']['c:50']);
 
-        $fragmentPaths = array_column($result['fragments'], 'field_path');
-        $this->assertContains('sessions.1.render.assessment', $fragmentPaths);
-        $this->assertContains('sessions.1.render.evidence', $fragmentPaths);
-        $this->assertContains('sessions.1.render.instruments', $fragmentPaths);
-        $this->assertSame([], $result['custom_fields']);
+        foreach ($result['anchors'] as $path) {
+            $this->assertFalse(str_starts_with($path, 'sessions.0.'));
+            $this->assertFalse(str_starts_with($path, 'sessions.1.'));
+        }
+
+        $this->assertSame([], $result['fragments']);
+        $this->assertCount(3, $result['custom_fields']);
     }
 
     public function test_resuelve_campos_por_sesion_sin_mezclar_los_dias(): void
