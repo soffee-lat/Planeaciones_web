@@ -41,6 +41,7 @@ final class PlanningFormatGenerationContext
         $customFields = [];
         $standardPaths = [];
         $standardExamples = [];
+        $aiStandardFields = [];
 
         foreach ((array) ($contract['fields'] ?? []) as $field) {
             if (! is_array($field)) {
@@ -56,6 +57,16 @@ final class PlanningFormatGenerationContext
                 $example = trim((string) ($field['example'] ?? ''));
                 if ($example !== '') {
                     $standardExamples[$path] ??= $example;
+                }
+                if (($field['source'] ?? null) === 'ai') {
+                    $aiStandardFields[$path] ??= [
+                        'path' => $path,
+                        'label' => (string) ($field['label'] ?? $path),
+                        'type' => (string) ($field['type'] ?? 'long_text'),
+                        'instruction' => trim((string) ($field['instruction'] ?? '')),
+                        'required' => (bool) ($field['required'] ?? true),
+                        'example' => $field['example'] ?? null,
+                    ];
                 }
                 continue;
             }
@@ -93,13 +104,18 @@ final class PlanningFormatGenerationContext
         ksort($customFields, SORT_STRING);
         ksort($standardPaths, SORT_STRING);
         ksort($standardExamples, SORT_STRING);
+        ksort($aiStandardFields, SORT_STRING);
+
+        $schemaVersion = max(2, (int) ($normalized['schema_version'] ?? 2));
 
         return [
             ...$this->baseContext($version),
-            'schema_version' => max(2, (int) ($normalized['schema_version'] ?? 2)),
+            'schema_version' => $schemaVersion,
+            'generation_contract' => $schemaVersion >= 3 ? 'adaptive_template_generation_v1' : 'generated_plan_draft_v1',
             'source_content_mode' => data_get($version->validation_report, 'analysis.source_content_mode'),
             'mapped_standard_paths' => array_keys($standardPaths),
             'standard_field_examples' => $standardExamples,
+            'ai_standard_fields' => array_values($aiStandardFields),
             'custom_fields' => array_values($customFields),
             'template_contract' => $contract,
             'example_policy' => 'Los ejemplos sirven solo para entender intención, longitud, organización y estilo. No copies nombres, datos personales ni contenido específico de una planeación anterior.',
@@ -127,12 +143,14 @@ final class PlanningFormatGenerationContext
     {
         return [
             'schema_version' => 2,
+            'generation_contract' => 'generated_plan_draft_v1',
             'format_version_id' => (int) $version->id,
             'format_name' => (string) ($version->format?->name ?? 'Formato de planeación'),
             'renderer' => (string) $version->renderer,
             'source_content_mode' => null,
             'mapped_standard_paths' => [],
             'standard_field_examples' => [],
+            'ai_standard_fields' => [],
             'custom_fields' => [],
             'template_contract' => null,
             'example_policy' => null,
@@ -144,12 +162,14 @@ final class PlanningFormatGenerationContext
     {
         return [
             'schema_version' => 2,
+            'generation_contract' => 'generated_plan_draft_v1',
             'format_version_id' => null,
             'format_name' => null,
             'renderer' => null,
             'source_content_mode' => null,
             'mapped_standard_paths' => [],
             'standard_field_examples' => [],
+            'ai_standard_fields' => [],
             'custom_fields' => [],
             'template_contract' => null,
             'example_policy' => null,
