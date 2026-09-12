@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Data\Planning\AdaptiveGeneratedPlan;
 use App\Data\Planning\CanonicalPlan;
 use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
@@ -10,8 +11,12 @@ use App\Services\Documents\PlanningFormatGenerationContext;
 
 final class TemplateAwareCanonicalPlanAssembler extends CanonicalPlanAssembler
 {
-    public function assemble(PlanningRequest $request, GeneratedPlanDraft $draft): CanonicalPlan
+    public function assemble(PlanningRequest $request, GeneratedPlanDraft|AdaptiveGeneratedPlan $draft): CanonicalPlan
     {
+        if ($draft instanceof AdaptiveGeneratedPlan) {
+            return app(AdaptiveCanonicalPlanAssembler::class)->assemble($request, $draft);
+        }
+
         $canonical = parent::assemble($request, $draft);
         $generated = $draft->toArray();
         $custom = is_array($generated['custom'] ?? null) ? $generated['custom'] : [];
