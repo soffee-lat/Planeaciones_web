@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Data\Planning\AdaptiveGeneratedPlan;
 use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
 
@@ -12,8 +13,12 @@ class GeneratedPlanDraftValidator
     public function __construct(private JsonSchemaSubsetValidator $schemaValidator) {}
 
     /** @param array<string,mixed> $payload */
-    public function validate(array $payload): GeneratedPlanDraft
+    public function validate(array $payload): GeneratedPlanDraft|AdaptiveGeneratedPlan
     {
+        if (($payload['contract_version'] ?? null) === FormatAwareGenerationSchema::ADAPTIVE_CONTRACT_VERSION) {
+            return $this->validateAdaptiveEnvelope($payload);
+        }
+
         $schema = $this->loadSchema(resource_path('schemas/ai/generated_plan_draft_v1.schema.json'));
 
         // `custom` se define dinámicamente por el contrato del formato de esta
@@ -29,6 +34,54 @@ class GeneratedPlanDraftValidator
         return new GeneratedPlanDraft($payload);
     }
 
+    /** @param array<string,mixed> $payload */
+    private function validateAdaptiveEnvelope(array $payload): AdaptiveGeneratedPlan
+    {
+        foreach (['core', 'fields', 'custom'] as $required) {
+            if (! array_key_exists($required, $payload) || ! is_array($payload[$required]) || array_is_list($payload[$required])) {
+                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $required);
+            }
+        }
+        if (array_diff(array_keys($payload), ['contract_version', 'core', 'fields', 'custom']) !== []) {
+            throw new AiContractException('ADAPTIVE_GENERATION_UNEXPECTED_PROPERTY', '$');
+        }
+
+        $core = $payload['core'];
+        foreach (['title', 'purpose', 'learning_goals', 'assessment_strategy', 'adaptation_considerations', 'pda_coverage'] as $required) {
+            if (! array_key_exists($required, $core)) {
+                throw new AiContractException('ADAPTIVE_GENERATION_CORE_REQUIRED', '$.core.' . $required);
+            }
+        }
+        foreach (['title', 'purpose', 'assessment_strategy'] as $field) {
+            if (! is_string($core[$field]) || trim($core[$field]) === '') {
+                throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.' . $field);
+            }
+        }
+        if (! is_array($core['learning_goals']) || $core['learning_goals'] === [] || ! array_is_list($core['learning_goals'])) {
+            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.learning_goals');
+        }
+        if (! is_array($core['adaptation_considerations']) || ! array_is_list($core['adaptation_considerations'])) {
+            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.adaptation_considerations');
+        }
+        if (! is_array($core['pda_coverage']) || $core['pda_coverage'] === [] || ! array_is_list($core['pda_coverage'])) {
+            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.pda_coverage');
+        }
+
+        $nodes = 0;
+        foreach ($payload['fields'] as $path => $value) {
+            if (! is_string($path) || preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/', $path) !== 1) {
+                throw new AiContractException('ADAPTIVE_GENERATION_FIELD_PATH_INVALID', '$.fields.' . (string) $path);
+            }
+            $this->validateFlexibleValue($value, '$.fields.' . $path, 0, $nodes);
+        }
+        foreach ($payload['custom'] as $key => $value) {
+            $this->assertCustomKey((string) $key, '$.custom');
+            $this->validateFlexibleValue($value, '$.custom.' . $key, 0, $nodes);
+        }
+
+        return new AdaptiveGeneratedPlan($payload);
+    }
+
     private function validateCustom(mixed $custom): void
     {
         if ($custom === null) {
@@ -41,17 +94,17 @@ class GeneratedPlanDraftValidator
         $nodes = 0;
         foreach ($custom as $key => $value) {
             $this->assertCustomKey((string) $key, '$.custom');
-            $this->validateCustomValue($value, '$.custom.' . $key, 0, $nodes);
+            $this->validateFlexibleValue($value, '$.custom.' . $key, 0, $nodes);
         }
     }
 
-    private function validateCustomValue(mixed $value, string $path, int $depth, int &$nodes): void
+    private function validateFlexibleValue(mixed $value, string $path, int $depth, int &$nodes): void
     {
         $nodes++;
-        if ($nodes > 500) {
+        if ($nodes > 1000) {
             throw new AiContractException('GENERATED_CUSTOM_TOO_LARGE', $path);
         }
-        if ($depth > 5) {
+        if ($depth > 7) {
             throw new AiContractException('GENERATED_CUSTOM_TOO_DEEP', $path);
         }
 
@@ -59,6 +112,7 @@ class GeneratedPlanDraftValidator
             if (trim($value) === '') {
                 throw new AiContractException('GENERATED_CUSTOM_VALUE_EMPTY', $path);
             }
+
             return;
         }
 
@@ -68,14 +122,17 @@ class GeneratedPlanDraftValidator
 
         if (array_is_list($value)) {
             foreach ($value as $index => $item) {
-                $this->validateCustomValue($item, $path . '[' . $index . ']', $depth + 1, $nodes);
+                $this->validateFlexibleValue($item, $path . '[' . $index . ']', $depth + 1, $nodes);
             }
+
             return;
         }
 
         foreach ($value as $key => $item) {
-            $this->assertCustomKey((string) $key, $path);
-            $this->validateCustomValue($item, $path . '.' . $key, $depth + 1, $nodes);
+            if (! is_string($key) || trim($key) === '') {
+                throw new AiContractException('GENERATED_CUSTOM_KEY_INVALID', $path . '.' . (string) $key);
+            }
+            $this->validateFlexibleValue($item, $path . '.' . $key, $depth + 1, $nodes);
         }
     }
 
