@@ -120,7 +120,8 @@ final class CorrectionInputBuilder
                 throw new AiPipelineException('AI_CORRECTION_SOURCE_AUDIT_STALE');
             }
             $auditResult = $this->auditResultValidator->validate($audit->audit_report);
-            if ($this->correctionPolicy->sectionKeys($auditResult) !== $sectionKeys) {
+            $canonicalSchemaVersion = (string) ($version->content['schema_version'] ?? '');
+            if ($this->correctionPolicy->sectionKeys($auditResult, $canonicalSchemaVersion) !== $sectionKeys) {
                 throw new AiPipelineException('AI_CORRECTION_SCOPE_MANIFEST_MISMATCH');
             }
             $findings = $auditResult->findings;
