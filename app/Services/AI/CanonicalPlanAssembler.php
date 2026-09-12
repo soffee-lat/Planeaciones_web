@@ -95,6 +95,7 @@ class CanonicalPlanAssembler
                 'provided_references' => $this->trustedProvidedReferences($requestSnapshot),
             ],
             'adaptation_notes' => $generated['adaptation_notes'],
+            ...(isset($generated['custom']) ? ['custom' => $generated['custom']] : []),
         ];
 
         return $this->canonicalValidator->validate($canonical);
