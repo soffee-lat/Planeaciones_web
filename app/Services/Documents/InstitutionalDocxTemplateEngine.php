@@ -6,7 +6,7 @@ use App\Exceptions\DocumentFormatException;
 
 final class InstitutionalDocxTemplateEngine
 {
-    /** @param array{anchors:array<string,string>,placeholders:array<string,string>,fragments?:array<string,array<string,mixed>>} $values @param array<string,mixed> $analysis */
+    /** @param array{anchors:array<string,string>,placeholders:array<string,string>,fragments?:array<string,array<string,mixed>>,structures?:array<string,array<string,mixed>>} $values @param array<string,mixed> $analysis */
     public function render(string $sourceBytes, array $values, array $analysis): string
     {
         $package = OfficeOpenXmlPackage::fromBytes($sourceBytes);
@@ -118,6 +118,13 @@ final class InstitutionalDocxTemplateEngine
             );
         }
 
+        // Las estructuras se aplican al final: los bindings simples no cambian el
+        // número de filas/tablas, así que los índices r:N / t:N siguen apuntando
+        // al OOXML original. Cada copia nace del fragmento original ya estilizado.
+        if (($values['structures'] ?? []) !== []) {
+            $xml = $this->applyStructures($xml, (array) $values['structures'], $analysis);
+        }
+
         if (preg_match('/\{\{[A-Z][A-Z0-9_.-]{1,63}\}\}/', $xml) === 1) {
             throw new DocumentFormatException('FORMAT_TEMPLATE_UNMAPPED_PLACEHOLDER');
         }
@@ -125,6 +132,121 @@ final class InstitutionalDocxTemplateEngine
         $package->replace('word/document.xml', $xml);
 
         return $package->toBytes();
+    }
+
+    /** @param array<string,array<string,mixed>> $structures @param array<string,mixed> $analysis */
+    private function applyStructures(string $xml, array $structures, array $analysis): string
+    {
+        $zones = [];
+        foreach ((array) ($analysis['structural_zones'] ?? []) as $zone) {
+            if (is_array($zone) && is_string($zone['id'] ?? null)) {
+                $zones[$zone['id']] = $zone;
+            }
+        }
+
+        $rows = [];
+        $tables = [];
+        foreach ($structures as $structure) {
+            if (! is_array($structure)) {
+                continue;
+            }
+            $zoneId = (string) ($structure['zone_id'] ?? '');
+            if (str_starts_with($zoneId, 'r:')) {
+                $rows[(int) substr($zoneId, 2)] = $structure;
+            } elseif (str_starts_with($zoneId, 't:')) {
+                $tables[(int) substr($zoneId, 2)] = $structure;
+            }
+        }
+
+        if ($rows !== []) {
+            $xml = $this->cloneStructures(
+                $xml,
+                '/<w:tr\b[^>]*>.*?<\/w:tr>/s',
+                $rows,
+                $zones,
+            );
+        }
+        if ($tables !== []) {
+            $xml = $this->cloneStructures(
+                $xml,
+                '/<w:tbl\b[^>]*>.*?<\/w:tbl>/s',
+                $tables,
+                $zones,
+            );
+        }
+
+        return $xml;
+    }
+
+    /** @param array<int,array<string,mixed>> $operations @param array<string,array<string,mixed>> $zones */
+    private function cloneStructures(string $xml, string $pattern, array $operations, array $zones): string
+    {
+        $index = -1;
+
+        return preg_replace_callback($pattern, function (array $match) use (&$index, $operations, $zones): string {
+            $index++;
+            if (! isset($operations[$index])) {
+                return $match[0];
+            }
+
+            $structure = $operations[$index];
+            $zoneId = (string) ($structure['zone_id'] ?? '');
+            $zone = $zones[$zoneId] ?? null;
+            if (! is_array($zone)) {
+                throw new DocumentFormatException('FORMAT_TEMPLATE_STRUCTURE_STALE');
+            }
+            $childIds = array_values(array_map('strval', is_array($zone['child_zone_ids'] ?? null) ? $zone['child_zone_ids'] : []));
+            if ($childIds === []) {
+                throw new DocumentFormatException('FORMAT_TEMPLATE_STRUCTURE_STALE');
+            }
+
+            $items = is_array($structure['items'] ?? null) ? $structure['items'] : [];
+            if ($items === []) {
+                throw new DocumentFormatException('FORMAT_TEMPLATE_STRUCTURE_ITEMS_MISSING');
+            }
+
+            $copies = [];
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $values = is_array($item['values'] ?? null) ? $item['values'] : [];
+                $copies[] = $this->fillStructureCopy($match[0], $childIds, $values);
+            }
+            if ($copies === []) {
+                throw new DocumentFormatException('FORMAT_TEMPLATE_STRUCTURE_ITEMS_MISSING');
+            }
+
+            return implode('', $copies);
+        }, $xml) ?? $xml;
+    }
+
+    /** @param list<string> $childIds @param array<string,mixed> $values */
+    private function fillStructureCopy(string $fragment, array $childIds, array $values): string
+    {
+        $operations = [];
+        foreach ($childIds as $localIndex => $zoneId) {
+            if (! array_key_exists($zoneId, $values)) {
+                continue;
+            }
+            $operations[$localIndex] = [
+                'value' => trim((string) $values[$zoneId]),
+                'mode' => 'replace_target',
+                'label' => '',
+            ];
+        }
+
+        if ($operations === []) {
+            return $fragment;
+        }
+
+        return $this->applyOperations(
+            $fragment,
+            '/<w:tc\b[^>]*>.*?<\/w:tc>/s',
+            $operations,
+            '</w:tc>',
+            true,
+        );
     }
 
     /** @param array<int,list<array{start:int,end:int,value:string,source_text:string}>> $operations */
@@ -203,6 +325,7 @@ final class InstitutionalDocxTemplateEngine
         foreach ($texts[1] ?? [] as $text) {
             $value .= html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_XML1, 'UTF-8');
         }
+
         return $value;
     }
 
@@ -248,6 +371,7 @@ final class InstitutionalDocxTemplateEngine
             function (array $match) use (&$first, $text): string {
                 if ($first) {
                     $first = false;
+
                     return $match[1] . $this->xml($text) . $match[3];
                 }
 
