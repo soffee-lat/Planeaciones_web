@@ -48,9 +48,10 @@ final class GenerationInputBuilder
         ])->values()->all();
 
         $formatContext = $this->formatContext->build($request);
+        $promptSchemaVersion = (string) $promptVersion->schema_version;
         $effectiveOutputSchemaVersion = trim((string) ($formatContext['generation_contract'] ?? ''));
         if ($effectiveOutputSchemaVersion === '') {
-            $effectiveOutputSchemaVersion = (string) $promptVersion->schema_version;
+            $effectiveOutputSchemaVersion = $promptSchemaVersion;
         }
 
         $inputManifest = [
@@ -64,10 +65,12 @@ final class GenerationInputBuilder
             'format_context_sha256' => CanonicalJson::hash($formatContext),
             'prompt_version_id' => (int) $promptVersion->id,
             'prompt_checksum' => (string) $promptVersion->checksum,
-            'prompt_schema_version' => (string) $promptVersion->schema_version,
             'output_schema_version' => $effectiveOutputSchemaVersion,
             'correlation_id' => $correlationId,
         ];
+        if ($effectiveOutputSchemaVersion !== $promptSchemaVersion) {
+            $inputManifest['prompt_schema_version'] = $promptSchemaVersion;
+        }
 
         return new GenerationInput(
             requestId: (int) $request->id,
