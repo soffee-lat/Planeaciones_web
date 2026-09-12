@@ -9,26 +9,19 @@ final class CorrectionResultValidator
 {
     public const CONTRACT_VERSION = 'correction_result_v1';
 
-    public function __construct(private JsonSchemaSubsetValidator $schemaValidator) {}
+    public function __construct(
+        private JsonSchemaSubsetValidator $schemaValidator,
+        private AdaptiveCorrectionSchema $adaptiveSchema,
+    ) {}
 
     /** @param array<string,mixed> $payload */
     public function validate(array $payload): CorrectionResult
     {
-        $schema = json_decode(
-            file_get_contents(resource_path('schemas/ai/correction_result_v1.schema.json')),
-            true,
-            512,
-            JSON_THROW_ON_ERROR,
-        );
-        if (! is_array($schema)) {
-            throw new AiContractException('AI_SCHEMA_INVALID', '$', self::CONTRACT_VERSION);
-        }
+        $schemaVersion = (string) ($payload['schema_version'] ?? '');
+        $schema = $schemaVersion === AdaptiveCorrectionSchema::CONTRACT_VERSION
+            ? $this->adaptiveSchema->build()
+            : $this->legacySchema();
 
-        // Un objeto JSON vacío (`{}`) decodificado como array asociativo en PHP
-        // se representa como `[]`, por lo que JsonSchemaSubsetValidator no puede
-        // distinguirlo de una lista vacía. Para este contrato ambas formas son
-        // inválidas de todos modos: una corrección debe contener al menos un
-        // cambio. Emitimos primero el error de dominio estable.
         if (array_key_exists('patch', $payload) && $payload['patch'] === []) {
             throw new AiContractException('AI_CORRECTION_PATCH_EMPTY', '$.patch');
         }
@@ -46,7 +39,30 @@ final class CorrectionResultValidator
         if (isset($patch['planning']) && is_array($patch['planning']) && $patch['planning'] === []) {
             throw new AiContractException('AI_CORRECTION_PLANNING_PATCH_EMPTY', '$.patch.planning');
         }
+        if ($schemaVersion === AdaptiveCorrectionSchema::CONTRACT_VERSION) {
+            foreach (['template_fields', 'custom'] as $root) {
+                if (isset($patch[$root]) && (! is_array($patch[$root]) || array_is_list($patch[$root]) || $patch[$root] === [])) {
+                    throw new AiContractException('AI_CORRECTION_ADAPTIVE_PATCH_INVALID', '$.patch.' . $root);
+                }
+            }
+        }
 
         return new CorrectionResult($sourceVersionId, $patch);
+    }
+
+    /** @return array<string,mixed> */
+    private function legacySchema(): array
+    {
+        $schema = json_decode(
+            file_get_contents(resource_path('schemas/ai/correction_result_v1.schema.json')),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        if (! is_array($schema)) {
+            throw new AiContractException('AI_SCHEMA_INVALID', '$', self::CONTRACT_VERSION);
+        }
+
+        return $schema;
     }
 }
