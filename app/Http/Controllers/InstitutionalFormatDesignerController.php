@@ -39,11 +39,13 @@ final class InstitutionalFormatDesignerController
             'version' => $version,
             'analysis' => $analysis,
             'zones' => array_values(array_filter((array) ($analysis['document_zones'] ?? []), 'is_array')),
+            'structuralZones' => array_values(array_filter((array) ($analysis['structural_zones'] ?? []), 'is_array')),
             'anchors' => array_values(array_filter((array) ($analysis['anchors'] ?? []), 'is_array')),
             'mapping' => $mapping,
             'fields' => $fields,
             'sourceUrl' => route('institutional-formats.source', $format),
             'bindingUrl' => route('institutional-formats.visual-binding', $format),
+            'structureBindingUrl' => route('institutional-formats.structure-binding', $format),
             'previewUrl' => route('institutional-formats.visual-preview', $format),
             'backUrl' => '/app/institutional-formats/' . $format->id,
         ]);
