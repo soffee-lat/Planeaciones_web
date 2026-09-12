@@ -11,6 +11,7 @@ use App\Enums\FormatSampleStatus;
 use App\Filament\Resources\InstitutionalFormats\InstitutionalFormatResource;
 use App\Models\FormatVersion;
 use App\Models\FormatVersionSample;
+use App\Services\Documents\GenericInstitutionalFieldResolver;
 use App\Services\Documents\InstitutionalFormatFieldCatalog;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -23,13 +24,16 @@ use Filament\Schemas\Schema;
 
 class ViewInstitutionalFormat extends ViewRecord
 {
+    private const CUSTOM_AI = '__CUSTOM_AI__';
+    private const MANUAL = '__MANUAL__';
+
     protected static string $resource = InstitutionalFormatResource::class;
 
     public function infolist(Schema $schema): Schema
     {
         return $schema->components([
             Section::make('Tu formato')
-                ->description('El archivo original se conserva sin modificar. Nada se usará en tus planeaciones hasta que tú confirmes una muestra.')
+                ->description('El archivo original se conserva sin modificar. Planeaciones se adapta a tu Word; no necesitas cambiar la plantilla que te exige tu escuela.')
                 ->schema([
                     TextEntry::make('name')->label('Nombre'),
                     TextEntry::make('source_name')->label('Archivo original')->state(fn (): ?string => $this->version()->sourceFile?->original_name),
@@ -41,15 +45,15 @@ class ViewInstitutionalFormat extends ViewRecord
                         ->columnSpanFull(),
                 ])->columns(2)->columnSpanFull(),
 
-            Section::make('1. Esto fue lo que entendimos')
-                ->description('El sistema buscó etiquetas y zonas de tu Word. Las relaciones automáticas son una propuesta: puedes corregirlas antes de usar el formato.')
+            Section::make('1. Define qué significa cada zona de tu formato')
+                ->description('El sistema propone relaciones, pero tu documento manda. Puedes relacionar una zona con un dato conocido, convertirla en un campo propio que redactará la IA o dejarla manual. No asumimos que tu formato se parece a ningún otro.')
                 ->schema([
                     TextEntry::make('detected_count')->label('Campos encontrados')->state(fn (): string => (string) $this->candidateCount()),
-                    TextEntry::make('mapped_count')->label('Relacionados automáticamente')->state(fn (): string => (string) $this->mappedCount()),
+                    TextEntry::make('mapped_count')->label('Definidos')->state(fn (): string => (string) $this->mappedCount()),
                     TextEntry::make('unmapped_count')->label('Por revisar')->state(fn (): string => (string) $this->unmappedCount()),
                     TextEntry::make('detected_fields')->label('Ejemplos de lo que entendimos')->state(fn (): string => $this->detectedExamples())->columnSpanFull(),
                     TextEntry::make('previous_content_examples')
-                        ->label('Contenido anterior que será reemplazado')
+                        ->label('Contenido anterior que se usará solo como ejemplo')
                         ->state(fn (): string => $this->priorContentExamples())
                         ->visible(fn (): bool => $this->filledSource())
                         ->columnSpanFull(),
@@ -57,8 +61,8 @@ class ViewInstitutionalFormat extends ViewRecord
 
             Section::make('2. Mira un ejemplo antes de decidir')
                 ->description($this->filledSource()
-                    ? 'La muestra sustituye la información de la planeación anterior por datos ficticios nuevos. Revisa que el texto viejo ya no aparezca y que cada dato nuevo quede en el lugar correcto.'
-                    : 'La muestra usa datos ficticios para que veas en qué parte del documento colocaremos cada tipo de información.')
+                    ? 'La muestra sustituye la información anterior por datos ficticios nuevos. Revisa que el texto viejo ya no aparezca y que cada dato nuevo quede exactamente en la zona que corresponde.'
+                    : 'La muestra usa datos ficticios para que veas qué zonas se llenarán sin alterar el diseño original del Word.')
                 ->schema([
                     TextEntry::make('preview_status')->label('Vista previa')->state(fn (): string => $this->previewStatus())->badge(),
                     TextEntry::make('next_step')->label('Qué hacer ahora')->state(fn (): string => $this->nextStep()),
@@ -66,7 +70,7 @@ class ViewInstitutionalFormat extends ViewRecord
                 ])->columns(1)->columnSpanFull(),
 
             Section::make('3. Cuando el ejemplo se vea bien')
-                ->description('Pulsa “Usar este formato”. Desde ese momento quedará disponible para tus planeaciones. Si algo está mal, corrige los campos y revisa una nueva muestra.')
+                ->description('Pulsa “Usar este formato”. Desde ese momento quedará disponible para tus planeaciones exactamente con la estructura que confirmaste.')
                 ->schema([
                     TextEntry::make('activation_status')->label('Uso en planeaciones')->state(fn (): string => $this->version()->published_at ? 'Activo y listo para usar' : 'Todavía no activo'),
                 ])->columns(1)->columnSpanFull(),
@@ -95,35 +99,92 @@ class ViewInstitutionalFormat extends ViewRecord
                 ->openUrlInNewTab(),
 
             Action::make('mapping')
-                ->label('Corregir lo que entendimos')
+                ->label('Definir mi formato')
                 ->icon('heroicon-o-pencil-square')
                 ->visible(fn (): bool => $version->published_at === null && $this->hasDetectedCandidates())
                 ->schema($this->mappingFields())
                 ->action(function (array $data): void {
+                    $version = $this->version();
+                    $existing = is_array($version->mapping) ? $version->mapping : [];
+                    $customFields = is_array($existing['custom_fields'] ?? null) ? $existing['custom_fields'] : [];
+                    $ignored = array_fill_keys(
+                        array_map('strval', is_array($existing['ignored_zones'] ?? null) ? $existing['ignored_zones'] : []),
+                        true,
+                    );
+                    $resolver = app(GenericInstitutionalFieldResolver::class);
                     $anchors = [];
+
                     foreach ($this->anchors() as $index => $anchor) {
+                        $id = (string) ($anchor['id'] ?? '');
+                        $targetId = (string) ($anchor['target_id'] ?? $id);
+                        $label = trim((string) ($anchor['label'] ?? $id));
                         $value = trim((string) ($data['anchor_' . $index] ?? ''));
-                        if ($value !== '') {
-                            $anchors[(string) $anchor['id']] = $value;
+
+                        if ($value === self::CUSTOM_AI) {
+                            $key = $resolver->customKey($label, $id);
+                            $instruction = trim((string) ($data['anchor_instruction_' . $index] ?? ''));
+                            $type = trim((string) ($data['anchor_type_' . $index] ?? 'long_text'));
+                            $customFields[$key] = [
+                                'label' => $label,
+                                'type' => in_array($type, ['text', 'long_text', 'date', 'list', 'table', 'repeating_block'], true) ? $type : 'long_text',
+                                'instruction' => $instruction !== '' ? $instruction : $resolver->defaultInstruction($label),
+                            ];
+                            $anchors[$id] = 'custom.' . $key;
+                            unset($ignored[$id], $ignored[$targetId]);
+                            continue;
                         }
+
+                        if ($value === self::MANUAL || $value === '') {
+                            if ($id !== '') {
+                                $ignored[$id] = true;
+                            }
+                            if ($targetId !== '') {
+                                $ignored[$targetId] = true;
+                            }
+                            continue;
+                        }
+
+                        $anchors[$id] = $value;
+                        unset($ignored[$id], $ignored[$targetId]);
                     }
 
                     $placeholders = [];
                     foreach ($this->placeholders() as $index => $token) {
                         $value = trim((string) ($data['token_' . $index] ?? ''));
-                        if ($value !== '') {
-                            $placeholders[$token] = $value;
+                        if ($value === self::CUSTOM_AI) {
+                            $label = str_replace(['_', '-', '.'], ' ', $token);
+                            $key = $resolver->customKey($label, 'token:' . $token);
+                            $instruction = trim((string) ($data['token_instruction_' . $index] ?? ''));
+                            $type = trim((string) ($data['token_type_' . $index] ?? 'long_text'));
+                            $customFields[$key] = [
+                                'label' => $label,
+                                'type' => in_array($type, ['text', 'long_text', 'date', 'list', 'table', 'repeating_block'], true) ? $type : 'long_text',
+                                'instruction' => $instruction !== '' ? $instruction : $resolver->defaultInstruction($label),
+                            ];
+                            $placeholders[$token] = 'custom.' . $key;
+                            continue;
                         }
+                        if ($value === self::MANUAL || $value === '') {
+                            continue;
+                        }
+                        $placeholders[$token] = $value;
                     }
 
-                    $this->runAction(function () use ($anchors, $placeholders): void {
+                    $this->runAction(function () use ($anchors, $placeholders, $customFields, $ignored): void {
                         $configured = app(ConfigureInstitutionalFormatMapping::class)->execute(
                             $this->version(),
-                            ['schema_version' => 2, 'anchors' => $anchors, 'placeholders' => $placeholders],
+                            [
+                                'schema_version' => 2,
+                                'anchors' => $anchors,
+                                'placeholders' => $placeholders,
+                                'custom_fields' => $customFields,
+                                'ignored_zones' => array_keys($ignored),
+                            ],
                             auth()->user(),
+                            preserveVisualBindings: false,
                         );
                         app(RenderInstitutionalFormatSample::class)->execute($configured, auth()->user());
-                    }, 'Guardamos tus correcciones y preparamos un nuevo ejemplo');
+                    }, 'Guardamos la definición de tu formato y preparamos un nuevo ejemplo');
                 }),
 
             Action::make('sample')
@@ -142,8 +203,8 @@ class ViewInstitutionalFormat extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('¿El ejemplo se ve como esperabas?')
                 ->modalDescription($this->filledSource()
-                    ? 'Confirma solo si el contenido de la planeación anterior ya fue reemplazado y los datos de ejemplo están en el lugar correcto.'
-                    : 'Al confirmar, este formato quedará activo para tus planeaciones. Si algo está mal, cancela y usa “Corregir lo que entendimos”.')
+                    ? 'Confirma solo si el contenido anterior ya fue reemplazado donde corresponde y el diseño original se conserva.'
+                    : 'Al confirmar, este formato quedará activo para tus planeaciones. Si algo está mal, cancela y usa “Definir mi formato”.')
                 ->visible(fn (): bool => $version->published_at === null && $sample?->status === FormatSampleStatus::Pending)
                 ->action(fn () => $this->runAction(function (): void {
                     app(ReviewInstitutionalFormatSample::class)->approve(
@@ -171,7 +232,7 @@ class ViewInstitutionalFormat extends ViewRecord
                 ->schema([
                     Textarea::make('note')
                         ->label('¿Qué viste mal?')
-                        ->helperText('Esto es solo una nota para ayudarte a recordar qué debes corregir en “Corregir lo que entendimos”.')
+                        ->helperText('Anota qué zona debe corregirse. Después usa “Definir mi formato” para cambiar su significado o dejarla manual.')
                         ->required()
                         ->minLength(3)
                         ->maxLength(2000)
@@ -200,50 +261,113 @@ class ViewInstitutionalFormat extends ViewRecord
         ];
     }
 
-    /** @return array<int,Select> */
+    /** @return array<int,mixed> */
     private function mappingFields(): array
     {
         $catalog = app(InstitutionalFormatFieldCatalog::class);
-        $options = $catalog->options();
+        $options = [
+            self::CUSTOM_AI => 'Campo propio de mi formato — generar con IA',
+            self::MANUAL => 'Mantener manual / no llenar automáticamente',
+            ...$catalog->options(),
+        ];
         $mapping = is_array($this->version()->mapping) ? $this->version()->mapping : [];
         $currentAnchors = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
         $currentTokens = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
+        $custom = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
+        $ignored = array_fill_keys(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : []), true);
         $fields = [];
+        $resolver = app(GenericInstitutionalFieldResolver::class);
 
         foreach ($this->anchors() as $index => $anchor) {
             $id = (string) $anchor['id'];
+            $targetId = (string) ($anchor['target_id'] ?? $id);
             $sourceLabel = trim((string) ($anchor['label'] ?? $id));
             $confidence = isset($anchor['confidence']) ? (int) $anchor['confidence'] : null;
             $suggested = $anchor['suggested_path'] ?? null;
             $previous = trim((string) ($anchor['current_value_excerpt'] ?? ''));
+            $currentPath = (string) ($currentAnchors[$id] ?? '');
+            $isCustom = str_starts_with($currentPath, 'custom.');
+            $customKey = $isCustom ? substr($currentPath, strlen('custom.')) : $resolver->customKey($sourceLabel, $id);
+            $definition = is_array($custom[$customKey] ?? null) ? $custom[$customKey] : [];
 
             $helper = $suggested
                 ? 'Nuestra sugerencia: “' . $catalog->labelFor((string) $suggested) . '”' . ($confidence ? ' (' . $confidence . '% de confianza).' : '.')
-                : 'No estamos seguros de qué dato corresponde aquí. Elige uno solo si esta zona debe llenarse automáticamente.';
+                : 'Si este apartado es propio de tu escuela, elige “Campo propio de mi formato”. La IA lo recibirá como requisito sin que tengamos que programar ese formato.';
 
             if ($previous !== '') {
-                $helper .= ' En la planeación que subiste actualmente aparece: “' . $previous . '”. Ese texto se usará solo como referencia y será reemplazado.';
+                $helper .= ' En el ejemplo aparece: “' . $previous . '”. Se usará solo para entender intención y estilo, no para copiarlo.';
             }
+
+            $default = $isCustom
+                ? self::CUSTOM_AI
+                : ((isset($ignored[$id]) || isset($ignored[$targetId])) ? self::MANUAL : ($currentPath !== '' ? $currentPath : ($suggested ?? null)));
 
             $fields[] = Select::make('anchor_' . $index)
                 ->label('En tu Word aparece: “' . $sourceLabel . '”')
                 ->options($options)
                 ->searchable()
                 ->native(false)
-                ->placeholder('No llenar esta zona automáticamente')
-                ->default($currentAnchors[$id] ?? $suggested ?? null)
+                ->placeholder('Elige qué significa esta zona')
+                ->default($default)
                 ->helperText($helper);
+
+            $fields[] = Select::make('anchor_type_' . $index)
+                ->label('Tipo de contenido para “' . $sourceLabel . '”')
+                ->options([
+                    'text' => 'Texto corto',
+                    'long_text' => 'Texto largo',
+                    'list' => 'Lista',
+                    'date' => 'Fecha',
+                    'table' => 'Tabla / matriz',
+                    'repeating_block' => 'Bloque repetible',
+                ])
+                ->native(false)
+                ->default((string) ($definition['type'] ?? 'long_text'))
+                ->helperText('Solo se usa cuando eliges “Campo propio de mi formato”.');
+
+            $fields[] = Textarea::make('anchor_instruction_' . $index)
+                ->label('Qué debe contener “' . $sourceLabel . '”')
+                ->default((string) ($definition['instruction'] ?? ''))
+                ->placeholder($resolver->defaultInstruction($sourceLabel))
+                ->rows(2)
+                ->maxLength(1000)
+                ->helperText('Opcional. Describe qué espera tu escuela en este apartado. Si subiste una planeación llena, el ejemplo anterior también ayudará a interpretar la intención.');
         }
 
         foreach ($this->placeholders() as $index => $token) {
+            $currentPath = (string) ($currentTokens[$token] ?? '');
+            $isCustom = str_starts_with($currentPath, 'custom.');
+            $label = str_replace(['_', '-', '.'], ' ', $token);
+            $customKey = $isCustom ? substr($currentPath, strlen('custom.')) : $resolver->customKey($label, 'token:' . $token);
+            $definition = is_array($custom[$customKey] ?? null) ? $custom[$customKey] : [];
+
             $fields[] = Select::make('token_' . $index)
                 ->label('En tu Word aparece: {{' . $token . '}}')
                 ->options($options)
                 ->searchable()
                 ->native(false)
-                ->placeholder('No usar este campo')
-                ->default($currentTokens[$token] ?? null)
-                ->helperText('Este marcador ya venía dentro del archivo. Puedes indicar qué información debe reemplazarlo.');
+                ->placeholder('Elige qué significa este marcador')
+                ->default($isCustom ? self::CUSTOM_AI : ($currentPath !== '' ? $currentPath : null))
+                ->helperText('El marcador permanece en el archivo original; solo definimos qué información debe sustituirlo.');
+
+            $fields[] = Select::make('token_type_' . $index)
+                ->label('Tipo de contenido para {{' . $token . '}}')
+                ->options([
+                    'text' => 'Texto corto',
+                    'long_text' => 'Texto largo',
+                    'list' => 'Lista',
+                    'date' => 'Fecha',
+                    'table' => 'Tabla / matriz',
+                    'repeating_block' => 'Bloque repetible',
+                ])
+                ->native(false)
+                ->default((string) ($definition['type'] ?? 'long_text'));
+
+            $fields[] = Textarea::make('token_instruction_' . $index)
+                ->label('Qué debe contener {{' . $token . '}}')
+                ->default((string) ($definition['instruction'] ?? ''))
+                ->rows(2)
+                ->maxLength(1000);
         }
 
         return $fields;
@@ -286,7 +410,8 @@ class ViewInstitutionalFormat extends ViewRecord
         $mapping = $version->mapping;
         return is_array($mapping)
             && ((is_array($mapping['anchors'] ?? null) && $mapping['anchors'] !== [])
-                || (is_array($mapping['placeholders'] ?? null) && $mapping['placeholders'] !== []));
+                || (is_array($mapping['placeholders'] ?? null) && $mapping['placeholders'] !== [])
+                || (is_array($mapping['fragments'] ?? null) && $mapping['fragments'] !== []));
     }
 
     private function latestSample(): ?FormatVersionSample
@@ -306,8 +431,19 @@ class ViewInstitutionalFormat extends ViewRecord
             return 0;
         }
 
-        return count(is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [])
+        $mapped = count(is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [])
             + count(is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : []);
+
+        $ignored = array_fill_keys(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : []), true);
+        foreach ($this->anchors() as $anchor) {
+            $id = (string) ($anchor['id'] ?? '');
+            $targetId = (string) ($anchor['target_id'] ?? $id);
+            if (! isset(($mapping['anchors'] ?? [])[$id]) && (isset($ignored[$id]) || isset($ignored[$targetId]))) {
+                $mapped++;
+            }
+        }
+
+        return min($this->candidateCount(), $mapped);
     }
 
     private function unmappedCount(): int
@@ -324,10 +460,10 @@ class ViewInstitutionalFormat extends ViewRecord
     {
         if ($this->filledSource()) {
             $count = (int) data_get($this->version()->validation_report, 'analysis.existing_value_count', 0);
-            return 'Parece una planeación ya llena. Detectamos ' . $count . ' zona(s) con información anterior. La usamos únicamente para entender el formato: al generar una nueva planeación, esos datos se reemplazan y no se mezclan con los nuevos.';
+            return 'Parece una planeación ya llena. Detectamos ' . $count . ' zona(s) con información anterior. La usamos únicamente como ejemplo semántico para entender qué espera tu formato; el archivo original no se modifica.';
         }
 
-        return 'Parece una plantilla o formato sin contenido previo relevante. El sistema llenará las zonas que hayas confirmado.';
+        return 'Parece una plantilla o formato sin contenido previo relevante. Puedes definir qué significa cada zona sin modificar el Word original.';
     }
 
     private function priorContentExamples(): string
@@ -347,7 +483,7 @@ class ViewInstitutionalFormat extends ViewRecord
 
         return $rows === []
             ? 'Detectamos contenido anterior, pero no necesitamos mostrarlo completo para configurar el formato.'
-            : implode(' | ', $rows) . '. Este contenido se reemplazará en la muestra y en futuras planeaciones.';
+            : implode(' | ', $rows) . '. Se usará como referencia semántica, no como texto para copiar.';
     }
 
     private function detectedExamples(): string
@@ -360,18 +496,35 @@ class ViewInstitutionalFormat extends ViewRecord
         $mapping = is_array($this->version()->mapping) ? $this->version()->mapping : [];
         $anchorMapping = is_array($mapping['anchors'] ?? null) ? $mapping['anchors'] : [];
         $tokenMapping = is_array($mapping['placeholders'] ?? null) ? $mapping['placeholders'] : [];
+        $custom = is_array($mapping['custom_fields'] ?? null) ? $mapping['custom_fields'] : [];
+        $ignored = array_fill_keys(array_map('strval', is_array($mapping['ignored_zones'] ?? null) ? $mapping['ignored_zones'] : []), true);
         $rows = [];
 
         foreach ($this->anchors() as $anchor) {
             $id = (string) ($anchor['id'] ?? '');
+            $targetId = (string) ($anchor['target_id'] ?? $id);
             $label = trim((string) ($anchor['label'] ?? $id));
             $path = $anchorMapping[$id] ?? null;
-            $rows[] = '“' . $label . '” → ' . ($path ? $catalog->labelFor((string) $path) : 'sin relacionar');
+            if ($path) {
+                $destination = str_starts_with((string) $path, 'custom.')
+                    ? 'campo propio: ' . (string) ($custom[substr((string) $path, strlen('custom.'))]['label'] ?? $label)
+                    : $catalog->labelFor((string) $path);
+            } elseif (isset($ignored[$id]) || isset($ignored[$targetId])) {
+                $destination = 'manual / no automático';
+            } else {
+                $destination = 'sin definir';
+            }
+            $rows[] = '“' . $label . '” → ' . $destination;
         }
 
         foreach ($this->placeholders() as $token) {
             $path = $tokenMapping[$token] ?? null;
-            $rows[] = '{{' . $token . '}} → ' . ($path ? $catalog->labelFor((string) $path) : 'sin relacionar');
+            $destination = $path
+                ? (str_starts_with((string) $path, 'custom.')
+                    ? 'campo propio'
+                    : $catalog->labelFor((string) $path))
+                : 'sin definir';
+            $rows[] = '{{' . $token . '}} → ' . $destination;
         }
 
         $total = count($rows);
@@ -388,7 +541,7 @@ class ViewInstitutionalFormat extends ViewRecord
     {
         $sample = $this->latestSample();
         if (! $sample) {
-            return $this->mappingReady() ? 'Aún no generada' : 'Necesita revisar campos primero';
+            return $this->mappingReady() ? 'Aún no generada' : 'Necesita definir campos primero';
         }
 
         return match ($sample->status) {
@@ -407,16 +560,16 @@ class ViewInstitutionalFormat extends ViewRecord
         $sample = $this->latestSample();
         if (! $sample) {
             return $this->mappingReady()
-                ? 'Pulsa “Crear ejemplo” para ver cómo quedará el documento antes de activarlo.'
-                : 'Pulsa “Corregir lo que entendimos” y relaciona al menos un campo que deba llenarse automáticamente.';
+                ? 'Pulsa “Crear ejemplo” para comprobar que el Word conserva su diseño y cada dato aparece en la zona correcta.'
+                : 'Pulsa “Definir mi formato” y define al menos una zona que deba llenarse automáticamente.';
         }
 
         return match ($sample->status) {
             FormatSampleStatus::Pending => $this->filledSource()
-                ? 'Abre “Ver ejemplo PDF” y confirma dos cosas: que la información anterior desapareció y que los datos nuevos quedaron en las zonas correctas. Si es así, pulsa “Usar este formato”.'
-                : 'Primero abre “Ver ejemplo PDF”. Si se ve bien, pulsa “Usar este formato”. Si algo quedó en la zona equivocada, pulsa “Corregir lo que entendimos”.',
+                ? 'Abre la muestra y confirma que la información anterior fue sustituida donde corresponde, sin alterar el formato. Si es así, pulsa “Usar este formato”.'
+                : 'Abre la muestra. Si se ve igual que tu formato y los datos están en las zonas correctas, pulsa “Usar este formato”.',
             FormatSampleStatus::Approved => 'La muestra ya fue aceptada. Solo falta activar el formato.',
-            FormatSampleStatus::Rejected => 'Pulsa “Corregir lo que entendimos”, ajusta las relaciones y te prepararemos un nuevo ejemplo automáticamente.',
+            FormatSampleStatus::Rejected => 'Pulsa “Definir mi formato”, corrige las zonas y te prepararemos una nueva muestra.',
         };
     }
 
