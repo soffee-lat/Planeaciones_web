@@ -53,6 +53,7 @@ class AdaptiveGenerationPipelineTest extends PedagogyTestCase
 
         $payload = $this->adaptivePayload(
             $scene['request'],
+            $scene['package'],
             $scene['custom_key'],
             $scene['item_key'],
             ['Actividad adaptativa uno.', 'Actividad adaptativa dos.'],
@@ -80,6 +81,7 @@ class AdaptiveGenerationPipelineTest extends PedagogyTestCase
             $scene['generation'],
             $this->adaptivePayload(
                 $scene['request'],
+                $scene['package'],
                 $scene['custom_key'],
                 $scene['item_key'],
                 ['Actividad que requiere mejora.'],
@@ -255,9 +257,10 @@ class AdaptiveGenerationPipelineTest extends PedagogyTestCase
         ];
     }
 
-    /** @return array<string,mixed> */
+    /** @param array<string,mixed> $package @return array<string,mixed> */
     private function adaptivePayload(
         PlanningRequest $request,
+        array $package,
         string $customKey,
         string $itemKey,
         array $activities,
@@ -266,7 +269,7 @@ class AdaptiveGenerationPipelineTest extends PedagogyTestCase
         $pdaCode = (string) data_get($request->currentInputVersion?->snapshot, 'curriculum.pdas.0.code', '');
         $this->assertNotSame('', $pdaCode);
 
-        return [
+        $payload = [
             'contract_version' => FormatAwareGenerationSchema::ADAPTIVE_CONTRACT_VERSION,
             'core' => [
                 'title' => 'Planeación adaptativa de prueba',
@@ -286,5 +289,60 @@ class AdaptiveGenerationPipelineTest extends PedagogyTestCase
                 ),
             ],
         ];
+
+        $schema = (array) data_get($package, 'output.schema', []);
+        $required = array_values(array_map('strval', (array) ($schema['required'] ?? [])));
+        if (in_array('fields', $required, true)) {
+            $fieldSchemas = (array) data_get($schema, 'properties.fields.properties', []);
+            $fields = [];
+            foreach ($fieldSchemas as $path => $fieldSchema) {
+                if (is_array($fieldSchema)) {
+                    $fields[(string) $path] = $this->exampleForSchema($fieldSchema, (string) $path);
+                }
+            }
+            $payload['fields'] = $fields;
+        }
+
+        return $payload;
+    }
+
+    /** @param array<string,mixed> $schema */
+    private function exampleForSchema(array $schema, string $label): mixed
+    {
+        if (array_key_exists('const', $schema)) {
+            return $schema['const'];
+        }
+
+        $type = $schema['type'] ?? 'string';
+        if (is_array($type)) {
+            $type = collect($type)->first(fn (mixed $candidate): bool => $candidate !== 'null') ?? 'string';
+        }
+
+        return match ($type) {
+            'array' => [$this->exampleForSchema((array) ($schema['items'] ?? ['type' => 'string']), $label . ' item')],
+            'object' => $this->exampleObjectForSchema($schema, $label),
+            'integer' => max(1, (int) ($schema['minimum'] ?? 1)),
+            'number' => max(1, (float) ($schema['minimum'] ?? 1)),
+            'boolean' => true,
+            default => ($schema['format'] ?? null) === 'date'
+                ? '2026-10-01'
+                : 'Valor adaptativo para ' . $label,
+        };
+    }
+
+    /** @param array<string,mixed> $schema @return array<string,mixed> */
+    private function exampleObjectForSchema(array $schema, string $label): array
+    {
+        $properties = (array) ($schema['properties'] ?? []);
+        $required = array_values(array_map('strval', (array) ($schema['required'] ?? array_keys($properties))));
+        $value = [];
+        foreach ($required as $key) {
+            $child = $properties[$key] ?? ['type' => 'string'];
+            if (is_array($child)) {
+                $value[$key] = $this->exampleForSchema($child, $label . '.' . $key);
+            }
+        }
+
+        return $value;
     }
 }
