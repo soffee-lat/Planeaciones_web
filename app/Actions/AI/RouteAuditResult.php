@@ -121,7 +121,10 @@ final class RouteAuditResult
             }
 
             try {
-                $sectionKeys = $this->correctionPolicy->sectionKeys($result);
+                $sectionKeys = $this->correctionPolicy->sectionKeys(
+                    $result,
+                    (string) ($version->content['schema_version'] ?? ''),
+                );
                 $round = $this->correctionPolicy->assertRoundAvailable($request);
             } catch (AiPipelineException $e) {
                 if (! in_array($e->errorCode, [
