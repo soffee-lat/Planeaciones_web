@@ -136,6 +136,39 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertFalse($confirmed->hasConfirmedCurriculumMap());
     }
 
+    public function test_blank_optional_form_values_do_not_invalidate_confirmed_map(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $request = $this->startRequest($ctx);
+        $service = app(CurriculumMapService::class);
+        $service->state($ctx['user'], $request);
+        $service->acceptAllSuggested($ctx['user'], $request);
+        $confirmed = $service->confirm($ctx['user'], $request);
+
+        $revision = (int) $confirmed->input_revision;
+        $fingerprint = (string) $confirmed->curriculum_selection_fingerprint;
+
+        app(UpdatePlanningRequestDraft::class)->execute($ctx['user'], $confirmed, [
+            'period_label' => '',
+            'book_pages' => '',
+            'required_activities' => '',
+            'special_events' => '',
+            'comments' => '',
+            'pedagogical_notes' => '',
+            'suggested_initial_assessment' => '',
+            'requested_assessment' => '',
+        ]);
+
+        $confirmed->refresh();
+        $this->assertTrue($confirmed->hasConfirmedCurriculumMap());
+        $this->assertSame($revision, (int) $confirmed->input_revision);
+        $this->assertSame($fingerprint, $confirmed->curriculum_selection_fingerprint);
+        $this->assertNull($confirmed->book_pages);
+        $this->assertNull($confirmed->required_activities);
+        $this->assertNull($confirmed->special_events);
+        $this->assertNull($confirmed->comments);
+    }
+
     public function test_http_accept_all_and_confirm_route_reaches_existing_summary_flow(): void
     {
         $ctx = $this->seedFullTeacher();
