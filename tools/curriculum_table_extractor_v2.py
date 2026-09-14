@@ -24,8 +24,25 @@ for phase_code, field_ranges in OFFICIAL_TABLE_RANGES.items():
         base.PHASES[phase_code]['fields'][field_code] = (field_name, first_page, last_page)
 
 
+def repair_text(text: str) -> str:
+    """Normalize text without changing the official wording.
+
+    SEP PDFs visually hyphenate words at line endings. Depending on the PDF
+    extraction path this can arrive as ``cotidia- nas``. Joining only alphabetic
+    fragments separated by a hyphen + whitespace removes that layout artifact
+    while preserving semantic hyphens such as ``COVID-19``.
+    """
+    text = base.clean(text)
+    text = re.sub(
+        r'(?<=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])-\s+(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])',
+        '',
+        text,
+    )
+    return base.clean(text)
+
+
 def match_key(text: str) -> str:
-    text = base.clean(text).casefold()
+    text = repair_text(text).casefold()
     text = ''.join(
         ch for ch in unicodedata.normalize('NFD', text)
         if unicodedata.category(ch) != 'Mn'
@@ -33,24 +50,21 @@ def match_key(text: str) -> str:
     return re.sub(r'[^a-z0-9]+', '', text)
 
 
-def text_flags() -> int:
-    return (
-        getattr(fitz, 'TEXTFLAGS_TEXT', 0)
-        | getattr(fitz, 'TEXT_DEHYPHENATE', 0)
-        | getattr(fitz, 'TEXT_PRESERVE_WHITESPACE', 0)
-    )
-
-
 def cell_blocks(page, bbox, printed_page: int):
     if not bbox:
         return []
+
     rect = fitz.Rect(bbox)
     if rect.width > 6 and rect.height > 6:
         rect = fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2)
-    blocks = page.get_text('blocks', clip=rect, flags=text_flags(), sort=True)
+
+    # Use word-aware extraction inside the already detected table cell. This
+    # preserves spaces between words better than raw PDF text blocks while the
+    # table detector still provides the correct cell geometry.
+    paragraphs = base.paras(page, rect, printed_page)
     result = []
-    for block in blocks:
-        text = base.clean(str(block[4]))
+    for paragraph in paragraphs:
+        text = repair_text(paragraph.text)
         if not text:
             continue
         if 'programa de estudio para la educación primaria' in text.casefold():
@@ -60,7 +74,7 @@ def cell_blocks(page, bbox, printed_page: int):
 
 
 def cell_text(page, bbox, printed_page: int) -> str:
-    return base.clean(' '.join(item.text for item in cell_blocks(page, bbox, printed_page)))
+    return repair_text(' '.join(item.text for item in cell_blocks(page, bbox, printed_page)))
 
 
 def select_curriculum_table(page):
@@ -85,17 +99,17 @@ def select_curriculum_table(page):
 
 
 def is_header_row(texts: list[str]) -> bool:
-    merged = base.clean(' '.join(texts)).casefold()
+    merged = repair_text(' '.join(texts)).casefold()
     if not merged:
         return True
     if 'procesos de desarrollo' in merged:
         return True
-    if texts and base.clean(texts[0]).casefold() in {'contenido', 'contenidos'}:
+    if texts and repair_text(texts[0]).casefold() in {'contenido', 'contenidos'}:
         return True
     if (
         'grado' in merged
         and any(word in merged for word in ('primer', 'segundo', 'tercer', 'cuarto', 'quinto', 'sexto'))
-        and len(base.clean(texts[0])) < 20
+        and len(repair_text(texts[0])) < 20
     ):
         return True
     return False
@@ -126,7 +140,7 @@ def extract_field(doc, ph, fc, name, first_page, last_page, grade_names, warns):
             if is_header_row(texts):
                 continue
 
-            content = texts[0]
+            content = repair_text(texts[0])
             grade_one = cell_blocks(page, cells[1], printed)
             grade_two = cell_blocks(page, cells[2], printed)
             if not content and not grade_one and not grade_two:
@@ -140,6 +154,9 @@ def extract_field(doc, ph, fc, name, first_page, last_page, grade_names, warns):
                 if current:
                     current.g1 = base.norm(current.g1)
                     current.g2 = base.norm(current.g2)
+                    current.content = repair_text(current.content)
+                    current.g1 = [base.P(repair_text(p.text), p.page) for p in current.g1]
+                    current.g2 = [base.P(repair_text(p.text), p.page) for p in current.g2]
                     rows.append(current)
                 current = base.R(content, printed)
             elif current is None:
@@ -152,6 +169,9 @@ def extract_field(doc, ph, fc, name, first_page, last_page, grade_names, warns):
     if current:
         current.g1 = base.norm(current.g1)
         current.g2 = base.norm(current.g2)
+        current.content = repair_text(current.content)
+        current.g1 = [base.P(repair_text(p.text), p.page) for p in current.g1]
+        current.g2 = [base.P(repair_text(p.text), p.page) for p in current.g2]
         rows.append(current)
 
     rows = [
@@ -169,6 +189,17 @@ def extract_field(doc, ph, fc, name, first_page, last_page, grade_names, warns):
         key = match_key(anchor)
         if not any(key in match_key(row.content) for row in rows):
             warns.append(base.W(ph, fc, None, f'No apareció el ancla esperada: {anchor}'))
+
+    # Any surviving alphabetic "word- fragment" sequence indicates that a
+    # visual line-break hyphen escaped normalization and the catalog must stop.
+    broken_word = re.compile(
+        r'[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]-\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]'
+    )
+    for row in rows:
+        candidates = [row.content, *(p.text for p in row.g1), *(p.text for p in row.g2)]
+        if any(broken_word.search(text) for text in candidates):
+            warns.append(base.W(ph, fc, row.page, 'extracción sospechosa: quedó una palabra cortada por salto de línea'))
+            break
 
     return rows
 
