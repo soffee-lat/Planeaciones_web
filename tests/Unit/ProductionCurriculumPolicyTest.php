@@ -6,8 +6,8 @@ use App\Models\Curriculum;
 use App\Models\CurriculumVersion;
 use App\Services\Curriculum\ProductionCurriculumPolicy;
 use Illuminate\Support\Carbon;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Tests\TestCase;
 
 class ProductionCurriculumPolicyTest extends TestCase
 {
