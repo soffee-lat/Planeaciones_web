@@ -59,7 +59,7 @@ final class ProductEventRecorder
     private function allowedMetadata(ProductEventType $type): array
     {
         return match ($type) {
-            ProductEventType::PlanningStarted => ['entry_surface', 'profile_reused', 'session_minutes_known'],
+            ProductEventType::PlanningStarted => ['entry_surface', 'profile_reused', 'session_minutes_known', 'format_version_id'],
             ProductEventType::CurriculumSuggestionsShown => [
                 'strategy_version', 'suggestion_fingerprint', 'content_count', 'pda_count',
                 'axis_count', 'formative_field_count', 'has_strong_match',
