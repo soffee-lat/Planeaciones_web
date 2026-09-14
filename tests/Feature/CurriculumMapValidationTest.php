@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Actions\Documents\EnsureStandardFormat;
 use App\Actions\Planning\StartPlanningExperiment;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
@@ -211,12 +210,9 @@ class CurriculumMapValidationTest extends PedagogyTestCase
     /** @param array<string,mixed> $ctx */
     private function startRequest(array $ctx): PlanningRequest
     {
-        $format = app(EnsureStandardFormat::class)->execute()['version'];
-
         return app(StartPlanningExperiment::class)->execute(
             $ctx['user'],
             $ctx['group']->id,
-            $format->id,
             now()->addDay()->format('Y-m-d'),
             now()->addDays(5)->format('Y-m-d'),
             'Contenido demo',
