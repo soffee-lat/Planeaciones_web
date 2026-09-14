@@ -17,7 +17,7 @@ class CurriculumSourceReferenceStorageTest extends TestCase
     public function test_dry_run_accepts_long_structured_source_reference_and_content_title(): void
     {
         $actor = User::factory()->withRole(RoleCode::Administrator)->create();
-        $longTitle = str_repeat('Contenido curricular oficial extenso ', 10);
+        $longTitle = trim(str_repeat('Contenido curricular oficial extenso ', 10));
 
         $payload = [
             'schema_version' => 1,
