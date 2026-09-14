@@ -25,7 +25,7 @@ class StartPlanningExperienceTest extends PedagogyTestCase
         $response->assertOk();
         $response->assertSee('Prepara tu planeación');
         $response->assertDontSee('Formato de salida');
-        $response->assertSee('el formato se elegirá sólo cuando la planeación ya esté lista para exportarse', false);
+        $response->assertSee('El formato se elegirá sólo cuando la planeación ya esté lista para exportarse', false);
         $response->assertSee('Continuar con el currículo');
     }
 
