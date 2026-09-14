@@ -41,15 +41,31 @@ abstract class PedagogyTestCase extends TestCase
 
     /**
      * Publish a full valid curriculum tree and mark version 1 selectable.
-     * Returns array{curriculum:Curriculum, version:CurriculumVersion, grade:Grade, otherGrade:Grade}
+     *
+     * This fixture intentionally represents a production-eligible curriculum.
+     * DEMO factories remain available for tests that explicitly exercise
+     * fictitious/editorial catalogs, but teacher planning tests must not use
+     * them now that production flows reject DEMO data by design.
      *
      * @return array{curriculum:Curriculum, version:CurriculumVersion, grade:Grade, otherGrade:Grade, draftVersion:CurriculumVersion, draftGrade:Grade}
      */
     protected function seedPublishedCurriculum(): array
     {
         $admin = $this->admin();
-        $curriculum = Curriculum::factory()->create();
-        $version = CurriculumVersion::factory()->create(['curriculum_id' => $curriculum->id, 'number' => 1]);
+        $curriculum = Curriculum::factory()->create([
+            'code' => 'TEST-PRODUCTION-' . fake()->unique()->numerify('####'),
+            'name' => 'Currículo de prueba apto para planeación',
+            'country_code' => 'MX',
+            'educational_level' => 'primaria',
+            'description' => 'Fixture automatizado para validar flujos pedagógicos publicados.',
+            'selectable_version_id' => null,
+        ]);
+        $version = CurriculumVersion::factory()->create([
+            'curriculum_id' => $curriculum->id,
+            'number' => 1,
+            'label' => 'TEST-PUBLISHED-1',
+            'source_reference' => 'fixture://pedagogy-test/published-v1',
+        ]);
         $phaseA = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-A']);
         $phaseB = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-B']);
         $gradeA = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseA->id, 'code' => 'GR-A', 'ordinal' => 1]);
@@ -75,7 +91,12 @@ abstract class PedagogyTestCase extends TestCase
         $curriculum->fill(['selectable_version_id' => $version->id])->save();
 
         // Second (draft) version + its own grade for negative tests.
-        $draft = CurriculumVersion::factory()->create(['curriculum_id' => $curriculum->id, 'number' => 2]);
+        $draft = CurriculumVersion::factory()->create([
+            'curriculum_id' => $curriculum->id,
+            'number' => 2,
+            'label' => 'TEST-DRAFT-2',
+            'source_reference' => 'fixture://pedagogy-test/draft-v2',
+        ]);
         $draftPhase = EducationalPhase::factory()->create(['curriculum_version_id' => $draft->id, 'code' => 'PH-D']);
         $draftGrade = Grade::factory()->create(['curriculum_version_id' => $draft->id, 'educational_phase_id' => $draftPhase->id, 'code' => 'GR-D', 'ordinal' => 1]);
 
