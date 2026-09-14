@@ -2,6 +2,8 @@
 
 namespace App\Filament\App\Resources\PlanningRequests;
 
+use App\Enums\InstitutionalFormatKind;
+use App\Enums\InstitutionalFormatStatus;
 use App\Enums\PlanningRequestStatus;
 use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\Pages\EditPlanningRequest;
@@ -10,6 +12,7 @@ use App\Filament\App\Resources\PlanningRequests\Pages\ViewPlanningRequest;
 use App\Models\ArticulatingAxis;
 use App\Models\CurricularContent;
 use App\Models\Group;
+use App\Models\InstitutionalFormat;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
 use App\Services\Planning\CurriculumSuggestionService;
@@ -61,7 +64,7 @@ class PlanningRequestResource extends Resource
         return $schema->components([
             Wizard::make([
                 Step::make('Grupo y modalidad')
-                    ->description('Elige el grupo y cómo quieres armar la planeación')
+                    ->description('Elige el grupo, el formato de salida y cómo quieres armar la planeación')
                     ->icon(Heroicon::OutlinedUsers)
                     ->schema([
                         Select::make('group_id')
@@ -72,6 +75,15 @@ class PlanningRequestResource extends Resource
                             ->native(false)
                             ->disabledOn('edit')
                             ->helperText('Solo grupos activos con perfil pedagógico suficiente.')
+                            ->columnSpanFull(),
+
+                        Select::make('format_version_id')
+                            ->label('Formato de salida')
+                            ->options(fn () => static::formatVersionOptions())
+                            ->required()
+                            ->searchable()
+                            ->native(false)
+                            ->helperText('Elige explícitamente el formato que recibirá la planeación. Los formatos institucionales conservan la plantilla DOCX configurada; el formato estándar genera una salida genérica.')
                             ->columnSpanFull(),
 
                         Radio::make('creation_mode')
@@ -288,6 +300,34 @@ class PlanningRequestResource extends Resource
     }
 
     /** @return array<int,string> */
+    public static function formatVersionOptions(): array
+    {
+        $formats = InstitutionalFormat::query()
+            ->where('status', InstitutionalFormatStatus::Ready->value)
+            ->where(function ($query): void {
+                $query->whereNull('owner_id')->orWhere('owner_id', auth()->id());
+            })
+            ->with('publishedVersions')
+            ->orderBy('name')
+            ->get();
+
+        $options = [];
+        foreach ($formats as $format) {
+            $version = $format->publishedVersions->first();
+            if (! $version) {
+                continue;
+            }
+
+            $suffix = $format->kind === InstitutionalFormatKind::Standard
+                ? ' · estándar'
+                : ' · institucional';
+            $options[(int) $version->id] = $format->name . $suffix;
+        }
+
+        return $options;
+    }
+
+    /** @return array<int,string> */
     public static function contentOptions(?int $groupId): array
     {
         if (! $groupId) {
@@ -356,11 +396,14 @@ class PlanningRequestResource extends Resource
         $contents = static::labelsFor(CurricularContent::class, $get('selected_contents') ?? [], 'title');
         $pdas = static::labelsFor(Pda::class, $get('selected_pdas') ?? [], 'code');
         $axes = static::labelsFor(ArticulatingAxis::class, $get('selected_axes') ?? [], 'name');
+        $formatOptions = static::formatVersionOptions();
+        $formatLabel = $formatOptions[(int) ($get('format_version_id') ?? 0)] ?? '—';
 
         $rows = [
             'Grupo' => e($group?->name ?: '—'),
             'Grado' => e($group?->grade?->name ?: '—'),
             'Currículo' => e($group?->curriculumVersion?->curriculum?->name ?: '—'),
+            'Formato de salida' => e($formatLabel),
             'Modalidad' => $mode,
             'Fechas' => e($starts . ' → ' . $ends),
             'Tema o proyecto' => $project,
