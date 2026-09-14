@@ -98,7 +98,7 @@
                 @if ($pdas !== [])
                     <div class="pd-info-row">
                         <span class="pd-icon-tile" style="width: 1.8rem; height: 1.8rem;">
-                            <x-filament::icon icon="heroicon-o-bullseye" class="h-4 w-4" />
+                            <x-filament::icon icon="heroicon-o-cursor-arrow-rays" class="h-4 w-4" />
                         </span>
                         <div>
                             <div class="pd-info-row__label">PDA</div>
