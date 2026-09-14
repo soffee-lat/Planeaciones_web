@@ -31,7 +31,7 @@
   },
   "curricular_alignment": {
     "curriculum": {
-      "code": "MX-NEM-PRIMARY",
+      "code": "MX-NEM-PRIMARIA",
       "name": "Currículo ensamblado desde snapshot",
       "version": "2024-v1",
       "checksum": "sha256:EXAMPLE"
