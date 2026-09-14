@@ -21,6 +21,7 @@ use App\Models\UsageReservation;
 use App\Services\AI\GenerationInputBuilder;
 use App\Services\AI\GenerationPromptPolicy;
 use App\Services\AI\ManualAiConfiguration;
+use App\Services\Curriculum\ProductionCurriculumPolicy;
 use App\Services\Planning\PlanningRequestStateMachine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,6 +34,7 @@ final class DispatchPlanningGeneration
         private ManualAiConfiguration $manualConfiguration,
         private PlanningRequestStateMachine $stateMachine,
         private ConsumePlanningReservation $consumeReservation,
+        private ProductionCurriculumPolicy $curriculumPolicy,
     ) {}
 
     public function execute(PlanningRequest $request, ?string $correlationId = null): AiExecution
@@ -75,6 +77,16 @@ final class DispatchPlanningGeneration
                 || (int) $fresh->planning_units < 1) {
                 throw new AiPipelineException('AI_GENERATION_REQUEST_NOT_READY');
             }
+
+            try {
+                $this->curriculumPolicy->assertSnapshotEligible((array) ($fresh->input_snapshot ?? []));
+            } catch (\RuntimeException $error) {
+                if ($error->getMessage() === ProductionCurriculumPolicy::NOT_READY) {
+                    throw new AiPipelineException('AI_GENERATION_CURRICULUM_NOT_PRODUCTION_READY');
+                }
+                throw $error;
+            }
+
             $this->stateMachine->assertCanTransition($fresh->status, PlanningRequestStatus::GENERACION_IA);
 
             $templateKey = trim((string) config('ai.prompts.generation_key', 'planning.generation'));
