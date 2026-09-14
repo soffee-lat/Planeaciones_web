@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 return new class extends Migration {
     public function up(): void
@@ -17,7 +16,7 @@ return new class extends Migration {
             ->exists();
 
         if ($hasLongValues) {
-            throw new RuntimeException(
+            throw new \RuntimeException(
                 'Cannot shrink curricular_contents.title to varchar(255): values longer than 255 characters exist.'
             );
         }
