@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Documents\EnsureStandardFormat;
 use App\Actions\Planning\StartPlanningExperiment;
+use App\Enums\ProductEventType;
 use App\Filament\App\Pages\StartPlanning;
 use App\Models\PlanningRequest;
 use RuntimeException;
@@ -61,6 +62,13 @@ class StartPlanningExperienceTest extends PedagogyTestCase
         $this->assertSame($format->id, $request->format_version_id);
         $this->assertSame('La Independencia de México', $request->project);
         $this->assertSame('Integrar actividades lúdicas.', $request->topic);
+
+        $event = $request->productEvents()
+            ->where('event_type', ProductEventType::PlanningStarted->value)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame($format->id, (int) data_get($event->metadata, 'format_version_id'));
     }
 
     public function test_quick_start_rejects_foreign_format_version(): void
