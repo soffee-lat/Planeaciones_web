@@ -180,7 +180,7 @@ Ejemplo mínimo:
 }
 ```
 
-Plantilla completa lista para poblar `MX-NEM-PRIMARY` en `docs/curriculum_import_template.example.json` (solo estructura y códigos internos; los `full_text` deben rellenarse con los textos oficiales validados por el equipo editorial).
+Plantilla completa lista para poblar `MX-NEM-PRIMARIA` en `docs/curriculum_import_template.example.json` (solo estructura y códigos internos; los `full_text` deben rellenarse con los textos oficiales validados por el equipo editorial).
 
 Diferencias frente a `curriculum_import_contract_draft.json`:
 
