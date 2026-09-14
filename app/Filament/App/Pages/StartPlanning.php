@@ -19,6 +19,7 @@ class StartPlanning extends Page
     protected string $view = 'filament.app.pages.start-planning';
 
     public ?int $group_id = null;
+    public ?int $format_version_id = null;
     public string $starts_on = '';
     public string $ends_on = '';
     public string $work_focus = '';
@@ -38,6 +39,7 @@ class StartPlanning extends Page
     {
         return [
             'groups' => PlanningRequestResource::eligibleGroupOptions(),
+            'formats' => PlanningRequestResource::formatVersionOptions(),
         ];
     }
 
@@ -58,12 +60,14 @@ class StartPlanning extends Page
     {
         $data = $this->validate([
             'group_id' => ['required', 'integer'],
+            'format_version_id' => ['required', 'integer'],
             'starts_on' => ['required', 'date'],
             'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
             'work_focus' => ['required', 'string', 'min:3', 'max:255'],
             'context_note' => ['nullable', 'string', 'max:8000'],
         ], [
             'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
+            'format_version_id.required' => 'Selecciona el formato en el que quieres recibir la planeación.',
             'starts_on.required' => 'Indica la fecha de inicio.',
             'ends_on.required' => 'Indica la fecha final.',
             'ends_on.after_or_equal' => 'La fecha final no puede ser anterior a la inicial.',
@@ -74,6 +78,7 @@ class StartPlanning extends Page
             $request = app(StartPlanningExperiment::class)->execute(
                 auth()->user(),
                 (int) $data['group_id'],
+                (int) $data['format_version_id'],
                 $data['starts_on'],
                 $data['ends_on'],
                 $data['work_focus'],
@@ -85,12 +90,17 @@ class StartPlanning extends Page
                     'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil pedagógico.',
                 ]);
             }
+            if ($e->getMessage() === 'PLANNING_EXPERIMENT_FORMAT_NOT_ELIGIBLE') {
+                throw ValidationException::withMessages([
+                    'format_version_id' => 'Ese formato ya no está disponible. Elige otro e inténtalo de nuevo.',
+                ]);
+            }
             throw $e;
         }
 
         Notification::make()
             ->success()
-            ->title('Ya tenemos el punto de partida')
+            ->title('Datos guardados')
             ->body('Ahora revisa las conexiones curriculares antes de generar la planeación.')
             ->send();
 
