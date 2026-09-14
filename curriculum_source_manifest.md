@@ -16,7 +16,7 @@ No sustituye la validación editorial ni constituye por sí mismo el catálogo i
 ### Fase 3 — 1.º y 2.º de primaria
 
 Fuente:
-https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_3.pdf
+https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_3.pdf
 
 Primera edición: 2024.
 
@@ -33,7 +33,7 @@ Grados:
 ### Fase 4 — 3.º y 4.º de primaria
 
 Fuente:
-https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_4.pdf
+https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_4.pdf
 
 Primera edición: 2024.
 
@@ -50,7 +50,7 @@ Grados:
 ### Fase 5 — 5.º y 6.º de primaria
 
 Fuente:
-https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_5.pdf
+https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_5.pdf
 
 Primera edición: 2024.
 
@@ -86,10 +86,10 @@ Grados:
 Los códigos son internos de la plataforma y NO se presentan como identificadores oficiales SEP.
 
 Currículo:
-- MX-NEM-PRIMARY
+- MX-NEM-PRIMARIA
 
 Versión:
-- MX-NEM-PRIMARY-2024-V1
+- MX-NEM-PRIMARIA-2024-V1
 
 Fases:
 - F3
