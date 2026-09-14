@@ -2,11 +2,9 @@
 
 namespace App\Actions\Planning;
 
-use App\Enums\InstitutionalFormatStatus;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\ProductEventType;
 use App\Enums\RoleCode;
-use App\Models\FormatVersion;
 use App\Models\Group;
 use App\Models\GroupProfile;
 use App\Models\PlanningRequest;
@@ -22,7 +20,6 @@ final class StartPlanningExperiment
     public function execute(
         User $actor,
         int $groupId,
-        int $formatVersionId,
         string $startsOn,
         string $endsOn,
         string $workFocus,
@@ -46,22 +43,6 @@ final class StartPlanningExperiment
             throw new \RuntimeException('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
         }
 
-        $formatVersion = FormatVersion::query()
-            ->whereKey($formatVersionId)
-            ->whereNotNull('published_at')
-            ->whereHas('format', function ($query) use ($actor): void {
-                $query
-                    ->where('status', InstitutionalFormatStatus::Ready->value)
-                    ->where(function ($owner) use ($actor): void {
-                        $owner->whereNull('owner_id')->orWhere('owner_id', $actor->id);
-                    });
-            })
-            ->first();
-
-        if (! $formatVersion) {
-            throw new \RuntimeException('PLANNING_EXPERIMENT_FORMAT_NOT_ELIGIBLE');
-        }
-
         try {
             $start = CarbonImmutable::parse($startsOn)->startOfDay();
             $end = CarbonImmutable::parse($endsOn)->startOfDay();
@@ -81,13 +62,13 @@ final class StartPlanningExperiment
             throw new \RuntimeException('PLANNING_EXPERIMENT_CONTEXT_TOO_LONG');
         }
 
-        return DB::transaction(function () use ($actor, $group, $formatVersion, $start, $end, $workFocus, $contextNote): PlanningRequest {
+        return DB::transaction(function () use ($actor, $group, $start, $end, $workFocus, $contextNote): PlanningRequest {
             $request = PlanningRequest::query()->create([
                 'owner_id' => $actor->id,
                 'group_id' => $group->id,
                 'curriculum_version_id' => $group->curriculum_version_id,
                 'grade_id' => $group->grade_id,
-                'format_version_id' => $formatVersion->id,
+                'format_version_id' => null,
                 'creation_mode' => 'quick',
                 'starts_on' => $start->toDateString(),
                 'ends_on' => $end->toDateString(),
@@ -104,11 +85,10 @@ final class StartPlanningExperiment
                     'entry_surface' => 'curricular_validation_v1',
                     'profile_reused' => true,
                     'session_minutes_known' => $group->profile?->session_minutes !== null,
-                    'format_version_id' => $formatVersion->id,
                 ],
             );
 
-            return $request->fresh(['group.profile', 'grade', 'curriculumVersion', 'formatVersion.format']) ?? $request;
+            return $request->fresh(['group.profile', 'grade', 'curriculumVersion']) ?? $request;
         }, attempts: 3);
     }
 
