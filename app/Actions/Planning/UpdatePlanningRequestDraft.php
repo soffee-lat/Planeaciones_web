@@ -2,7 +2,9 @@
 
 namespace App\Actions\Planning;
 
+use App\Enums\InstitutionalFormatStatus;
 use App\Enums\PlanningRequestStatus;
+use App\Models\FormatVersion;
 use App\Models\PlanningRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +48,7 @@ class UpdatePlanningRequestDraft
 
         $data = Validator::make($input, [
             'creation_mode' => ['nullable', 'string', 'in:quick,advanced'],
+            'format_version_id' => ['nullable', 'integer'],
             'starts_on' => ['nullable', 'date'],
             'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
             'period_label' => ['nullable', 'string', 'max:64'],
@@ -59,6 +62,29 @@ class UpdatePlanningRequestDraft
             'suggested_initial_assessment' => ['nullable', 'string', 'max:8000'],
             'requested_assessment' => ['nullable', 'string', 'max:8000'],
         ])->validate();
+
+        if (array_key_exists('format_version_id', $data) && $data['format_version_id'] !== null) {
+            $formatVersionId = (int) $data['format_version_id'];
+            $usable = FormatVersion::query()
+                ->whereKey($formatVersionId)
+                ->whereNotNull('published_at')
+                ->whereHas('format', function ($query) use ($actor): void {
+                    $query
+                        ->where('status', InstitutionalFormatStatus::Ready->value)
+                        ->where(function ($owner) use ($actor): void {
+                            $owner->whereNull('owner_id')->orWhere('owner_id', $actor->id);
+                        });
+                })
+                ->exists();
+
+            if (! $usable) {
+                throw ValidationException::withMessages([
+                    'format_version_id' => 'El formato seleccionado no está disponible para tu cuenta.',
+                ]);
+            }
+
+            $data['format_version_id'] = $formatVersionId;
+        }
 
         // Filament hidrata TextInput/Textarea vacíos como "" aunque PostgreSQL
         // conserve NULL. Ambos representan ausencia de dato y no deben provocar
