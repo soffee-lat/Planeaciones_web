@@ -23,6 +23,7 @@ class PlanningRequest extends Model
      */
     public const TRACKED_INPUT_FIELDS = [
         'creation_mode',
+        'format_version_id',
         'starts_on',
         'ends_on',
         'period_label',
