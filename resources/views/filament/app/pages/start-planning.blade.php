@@ -21,18 +21,30 @@
             </div>
         </div>
 
+        @if (! $hasProductionCurriculum)
+            <div class="pd-status-banner mb-4" style="border-color: rgba(245, 158, 11, .35); background: rgba(245, 158, 11, .08);">
+                <span class="pd-icon-tile" style="color: rgb(245 158 11); background: rgba(245, 158, 11, .12);">
+                    <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" />
+                </span>
+                <div>
+                    <div class="font-bold text-gray-950 dark:text-white">Falta activar el currículo oficial</div>
+                    <p class="mt-1 text-sm pd-muted">Las planeaciones reales ya no pueden generarse con contenidos, PDA o ejes de demostración. Un administrador debe publicar el catálogo SEP validado y después asignarlo al grupo.</p>
+                </div>
+            </div>
+        @endif
+
         <form wire:submit="start" class="planning-start__card">
             <div class="planning-start__body">
                 <div class="planning-start__grid">
                     <div class="planning-start__field--full">
                         <label for="planning-group" class="planning-start__label">Grupo</label>
-                        <select id="planning-group" wire:model.live="group_id" class="planning-start__control">
+                        <select id="planning-group" wire:model.live="group_id" class="planning-start__control" @disabled(! $hasProductionCurriculum)>
                             <option value="">Selecciona un grupo…</option>
                             @foreach ($groups as $id => $label)
                                 <option value="{{ $id }}">{{ $label }}</option>
                             @endforeach
                         </select>
-                        <p class="planning-start__help">El grado, currículo y perfil pedagógico se tomarán de este grupo.</p>
+                        <p class="planning-start__help">Sólo aparecen grupos con perfil completo y un currículo publicado apto para planeaciones reales.</p>
                         @error('group_id') <p class="planning-start__error">{{ $message }}</p> @enderror
                     </div>
 
@@ -85,7 +97,7 @@
 
             <div class="planning-start__footer">
                 <p class="planning-start__footer-note">En el siguiente paso revisarás contenidos, PDA y ejes. El formato se elegirá sólo cuando la planeación esté lista para exportarse.</p>
-                <x-filament::button type="submit" size="lg" icon="heroicon-o-arrow-right" icon-position="after" wire:loading.attr="disabled">
+                <x-filament::button type="submit" size="lg" icon="heroicon-o-arrow-right" icon-position="after" wire:loading.attr="disabled" :disabled="! $hasProductionCurriculum">
                     <span wire:loading.remove>Continuar con el currículo</span>
                     <span wire:loading>Preparando…</span>
                 </x-filament::button>
