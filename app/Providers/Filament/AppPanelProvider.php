@@ -6,7 +6,7 @@ class AppPanelProvider extends BasePanelProvider {
     public function panel(Panel $panel): Panel {
         return $this->base($panel)->id('app')->path('app')
             ->brandName('Planeaciones · Docentes')
-            ->colors(['primary' => Color::Teal])
+            ->colors(['primary' => Color::Blue])
             ->default()->registration(\App\Filament\Auth\Register::class)
             ->pages([
                 \App\Filament\App\Pages\Dashboard::class,
