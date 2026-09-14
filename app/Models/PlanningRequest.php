@@ -19,8 +19,8 @@ class PlanningRequest extends Model
      * `input_revision`. selecciones curriculares (pivotes) se manejan por
      * separado y también incrementan la revisión vía SyncPlanningRequestSelections.
      *
-     * `format_version_id` NO pertenece aquí: desde Standard v2 el formato es
-     * una elección de exportación posterior a la aprobación pedagógica.
+     * `format_version_id` no pertenece al input pedagógico: desde Standard v2
+     * es una elección de exportación posterior a la aprobación.
      *
      * @var list<string>
      */
@@ -180,7 +180,7 @@ class PlanningRequest extends Model
 
     public function inputVersions(): HasMany
     {
-        return $this->hasMany(RequestInputVersion::class, 'request_id')->orderBy('revision');
+        return $this->hasMany(RequestInputVersion::class, 'request_id');
     }
 
     public function currentInputVersion(): BelongsTo
@@ -188,29 +188,29 @@ class PlanningRequest extends Model
         return $this->belongsTo(RequestInputVersion::class, 'current_version_id');
     }
 
-    public function formatVersion(): BelongsTo
-    {
-        return $this->belongsTo(FormatVersion::class, 'format_version_id');
-    }
-
     public function stateEvents(): HasMany
     {
-        return $this->hasMany(RequestStateEvent::class, 'request_id')->orderBy('id');
+        return $this->hasMany(RequestStateEvent::class, 'request_id');
     }
 
     public function productEvents(): HasMany
     {
-        return $this->hasMany(ProductEvent::class, 'planning_request_id')->orderBy('id');
+        return $this->hasMany(ProductEvent::class, 'planning_request_id');
     }
 
-    public function blocks(): HasMany
+    public function feedback(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
-        return $this->hasMany(RequestBlock::class, 'request_id')->orderBy('id');
+        return $this->hasOne(PlanningFeedback::class, 'planning_request_id');
     }
 
     public function aiExecutions(): HasMany
     {
-        return $this->hasMany(AiExecution::class, 'request_id')->orderBy('id');
+        return $this->hasMany(AiExecution::class, 'request_id');
+    }
+
+    public function formatVersion(): BelongsTo
+    {
+        return $this->belongsTo(FormatVersion::class, 'format_version_id');
     }
 
     public function document(): \Illuminate\Database\Eloquent\Relations\HasOne
@@ -220,32 +220,64 @@ class PlanningRequest extends Model
 
     public function documentRenderRuns(): HasMany
     {
-        return $this->hasMany(DocumentRenderRun::class, 'request_id')->orderBy('id');
+        return $this->hasMany(DocumentRenderRun::class, 'request_id');
     }
 
     public function deliveries(): HasMany
     {
-        return $this->hasMany(PlanningDelivery::class, 'request_id')->orderBy('id');
+        return $this->hasMany(PlanningDelivery::class, 'request_id')->orderByDesc('delivered_at');
     }
 
     public function correctionRequests(): HasMany
     {
-        return $this->hasMany(CorrectionRequest::class, 'request_id')->orderBy('id');
+        return $this->hasMany(CorrectionRequest::class, 'request_id')->orderByDesc('requested_at');
     }
 
-    public function feedback(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function blocks(): HasMany
     {
-        return $this->hasOne(PilotFeedback::class, 'request_id');
+        return $this->hasMany(RequestBlock::class, 'request_id');
     }
 
-    public function scopeOwnedBy(Builder $query, User|int $owner): Builder
+    public function approvals(): HasMany
     {
-        $ownerId = $owner instanceof User ? $owner->id : $owner;
-        return $query->where('owner_id', $ownerId);
+        return $this->hasMany(Approval::class, 'request_id');
+    }
+
+    public function reviewAssignments(): HasMany
+    {
+        return $this->hasMany(ReviewerAssignment::class, 'request_id');
+    }
+
+    public function humanReviews(): HasMany
+    {
+        return $this->hasMany(HumanReview::class, 'request_id');
     }
 
     public function isDraft(): bool
     {
         return $this->status === PlanningRequestStatus::BORRADOR;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->status !== PlanningRequestStatus::BORRADOR
+            && $this->status !== PlanningRequestStatus::CANCELADA;
+    }
+
+    public function hasConfirmedCurriculumMap(): bool
+    {
+        return $this->curriculum_confirmed_at !== null
+            && is_string($this->curriculum_selection_fingerprint)
+            && preg_match('/^[0-9a-f]{64}$/', $this->curriculum_selection_fingerprint) === 1;
+    }
+
+    public function scopeOwnedBy(Builder $query, int $userId): Builder
+    {
+        return $query->where('owner_id', $userId);
+    }
+
+    public function scopeDrafts(Builder $query): Builder
+    {
+        return $query->where('status', PlanningRequestStatus::BORRADOR->value);
     }
 }
