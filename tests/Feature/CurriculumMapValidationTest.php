@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Documents\EnsureStandardFormat;
 use App\Actions\Planning\StartPlanningExperiment;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
 use App\Enums\ProductEventType;
+use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Models\Pda;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
 use App\Services\Planning\CurriculumMapService;
@@ -20,7 +23,7 @@ class CurriculumMapValidationTest extends PedagogyTestCase
 
         $this->actingAs($ctx['user']);
         $url = route('planning.curriculum-map', $request);
-        $this->get($url)->assertOk()->assertSee('Mapa curricular')->assertSee('Estas son las conexiones que encontramos');
+        $this->get($url)->assertOk()->assertSee('Estas son las conexiones que encontramos');
         $this->get($url)->assertOk();
 
         $this->assertSame(1, ProductEvent::query()
@@ -169,7 +172,27 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertNull($confirmed->comments);
     }
 
-    public function test_http_accept_all_and_confirm_route_reaches_existing_summary_flow(): void
+    public function test_batch_catalog_add_accepts_multiple_selections_in_one_request(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $request = $this->startRequest($ctx);
+        $service = app(CurriculumMapService::class);
+        $state = $service->state($ctx['user'], $request, false);
+        $pdaId = (int) array_key_first($state['catalog']['pdas']);
+        $pda = Pda::query()->findOrFail($pdaId);
+
+        $this->actingAs($ctx['user']);
+        $response = $this->post(route('planning.curriculum-map.add', $request), [
+            'pda_ids' => [$pdaId],
+        ]);
+
+        $response->assertRedirect();
+        $after = $service->state($ctx['user'], $request, false);
+        $this->assertContains($pdaId, $after['selected']['pdas']);
+        $this->assertContains((int) $pda->curricular_content_id, $after['selected']['contents']);
+    }
+
+    public function test_http_confirm_skips_duplicate_edit_wizard_and_goes_to_tracking_view(): void
     {
         $ctx = $this->seedFullTeacher();
         $request = $this->startRequest($ctx);
@@ -179,18 +202,21 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->post(route('planning.curriculum-map.accept-all', $request))->assertRedirect();
         $response = $this->post(route('planning.curriculum-map.confirm', $request));
 
-        $response->assertRedirect();
         $request->refresh();
         $this->assertTrue($request->hasConfirmedCurriculumMap());
-        $this->assertStringContainsString('/app/planning-requests/', $response->headers->get('Location'));
+        $this->assertTrue($request->isConfirmed());
+        $response->assertRedirect(PlanningRequestResource::getUrl('view', ['record' => $request->id]));
     }
 
     /** @param array<string,mixed> $ctx */
     private function startRequest(array $ctx): PlanningRequest
     {
+        $format = app(EnsureStandardFormat::class)->execute()['version'];
+
         return app(StartPlanningExperiment::class)->execute(
             $ctx['user'],
             $ctx['group']->id,
+            $format->id,
             now()->addDay()->format('Y-m-d'),
             now()->addDays(5)->format('Y-m-d'),
             'Contenido demo',
