@@ -34,7 +34,7 @@ final class InstitutionalFormatDesignerController
             }
         }
 
-        return view('institutional-formats.designer-structures', [
+        return view('institutional-formats.designer-composed', [
             'format' => $format,
             'version' => $version,
             'analysis' => $analysis,
