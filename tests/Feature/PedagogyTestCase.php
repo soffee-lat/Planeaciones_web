@@ -66,26 +66,84 @@ abstract class PedagogyTestCase extends TestCase
             'label' => 'TEST-PUBLISHED-1',
             'source_reference' => 'fixture://pedagogy-test/published-v1',
         ]);
-        $phaseA = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-A']);
-        $phaseB = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-B']);
-        $gradeA = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseA->id, 'code' => 'GR-A', 'ordinal' => 1]);
-        $gradeB = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseB->id, 'code' => 'GR-B', 'ordinal' => 2]);
-        $field = FormativeField::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'FF-1']);
+
+        $phaseA = EducationalPhase::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'code' => 'PH-A',
+            'name' => 'Fase de prueba A',
+            'description' => 'Primera fase del fixture automatizado.',
+        ]);
+        $phaseB = EducationalPhase::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'code' => 'PH-B',
+            'name' => 'Fase de prueba B',
+            'description' => 'Segunda fase del fixture automatizado.',
+        ]);
+
+        $gradeA = Grade::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'educational_phase_id' => $phaseA->id,
+            'code' => 'GR-A',
+            'name' => 'Primer grado de prueba',
+            'ordinal' => 1,
+        ]);
+        $gradeB = Grade::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'educational_phase_id' => $phaseB->id,
+            'code' => 'GR-B',
+            'name' => 'Segundo grado de prueba',
+            'ordinal' => 2,
+        ]);
+
+        $field = FormativeField::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'code' => 'FF-1',
+            'name' => 'Lenguajes de prueba',
+            'description' => 'Campo curricular del fixture automatizado.',
+        ]);
+
         $contentA = CurricularContent::factory()->create([
             'curriculum_version_id' => $version->id,
             'educational_phase_id' => $phaseA->id,
             'formative_field_id' => $field->id,
             'code' => 'CT-A',
+            'title' => 'Comunicación oral y escrita',
+            'full_text' => 'Contenido curricular de prueba para validar el flujo canónico de planeación.',
+            'source_locator' => 'fixture://pedagogy-test/content-a',
         ]);
         $contentB = CurricularContent::factory()->create([
             'curriculum_version_id' => $version->id,
             'educational_phase_id' => $phaseB->id,
             'formative_field_id' => $field->id,
             'code' => 'CT-B',
+            'title' => 'Comprensión y producción de textos',
+            'full_text' => 'Segundo contenido curricular de prueba para validar relaciones entre fase y grado.',
+            'source_locator' => 'fixture://pedagogy-test/content-b',
         ]);
-        Pda::factory()->create(['curriculum_version_id' => $version->id, 'curricular_content_id' => $contentA->id, 'grade_id' => $gradeA->id, 'code' => 'PDA-A']);
-        Pda::factory()->create(['curriculum_version_id' => $version->id, 'curricular_content_id' => $contentB->id, 'grade_id' => $gradeB->id, 'code' => 'PDA-B']);
-        ArticulatingAxis::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'AX-1']);
+
+        Pda::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'curricular_content_id' => $contentA->id,
+            'grade_id' => $gradeA->id,
+            'code' => 'PDA-A',
+            'full_text' => 'Expresa ideas y recupera información relevante en actividades de comunicación.',
+            'source_locator' => 'fixture://pedagogy-test/pda-a',
+        ]);
+        Pda::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'curricular_content_id' => $contentB->id,
+            'grade_id' => $gradeB->id,
+            'code' => 'PDA-B',
+            'full_text' => 'Organiza información y produce textos acordes con una situación comunicativa.',
+            'source_locator' => 'fixture://pedagogy-test/pda-b',
+        ]);
+
+        ArticulatingAxis::factory()->create([
+            'curriculum_version_id' => $version->id,
+            'code' => 'AX-1',
+            'name' => 'Pensamiento crítico de prueba',
+            'description' => 'Eje del fixture automatizado para validar selección curricular.',
+        ]);
 
         app(PublishCurriculumVersion::class)($version, $admin);
         $curriculum->fill(['selectable_version_id' => $version->id])->save();
@@ -97,8 +155,19 @@ abstract class PedagogyTestCase extends TestCase
             'label' => 'TEST-DRAFT-2',
             'source_reference' => 'fixture://pedagogy-test/draft-v2',
         ]);
-        $draftPhase = EducationalPhase::factory()->create(['curriculum_version_id' => $draft->id, 'code' => 'PH-D']);
-        $draftGrade = Grade::factory()->create(['curriculum_version_id' => $draft->id, 'educational_phase_id' => $draftPhase->id, 'code' => 'GR-D', 'ordinal' => 1]);
+        $draftPhase = EducationalPhase::factory()->create([
+            'curriculum_version_id' => $draft->id,
+            'code' => 'PH-D',
+            'name' => 'Fase borrador de prueba',
+            'description' => 'Fase usada exclusivamente en pruebas negativas de publicación.',
+        ]);
+        $draftGrade = Grade::factory()->create([
+            'curriculum_version_id' => $draft->id,
+            'educational_phase_id' => $draftPhase->id,
+            'code' => 'GR-D',
+            'name' => 'Grado borrador de prueba',
+            'ordinal' => 1,
+        ]);
 
         return [
             'curriculum' => $curriculum->refresh(),
