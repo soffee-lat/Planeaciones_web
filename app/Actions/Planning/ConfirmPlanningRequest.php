@@ -8,6 +8,7 @@ use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
 use App\Models\User;
+use App\Services\Curriculum\ProductionCurriculumPolicy;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use RuntimeException;
@@ -83,6 +84,9 @@ class ConfirmPlanningRequest
         if (! $profile || ! $profile->isSufficient()) {
             throw new RuntimeException('PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT');
         }
+
+        $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
+        app(ProductionCurriculumPolicy::class)->assertPlanningEligible($version);
 
         $contents = $r->contents()->get(['curricular_contents.id', 'code']);
         if ($contents->isEmpty()) {
@@ -173,11 +177,14 @@ class ConfirmPlanningRequest
                     'id' => $version->curriculum?->id,
                     'code' => $version->curriculum?->code,
                     'name' => $version->curriculum?->name,
+                    'country_code' => $version->curriculum?->country_code,
+                    'educational_level' => $version->curriculum?->educational_level,
                 ],
                 'version' => [
                     'id' => $version->id,
                     'number' => $version->number,
                     'label' => $version->label,
+                    'source_reference' => $version->source_reference,
                     'checksum' => $version->checksum,
                     'published_at' => $version->published_at?->toIso8601String(),
                 ],
@@ -198,6 +205,7 @@ class ConfirmPlanningRequest
                     'code' => $c->code,
                     'title' => $c->title,
                     'full_text' => $c->full_text,
+                    'source_locator' => $c->source_locator,
                     'phase_code' => $c->educationalPhase?->code,
                     'field_code' => $c->formativeField?->code,
                 ])->all(),
@@ -205,6 +213,7 @@ class ConfirmPlanningRequest
                     'id' => $p->id,
                     'code' => $p->code,
                     'full_text' => $p->full_text,
+                    'source_locator' => $p->source_locator,
                     'content_id' => $p->curricular_content_id,
                     'grade_id' => $p->grade_id,
                 ])->all(),
