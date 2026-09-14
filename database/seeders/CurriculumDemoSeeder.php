@@ -40,7 +40,13 @@ class CurriculumDemoSeeder extends Seeder
 
         $v1 = $this->buildVersion($curriculum, 1, 'DEMO-1', textSuffix: 'v1');
         app(PublishCurriculumVersion::class)($v1, $actor);
-        $curriculum->fill(['selectable_version_id' => $v1->id])->save();
+
+        // El catálogo demo sigue disponible para fixtures automatizados, pero
+        // una instalación local de la app no debe ofrecerlo a docentes como
+        // si fuera un currículo real.
+        $curriculum->fill([
+            'selectable_version_id' => app()->environment('testing') ? $v1->id : null,
+        ])->save();
 
         $this->buildVersion($curriculum, 2, 'DEMO-2', textSuffix: 'v2 (borrador)');
     }
