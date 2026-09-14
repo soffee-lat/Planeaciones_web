@@ -2,10 +2,10 @@
   "schema_version": "draft-1",
   "note": "Contrato de trabajo provisional. Ajustar al schema exacto que entregue la implementación de Subfase 2A antes de importar datos reales.",
   "curriculum": {
-    "code": "MX-NEM-PRIMARY",
+    "code": "MX-NEM-PRIMARIA",
     "name": "Educación Primaria — Nueva Escuela Mexicana",
     "country_code": "MX",
-    "educational_level": "primary",
+    "educational_level": "primaria",
     "description": "Catálogo curricular estructurado para primaria."
   },
   "version": {
@@ -18,9 +18,9 @@
         "Acuerdo 08/08/23"
       ],
       "phase_sources": {
-        "F3": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_3.pdf",
-        "F4": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_4.pdf",
-        "F5": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_5.pdf"
+        "F3": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_3.pdf",
+        "F4": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_4.pdf",
+        "F5": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_5.pdf"
       }
     },
     "effective_from": null,
