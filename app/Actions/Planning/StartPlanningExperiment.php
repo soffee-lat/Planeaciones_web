@@ -10,12 +10,16 @@ use App\Models\GroupProfile;
 use App\Models\PlanningRequest;
 use App\Models\User;
 use App\Services\Analytics\ProductEventRecorder;
+use App\Services\Curriculum\ProductionCurriculumPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class StartPlanningExperiment
 {
-    public function __construct(private ProductEventRecorder $events) {}
+    public function __construct(
+        private ProductEventRecorder $events,
+        private ProductionCurriculumPolicy $curriculumPolicy,
+    ) {}
 
     public function execute(
         User $actor,
@@ -28,7 +32,7 @@ final class StartPlanningExperiment
         $this->assertActor($actor);
 
         $group = Group::query()
-            ->with(['profile', 'curriculumVersion'])
+            ->with(['profile', 'curriculumVersion.curriculum'])
             ->where('owner_id', $actor->id)
             ->whereNull('archived_at')
             ->whereHas('profile', function ($query): void {
@@ -41,6 +45,18 @@ final class StartPlanningExperiment
 
         if (! $group) {
             throw new \RuntimeException('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
+        }
+
+        if (! $group->curriculumVersion) {
+            throw new \RuntimeException('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
+        }
+        try {
+            $this->curriculumPolicy->assertPlanningEligible($group->curriculumVersion);
+        } catch (\RuntimeException $error) {
+            if ($error->getMessage() === ProductionCurriculumPolicy::NOT_READY) {
+                throw new \RuntimeException('PLANNING_EXPERIMENT_CURRICULUM_NOT_PRODUCTION_READY');
+            }
+            throw $error;
         }
 
         try {
