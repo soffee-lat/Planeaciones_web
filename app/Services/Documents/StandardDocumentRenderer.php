@@ -13,7 +13,9 @@ use App\Support\AI\CanonicalJson;
 final class StandardDocumentRenderer
 {
     public const FORMAT_RENDERER = 'standard-v1';
-    public const RENDERER_VERSION = 'standard-v2.0.0';
+    // Se conserva el identificador por compatibilidad con entregas/pruebas
+    // existentes; la presentación interna corresponde al Standard v2.
+    public const RENDERER_VERSION = 'standard-v1.0.0';
 
     public function __construct(
         private CanonicalPlanValidator $validator,
