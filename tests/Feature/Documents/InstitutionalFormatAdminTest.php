@@ -54,6 +54,29 @@ class InstitutionalFormatAdminTest extends PedagogyTestCase
             ->assertSee('Se usará como referencia semántica, no como texto para copiar.');
     }
 
+    public function test_disenador_estructural_compone_extension_dentro_de_html_valido(): void
+    {
+        $owner = $this->customer();
+        $version = $this->analyzedInstitutional($owner->id, [], true);
+
+        $response = $this->actingAs($owner)
+            ->get(route('institutional-formats.designer', $version->format_id))
+            ->assertOk();
+
+        $html = $response->getContent();
+        $bodyEnd = strripos($html, '</body>');
+        $htmlEnd = strripos($html, '</html>');
+        $structureExtension = strpos($html, '.structure-mode #viewer');
+
+        $this->assertSame(1, substr_count(strtolower($html), '</html>'));
+        $this->assertNotFalse($bodyEnd);
+        $this->assertNotFalse($htmlEnd);
+        $this->assertNotFalse($structureExtension);
+        $this->assertLessThan($bodyEnd, $structureExtension);
+        $this->assertLessThan($htmlEnd, $bodyEnd);
+        $this->assertSame('</html>', strtolower(substr(trim($html), -7)));
+    }
+
     public function test_cliente_crea_su_propio_borrador_privado(): void
     {
         Storage::fake('private');
