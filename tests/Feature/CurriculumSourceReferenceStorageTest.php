@@ -14,9 +14,10 @@ class CurriculumSourceReferenceStorageTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dry_run_accepts_long_structured_source_reference(): void
+    public function test_dry_run_accepts_long_structured_source_reference_and_content_title(): void
     {
         $actor = User::factory()->withRole(RoleCode::Administrator)->create();
+        $longTitle = str_repeat('Contenido curricular oficial extenso ', 10);
 
         $payload = [
             'schema_version' => 1,
@@ -55,8 +56,8 @@ class CurriculumSourceReferenceStorageTest extends TestCase
             'curricular_contents' => [
                 [
                     'code' => 'F3-LEN-C001',
-                    'title' => 'Contenido técnico',
-                    'full_text' => 'Contenido técnico para validar el almacenamiento.',
+                    'title' => $longTitle,
+                    'full_text' => $longTitle,
                     'phase_code' => 'F3',
                     'field_code' => 'LEN',
                     'source_locator' => 'Programa Sintético Fase 3, Lenguajes, p. 24',
@@ -81,6 +82,8 @@ class CurriculumSourceReferenceStorageTest extends TestCase
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         );
         $this->assertGreaterThan(255, strlen($serialized));
+        $this->assertGreaterThan(255, mb_strlen($longTitle));
+        $this->assertLessThanOrEqual(1024, mb_strlen($longTitle));
 
         $report = app(CurriculumImportService::class)->import($payload, $actor, dryRun: true);
 
