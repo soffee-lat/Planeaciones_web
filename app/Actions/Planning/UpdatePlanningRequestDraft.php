@@ -20,6 +20,20 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdatePlanningRequestDraft
 {
+    /** @var list<string> */
+    private const NULLABLE_TEXT_FIELDS = [
+        'period_label',
+        'project',
+        'topic',
+        'book_pages',
+        'required_activities',
+        'special_events',
+        'comments',
+        'pedagogical_notes',
+        'suggested_initial_assessment',
+        'requested_assessment',
+    ];
+
     public function execute(User $actor, PlanningRequest $request, array $input): PlanningRequest
     {
         Gate::forUser($actor)->authorize('update', $request);
@@ -45,6 +59,17 @@ class UpdatePlanningRequestDraft
             'suggested_initial_assessment' => ['nullable', 'string', 'max:8000'],
             'requested_assessment' => ['nullable', 'string', 'max:8000'],
         ])->validate();
+
+        // Filament hidrata TextInput/Textarea vacíos como "" aunque PostgreSQL
+        // conserve NULL. Ambos representan ausencia de dato y no deben provocar
+        // una revisión falsa ni invalidar un mapa curricular recién confirmado.
+        foreach (self::NULLABLE_TEXT_FIELDS as $field) {
+            if (array_key_exists($field, $data)
+                && is_string($data[$field])
+                && trim($data[$field]) === '') {
+                $data[$field] = null;
+            }
+        }
 
         return DB::transaction(function () use ($request, $data) {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($request->id);
