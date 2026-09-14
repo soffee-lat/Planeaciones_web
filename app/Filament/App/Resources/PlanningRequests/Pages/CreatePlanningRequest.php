@@ -26,6 +26,14 @@ class CreatePlanningRequest extends CreateRecord
             throw ValidationException::withMessages(['group_id' => 'Ese grupo no pertenece a tu cuenta o está archivado.']);
         }
 
+        $formatVersionId = (int) ($data['format_version_id'] ?? 0);
+        if ($formatVersionId < 1 || ! array_key_exists($formatVersionId, PlanningRequestResource::formatVersionOptions())) {
+            throw ValidationException::withMessages([
+                'format_version_id' => 'Selecciona un formato de salida disponible para tu cuenta.',
+            ]);
+        }
+        $data['format_version_id'] = $formatVersionId;
+
         $contents = Arr::pull($data, 'selected_contents', []);
         $pdas = Arr::pull($data, 'selected_pdas', []);
         $axes = Arr::pull($data, 'selected_axes', []);
