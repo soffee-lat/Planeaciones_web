@@ -2,8 +2,12 @@
 
 namespace App\Actions\Planning;
 
+use App\Enums\InstitutionalFormatKind;
+use App\Enums\InstitutionalFormatStatus;
 use App\Enums\PlanningRequestStatus;
+use App\Models\FormatVersion;
 use App\Models\GroupProfile;
+use App\Models\InstitutionalFormat;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
@@ -27,6 +31,8 @@ use RuntimeException;
  *  - PLANNING_REQUEST_ALREADY_CONFIRMED
  *  - PLANNING_REQUEST_MISSING_DATES
  *  - PLANNING_REQUEST_MISSING_TOPIC
+ *  - PLANNING_REQUEST_FORMAT_NOT_USABLE
+ *  - PLANNING_REQUEST_FORMAT_REQUIRED
  *  - PLANNING_REQUEST_NO_CONTENT_SELECTED
  *  - PLANNING_REQUEST_NO_PDA_SELECTED
  *  - PLANNING_REQUEST_CONTENT_WITHOUT_PDA:<code>
@@ -88,6 +94,39 @@ class ConfirmPlanningRequest
         }
         if (! trim((string) ($r->project ?? '')) && ! trim((string) ($r->topic ?? ''))) {
             throw new RuntimeException('PLANNING_REQUEST_MISSING_TOPIC');
+        }
+
+        if ($r->format_version_id !== null) {
+            $usable = FormatVersion::query()
+                ->whereKey((int) $r->format_version_id)
+                ->whereNotNull('published_at')
+                ->whereHas('format', function ($query) use ($r): void {
+                    $query
+                        ->where('status', InstitutionalFormatStatus::Ready->value)
+                        ->where(function ($owner) use ($r): void {
+                            $owner->whereNull('owner_id')->orWhere('owner_id', $r->owner_id);
+                        });
+                })
+                ->exists();
+
+            if (! $usable) {
+                throw new RuntimeException('PLANNING_REQUEST_FORMAT_NOT_USABLE');
+            }
+        } else {
+            $r->loadMissing('group.profile');
+            $hasPreferred = $r->group?->profile?->preferred_format_id !== null;
+            $hasInstitutionalFormat = InstitutionalFormat::query()
+                ->where('kind', InstitutionalFormatKind::Institutional->value)
+                ->where('status', InstitutionalFormatStatus::Ready->value)
+                ->where(function ($owner) use ($r): void {
+                    $owner->whereNull('owner_id')->orWhere('owner_id', $r->owner_id);
+                })
+                ->whereHas('publishedVersions')
+                ->exists();
+
+            if (! $hasPreferred && $hasInstitutionalFormat) {
+                throw new RuntimeException('PLANNING_REQUEST_FORMAT_REQUIRED');
+            }
         }
 
         $group = $r->group()->with('profile')->firstOrFail();
@@ -168,6 +207,7 @@ class ConfirmPlanningRequest
                 'suggested_initial_assessment' => $r->suggested_initial_assessment,
                 'requested_assessment' => $r->requested_assessment,
                 'creation_mode' => $r->creation_mode,
+                'format_version_id' => $r->format_version_id,
             ],
             'group' => [
                 'id' => $group->id,
