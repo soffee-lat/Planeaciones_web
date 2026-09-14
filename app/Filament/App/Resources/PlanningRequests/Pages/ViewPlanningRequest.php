@@ -38,7 +38,11 @@ class ViewPlanningRequest extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Seguimiento')->schema([
+            View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
+                'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
+            ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
+
+            Section::make('Información general')->schema([
                 TextEntry::make('project')->label('Tema o proyecto'),
                 TextEntry::make('status')->label('Estado')->state(fn () => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->status($this->getRecord())),
                 TextEntry::make('group.name')->label('Grupo'),
@@ -74,10 +78,6 @@ class ViewPlanningRequest extends ViewRecord
                 })
                 ->visible(fn () => $this->currentVersion() !== null)
                 ->columnSpanFull(),
-
-            View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
-                'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
-            ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
 
             View::make('filament.app.planning-requests.pilot-feedback')
                 ->viewData(fn (): array => [
