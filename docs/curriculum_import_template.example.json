@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "curriculum": {
-    "code": "MX-NEM-PRIMARY",
+    "code": "MX-NEM-PRIMARIA",
     "name": "Educación Primaria — Nueva Escuela Mexicana",
     "country_code": "MX",
-    "educational_level": "primary",
-    "description": "Catálogo curricular estructurado para primaria. Los códigos son internos de la plataforma."
+    "educational_level": "primaria",
+    "description": "Catálogo curricular estructurado para primaria con trazabilidad a los Programas Sintéticos oficiales de la SEP. Los códigos son internos de la plataforma."
   },
   "version": {
     "number": 1,
@@ -17,9 +17,9 @@
         "Acuerdo 08/08/23"
       ],
       "phase_sources": {
-        "F3": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_3.pdf",
-        "F4": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_4.pdf",
-        "F5": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/09/Programa_Sintetico_Fase_5.pdf"
+        "F3": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_3.pdf",
+        "F4": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_4.pdf",
+        "F5": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase_5.pdf"
       }
     },
     "effective_from": null,
