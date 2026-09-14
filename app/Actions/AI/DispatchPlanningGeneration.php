@@ -69,9 +69,6 @@ final class DispatchPlanningGeneration
                 return $existing;
             }
 
-            // Reporta un error de dominio estable antes de delegar a la máquina
-            // de estados. Esto evita convertir un borrador o una solicitud aún
-            // pendiente de activación en un error genérico de consola.
             if ($fresh->status !== PlanningRequestStatus::LISTA_PARA_PROCESAR
                 || $fresh->commercial_authorized_at === null
                 || $fresh->current_version_id === null
@@ -100,8 +97,6 @@ final class DispatchPlanningGeneration
             if (! $prompt) {
                 throw new AiPipelineException('AI_GENERATION_ACTIVE_PROMPT_INVALID');
             }
-            // Toda configuración se valida antes del consumo irreversible de
-            // planning_units. Un prompt roto nunca debe cobrar una generación.
             $this->promptPolicy->assertReady($prompt);
 
             $operationKey = sprintf(
@@ -117,9 +112,6 @@ final class DispatchPlanningGeneration
             }
 
             $input = $this->inputBuilder->build($fresh, $prompt, $correlationId, $operationKey);
-            $resolvedFormatVersionId = isset($input->formatContext['format_version_id'])
-                ? (int) $input->formatContext['format_version_id']
-                : null;
 
             /** @var UsageReservation|null $planningReservation */
             $planningReservation = UsageReservation::query()
@@ -140,7 +132,7 @@ final class DispatchPlanningGeneration
             /** @var AiExecution $execution */
             $execution = AiExecution::query()->create([
                 'request_id' => $fresh->id,
-                'format_version_id' => $resolvedFormatVersionId,
+                'format_version_id' => null,
                 'stage' => AiExecutionStage::Generation->value,
                 'mode' => $mode->value,
                 'provider' => null,
@@ -165,7 +157,6 @@ final class DispatchPlanningGeneration
             ]);
 
             $fresh->forceFill([
-                'format_version_id' => $resolvedFormatVersionId,
                 'status' => PlanningRequestStatus::GENERACION_IA->value,
                 'lock_version' => (int) $fresh->lock_version + 1,
             ])->save();
