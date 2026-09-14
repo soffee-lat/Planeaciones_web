@@ -31,10 +31,9 @@ if (-not (Test-Path $venvPython)) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-# Do not try `import fitz` directly here. On Windows PowerShell 5.1 a failed
-# native import writes a traceback to stderr, which becomes NativeCommandError
-# because ErrorActionPreference is Stop before we can inspect LASTEXITCODE.
-& $venvPython -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('fitz') else 1)"
+# Avoid a failing native import under Windows PowerShell 5.1 because stderr
+# would be promoted to NativeCommandError before LASTEXITCODE can be checked.
+& $venvPython -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('pymupdf') or importlib.util.find_spec('fitz') else 1)"
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Instalando PyMuPDF en el entorno aislado...'
     & $venvPython -m pip install --disable-pip-version-check 'PyMuPDF>=1.24,<2'
@@ -42,7 +41,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host 'Extrayendo contenidos y PDA desde los Programas Sinteticos oficiales de la SEP...'
-& $venvPython (Join-Path $repoRoot 'tools\build_official_primary_curriculum.py')
+& $venvPython (Join-Path $repoRoot 'tools\curriculum_table_extractor_v2.py')
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -eq 0) {
