@@ -4,8 +4,9 @@ namespace App\Filament\App\Pages;
 
 use App\Actions\Planning\StartPlanningExperiment;
 use App\Enums\RoleCode;
-use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\Group;
+use App\Models\GroupProfile;
+use App\Services\Curriculum\ProductionCurriculumPolicy;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Validation\ValidationException;
@@ -36,8 +37,24 @@ class StartPlanning extends Page
 
     protected function getViewData(): array
     {
+        $eligibleVersionIds = app(ProductionCurriculumPolicy::class)->selectableVersionIds();
+
+        $groups = Group::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->whereIn('curriculum_version_id', $eligibleVersionIds)
+            ->whereHas('profile', function ($query): void {
+                foreach (GroupProfile::REQUIRED_FOR_COMPLETENESS as $column) {
+                    $query->whereNotNull($column);
+                }
+            })
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
         return [
-            'groups' => PlanningRequestResource::eligibleGroupOptions(),
+            'groups' => $groups,
+            'hasProductionCurriculum' => $eligibleVersionIds !== [],
         ];
     }
 
@@ -50,7 +67,7 @@ class StartPlanning extends Page
         return Group::query()
             ->where('owner_id', auth()->id())
             ->whereNull('archived_at')
-            ->with(['grade', 'profile'])
+            ->with(['grade', 'profile', 'curriculumVersion.curriculum'])
             ->find($this->group_id);
     }
 
@@ -83,6 +100,11 @@ class StartPlanning extends Page
             if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
                 throw ValidationException::withMessages([
                     'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil pedagógico.',
+                ]);
+            }
+            if ($e->getMessage() === 'PLANNING_EXPERIMENT_CURRICULUM_NOT_PRODUCTION_READY') {
+                throw ValidationException::withMessages([
+                    'group_id' => 'Este grupo todavía usa un currículo de demostración o no validado. Selecciona el currículo oficial publicado y el grado correcto en Mis grupos.',
                 ]);
             }
             throw $e;
