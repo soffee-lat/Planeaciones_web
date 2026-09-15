@@ -1,76 +1,187 @@
-# Arquitectura comercial
+# Arquitectura vigente
 
-Fecha: 2026-09-07. Diseño previo al código. La especificación comercial actual sustituye el alcance anterior de administrador único; originales preservados en docs/legacy.
+Actualizado: 2026-09-15.
 
-## Decisiones y discrepancias
+Este documento describe la arquitectura actual de Planeaciones_web. Las descripciones históricas de fases cerradas quedan en Git y en los documentos de cierre; no deben competir con esta especificación.
 
-Monolito modular Laravel 13, PHP 8.4, Filament 5, PostgreSQL y queues. Tres paneles independientes: /app, /review y /admin. Eloquent, acciones transaccionales, Policies y contratos de integración; sin microservicios, repositorios genéricos ni bases por docente. El propietario es el usuario cliente; organizaciones escolares compartidas quedan fuera.
+## Plataforma
 
-Laravel 13 exige PHP >=8.3: https://laravel.com/docs/13.x/releases . Filament 5 documenta PHP >=8.2, Laravel >=11.28 y Tailwind >=4.1: https://filamentphp.com/docs/5.x/introduction/installation . Consultado el 2026-09-07. Composer y pruebas deben confirmar compatibilidad efectiva y fijar lockfiles en fase 1; no se ha instalado software en esta etapa.
+Monolito modular:
 
-| Inconsistencia o ambigüedad | Decisión propuesta |
+- Laravel 13.
+- PHP 8.4.
+- Filament 5.
+- PostgreSQL como única base de datos.
+- queues y outbox para trabajo asíncrono.
+- almacenamiento privado para insumos y entregables.
+
+Tres paneles aislados:
+
+- `/app`: docente cliente.
+- `/review`: docente revisor.
+- `/admin`: administración.
+
+No hay microservicios, bases por docente ni lógica de negocio repartida entre controladores. La UI invoca acciones/servicios; las acciones autorizan, validan y transaccionan; PostgreSQL protege invariantes críticas.
+
+## Decisión arquitectónica central
+
+La generación pedagógica es independiente del formato de exportación.
+
+```text
+Contexto docente
+    +
+Solicitud
+    +
+Currículo confirmado
+        ↓
+RequestInputVersion inmutable
+        ↓
+Autorización comercial
+        ↓
+Generación pedagógica estructurada
+        ↓
+CanonicalPlan
+        ↓
+Auditoría / corrección
+        ↓
+Revisión humana si aplica
+        ↓
+Approved Canonical Plan
+        ↓
+PlanningFormatResolver
+        ↓
+Standard v2 o adaptador institucional
+        ↓
+DOCX / PDF
+        ↓
+Delivery
+```
+
+El formato no forma parte del input congelado para IA. Un cambio de formato no modifica el plan canónico, no incrementa `input_revision` y no consume otra generación.
+
+## Contextos de dominio
+
+| Contexto | Responsabilidad |
 |---|---|
-| Documentos anteriores excluyen cuentas, planes y colas | Sustituir alcance conservando antecedentes |
-| 90% automático frente a modo manual | Manual es contingencia/piloto; medir automatización API real |
-| Rama IA omite APROBADA | Auditoría satisfactoria registra aprobación automática antes de renderizar |
-| No hay estado de error/rechazo/escalamiento | Bloqueos separados del estado; rechazo y escalamiento mantienen revisión bloqueada |
-| Revisiones y correcciones sin regla de consumo | Derechos congelados por periodo; reservar al enviar; fallos internos no gastan correcciones del cliente |
-| Corrección después de expirar suscripción | Respetar ventana y derechos congelados de la solicitud |
-| DOCX institucional arbitrario | Analizar, mapear, probar y publicar versión compatible antes de generar |
-| Pago único por solicitud del diseño anterior | Pedido por compra/renovación, varios intentos y devoluciones |
-| Proveedores aún no definidos | Contratos manual/fake primero; adapters reales son requisito de autoservicio automático |
+| Identidad | usuarios, roles, verificación, onboarding, aislamiento |
+| Perfil docente | escuelas, grupos y datos pedagógicos reutilizables |
+| Currículo | catálogo versionado, publicación, elegibilidad y snapshots |
+| Comercial | planes, suscripciones, periodos, reservas, consumo y pagos |
+| Planeaciones | solicitudes, revisiones de input, estados y versiones |
+| IA | contratos, prompts, ejecuciones, auditoría y correcciones |
+| Revisión | asignación humana, checklist, decisiones y compensación |
+| Documentos | contenido canónico, render, formatos y archivos privados |
+| Entrega | publicaciones, descargas y retención |
+| Operación | outbox, notificaciones, bloqueos, auditoría y métricas |
 
-Supuestos: una suscripción activa por cliente, sin acumulación ni prorrateos; cancelación al fin de periodo; cuotas, precios, ventana de corrección, SLA y límites configurables antes de vender. Ningún valor conceptual se convierte en precio real por defecto.
+## Fuente pedagógica de verdad
 
-## Contextos y estructura
+Una planeación enviada tiene dos fuentes inmutables:
 
-| Módulo | Responsabilidad |
-|---|---|
-| Identidad | Registro, correo verificado, roles, acceso y perfil |
-| Perfil pedagógico | Escuelas, grupos, onboarding y datos reutilizables |
-| Curricular | Catálogo versionado, publicación inmutable y CurriculumSuggestionService; detalle en [CURRICULUM.md](CURRICULUM.md) |
-| Comercial | Planes versionados, suscripciones, derechos, consumo, PaymentGateway |
-| Planeaciones | Solicitudes, snapshot, estados, bloqueos, correcciones |
-| IA | Contratos, prompts versionados, ejecuciones y recuperación |
-| Calidad | Asignación, checklist, decisiones, honorarios y métricas |
-| Documentos | Archivos privados, formatos, versiones, render y entregas |
-| Operación | Auditoría, notificaciones, atención y rentabilidad |
+1. `RequestInputVersion`: contexto y currículo confirmados.
+2. `DocumentVersion`: versión canónica generada/corregida.
 
-app/Models, Enums, Policies, Actions/{contexto}, Services/{contexto}, Contracts, Jobs, Notifications y Filament/{App,Review,Admin}. UI llama acciones; acciones autorizan, validan y transaccionan. Jobs usan las mismas invariantes con actor sistema explícito. Compartir componentes simples, no interfaces completas entre roles.
+El catálogo activo del momento no sustituye el snapshot de una solicitud ya enviada. Cambios editoriales posteriores crean otra `CurriculumVersion`.
 
-## Paneles
+La IA puede diseñar actividades, secuencias, evaluación, recursos y adecuaciones dentro de su contrato. No puede reescribir contenidos, PDA, fase, grado, campos ni ejes oficiales.
 
-/app: acción principal NUEVA PLANEACIÓN, seguida de planeaciones recientes y uso del plan. Asistente breve: grupo y fechas → tema/material/observaciones → propuesta curricular para confirmar o modificar → resumen de unidades y envío. Modo RÁPIDO por defecto; AVANZADO permite búsqueda y selección de catálogo. Precargar grado, grupo, duración de sesión, características, dificultades, necesidades, preferencias, materiales, restricciones y formato institucional desde perfil; no volver a pedirlos. Mostrar solo excepciones que requieren atención. Guardar borrador, permitir volver sin perder información. Historial, plan/pagos, renovación, grupos y perfil como navegación secundaria. No exponer proveedores IA, prompts, tokens ni ejecuciones. Traducir estados según WORKFLOWS.md: Preparando, En revisión, Necesitamos información y Lista para descargar; bloqueos de pago con acción comercial comprensible.
+## Currículo
 
-/review: cola propia por vencimiento y contadores pendientes/urgentes/en corrección/aprobadas hoy/tiempo medio. Pantalla única: información original minimizada, resultado, auditoría, checklist, observaciones por sección y aprobar/corregir/rechazar/escalar. Guardar revisión parcial. Historial propio y pagos por trabajo; sin ficha comercial del cliente.
+`CurriculumVersion` publicada y sus descendientes son inmutables. La selección para nuevas solicitudes exige además elegibilidad de producción mediante `ProductionCurriculumPolicy`.
 
-/admin: atención primero: pagos fallidos, generaciones fallidas, solicitudes bloqueadas, revisiones vencidas, correcciones pendientes y formatos sin configurar. Cada alerta enlaza acción resolutiva. Después ventas, operación, IA, revisores y margen. Administrar catálogo, versiones de prompts/checklist/formatos, asignación, pagos y auditoría. No permitir editar estados o saldos desde CRUD genérico.
+Una versión oficial nueva permanece en borrador hasta superar:
 
-Responsive, teclado, errores próximos al campo y estados con texto además de color. Validar solicitud <3 minutos con perfil completo y catálogo disponible, incluyendo confirmación de propuesta; medir revisión sin cambiar de pantalla.
+- integridad estructural;
+- correspondencia fase/grado/contenido/PDA;
+- procedencia y metadatos requeridos;
+- ausencia de marcadores editoriales explícitos;
+- checksum/publicación válida;
+- validación editorial antes de activarla como seleccionable.
 
-## Infraestructura, archivos y privacidad
+La propuesta curricular ayuda al docente a encontrar conexiones, pero la confirmación final es explícita.
 
-PostgreSQL fuente de verdad; queue database inicialmente, Redis solo por necesidad medida. Workers ai/documents/notifications y scheduler; recuperación en AI_PIPELINE.md. Producción requiere supervisión de workers y backups.
+## Comercial
 
-Disco privado fuera de public en desarrollo; almacenamiento privado compatible con S3 en producción si conviene. No storage:link para entregables. Cuarentena → validación y escaneo → disponible. Inicialmente DOCX, PDF, JPEG, PNG y WEBP; otros formatos solo con validador explícito. Rechazar macros, SVG y ejecutables; DOCX se inspecciona con límites de expansión. Límites configurables de tamaño, páginas, cantidad y resolución coherentes en proxy/PHP/Livewire.
+El sistema reserva derechos antes de iniciar el pipeline.
 
-Rutas aleatorias, SHA256, MIME real y nombre escapado. Descarga por controlador autenticado y Policy; attachment y nosniff. URL temporal solo tras autorización y TTL corto configurable: puede compartirse hasta expirar. Revisores usan proxy autorizado en cada petición para revocación inmediata al reasignar. No registrar enlaces firmados. Render aislado sin red/macros, con límites de tiempo/memoria; sanitizar HTML generado.
+- `planning`: unidades de planeación.
+- `human_review`: unidades de revisión cuando el plan lo exige.
+- `client_correction`: rondas de corrección posteriores a entrega.
 
-Bytes por versión inmutables. Escritura temporal, promoción y reconciliación de huérfanos; no dar por entregado un archivo incompleto. Backup cifrado de DB y objetos, restauración probada. Definir retención por categoría antes de producción, preservar referencias financieras y anonimizar cuando corresponda. No requerir nombres de alumnos; advertir sobre datos sensibles en textos libres y minimizar payloads enviados a IA.
+La reserva y el consumo son idempotentes. Reintentos técnicos, auditorías repetidas por fallos internos y correcciones internas de calidad no generan un segundo consumo comercial.
 
-## Riesgos
+## IA y calidad
 
-Alucinación curricular: conservar contenidos/PDA recibidos, bloquear faltantes y exigir auditoría; no prometer certificación. Formatos complejos: catálogo limitado y muestras verificadas. Duplicados por timeout: idempotencia y reconciliación. Saturación de revisores: asignación atómica y alerta sin capacidad. Costos: presupuestos y circuit breaker. Aislamiento: pruebas adversarias de IDs, archivos y relaciones. Proveedores: adapters y contingencia manual auditada. El 90% es objetivo medido, no garantía.
+El pipeline trabaja sobre contratos versionados:
 
-Revisión documental: alcance, entidades, permisos, estados, pipeline, almacenamiento y fases contrastados entre los siete documentos. Sin código ni pruebas de aplicación en esta etapa.
+- `GeneratedPlanDraftV1` para generación.
+- `CanonicalPlanV1` como autoridad interna.
+- `AuditResultV1` para auditoría.
+- `CorrectionResultV1` para correcciones acotadas.
 
+`CanonicalPlanAssembler` reconstruye la versión interna usando el snapshot, por lo que el proveedor IA nunca se convierte en autoridad curricular.
 
-## Iteración funcional antes de Fase 1
+El modo manual sigue siendo operativo. Un proveedor HTTP real debe usar los mismos contratos, idempotencia, costos y validadores; su existencia en una rama separada no lo convierte automáticamente en parte del flujo productivo.
 
-PostgreSQL sustituye MySQL por decisión del usuario; desarrollo, CI y producción usarán PostgreSQL, sin mantener doble compatibilidad. Driver Laravel pgsql y extensión pdo_pgsql; JSONB para estructuras, timestamptz para instantes, DATE para periodos y CHECK para cantidades no negativas. Versión mayor soportada se fija con hosting en Fase 1; no se instala nada ahora. FK compuestas e índices únicos parciales refuerzan pertenencia y unicidad operativa; ver [restricciones PostgreSQL](https://www.postgresql.org/docs/current/ddl-constraints.html) y [JSONB](https://www.postgresql.org/docs/current/datatype-json.html), consultados el 2026-09-07.
+## Revisión humana
 
-Catálogo curricular es módulo del mismo monolito, no servicio separado. CurriculumVersion publicada y todo su árbol son inmutables; solicitudes usan referencias y snapshot textual completo. Catálogo no se limita a un plan curricular codificado. Diseño, cardinalidades, propuestas y seeders ficticios en CURRICULUM.md; no se carga currículo real.
+Cuando el derecho congelado exige revisión:
 
-Unidad comercial: hasta max_planning_days días naturales inclusivos por unidad; solicitud consume ceil(días/max_planning_days) unidades. Semántica detallada de planning_limit, human_review_limit y correction_limit en WORKFLOWS.md. El máximo se aplica a cada unidad, no a toda la solicitud; una solicitud extensa consume varias unidades y se divide en segmentos de producción. El docente ve cantidad antes de confirmar. Precios y duración de unidad siguen configurables.
+- se asigna un revisor elegible por grado/version/capacidad;
+- se congela checklist y versión documental;
+- aprobar exige criterios obligatorios completos;
+- pedir cambios crea una corrección sobre una versión exacta;
+- la versión corregida vuelve a auditoría;
+- rechazar/escalar abre atención administrativa sin fabricar una aprobación.
 
-MVP: catálogo/publicación, búsqueda, propuestas deterministas desacopladas, modos rápido/avanzado, perfil reutilizado y consumo proporcional. POST-MVP: sugerencias curriculares IA/semánticas, calendario escolar automático, importación/sincronización y multigrado. Generación IA existente sigue en MVP. Se conserva soporte estándar y análisis/mapping/prueba/publicación institucional; sin DOCX universal.
+Las aprobaciones pertenecen a una `DocumentVersion` exacta y no se heredan a sus hijas.
+
+## Documentos y formatos
+
+### Standard v2
+
+Es la salida predeterminada y garantizada. Presenta el plan canónico con estructura conocida y renderer controlado.
+
+### Formatos institucionales
+
+Son adaptadores opcionales de exportación. Pueden conservar archivo fuente, mapping, estructuras repetibles y reglas de render, pero operan después de la aprobación pedagógica.
+
+No deben:
+
+- modificar el contenido canónico;
+- pedir a la IA que genere según la estructura arbitraria del DOCX;
+- imponer campos pedagógicos nuevos al pipeline;
+- provocar otra generación al cambiar de formato.
+
+El experimento adaptativo previo se conserva solo como antecedente técnico.
+
+## Estados y procesamiento
+
+`PlanningRequestStatus` gobierna el flujo. Las transiciones se realizan mediante acciones específicas y se registran en `request_state_events`.
+
+Errores técnicos abren `request_blocks` y permiten reintento; no se modelan como cancelaciones falsas. Outbox y claves de operación evitan duplicados.
+
+Ver `WORKFLOWS.md` para la matriz completa.
+
+## Seguridad y privacidad
+
+- aislamiento por propietario y Policies;
+- archivos fuera de `public`;
+- descargas autenticadas;
+- MIME real, hash y estado de escaneo;
+- payload IA minimizado;
+- no solicitar nombres de alumnos;
+- historial inmutable de versiones, aprobaciones, entregas y descargas;
+- secretos fuera de logs y documentos generados.
+
+## Prioridad de diseño
+
+Antes de ampliar funciones mayores:
+
+1. cerrar coherencia documental/código;
+2. validar currículo oficial Fases 3–5;
+3. mantener Standard v2 estable;
+4. validar el flujo con docentes reales;
+5. integrar proveedor IA real sobre el contrato canónico.
+
+No convertir el diseñador institucional en un clon de Word mientras estas prioridades sigan abiertas.
