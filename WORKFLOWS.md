@@ -1,136 +1,105 @@
-# Flujos y máquina de estados
+# Flujos vigentes
 
-Estados persistidos con enum PHP en español. Solo TransitionRequest y acciones específicas pueden cambiarlos; no edición libre. Cada transición bloquea solicitud, verifica estado esperado, permisos, guardas, versión de entrada, registra evento y outbox dentro de transacción. Doble clic o job repetido devuelve el resultado previo por operation_key.
+Actualizado: 2026-09-15.
 
-## Matriz de transiciones
+Este documento describe el flujo actual del producto. La historia de implementación por fases permanece en Git y en documentos de cierre.
 
-| Origen | Destino | Guarda y responsable |
-|---|---|---|
-| BORRADOR | ESPERANDO_INFORMACION / ESPERANDO_PAGO / LISTA_PARA_PROCESAR | Cliente envía; validación de completitud y derechos |
-| ESPERANDO_INFORMACION | ESPERANDO_PAGO / LISTA_PARA_PROCESAR | Cliente completa; reevaluar ambos bloqueos |
-| ESPERANDO_PAGO | ESPERANDO_INFORMACION / LISTA_PARA_PROCESAR | Pago confirmado y reevaluación, sistema |
-| LISTA_PARA_PROCESAR | GENERACION_IA | Snapshot vigente, prompt/contrato listo y reserva de cupos válida, sistema |
-| GENERACION_IA | AUDITORIA_IA | Resultado estructurado válido de entrada vigente |
-| AUDITORIA_IA | APROBADA | Auditoría pasa, plan sin revisión humana; aprobación AI exacta |
-| AUDITORIA_IA | REVISION_HUMANA | Auditoría pasa, plan exige humano; asignar o bloquear sin capacidad |
-| AUDITORIA_IA | CORRECCION_IA | Hallazgos corregibles, presupuesto/ciclos disponibles |
-| REVISION_HUMANA | APROBADA | Revisor asignado aprueba versión y checklist obligatorio completo |
-| REVISION_HUMANA | CORRECCION_IA | Observaciones por sección y solicitud interna creada |
-| CORRECCION_IA | AUDITORIA_IA | Nueva versión hija; siempre auditar de nuevo antes de revisión |
-| APROBADA | GENERANDO_DOCUMENTO | Aprobaciones vigentes para esa versión y formato publicado |
-| GENERANDO_DOCUMENTO | LISTA_PARA_ENTREGAR | DOCX/PDF validados, bytes privados y manifest completo |
-| LISTA_PARA_ENTREGAR | ENTREGADA | Publicar entrega única, versión aprobada y archivos disponibles |
-| ENTREGADA | CORRECCION_SOLICITADA | Cliente propietario, motivo, versión entregada, ventana y cuota válidas |
-| COMPLETADA | CORRECCION_SOLICITADA | Mismas guardas; completar manualmente no recorta ventana contractual |
-| CORRECCION_SOLICITADA | CORRECCION_IA | Alcance aceptado, reserva de corrección, snapshot y responsable |
-| CORRECCION_SOLICITADA | ENTREGADA / COMPLETADA | Solicitud retirada o fuera de alcance; resolución explícita y liberar reserva |
-| ENTREGADA | COMPLETADA | Cliente acepta o termina ventana, sin corrección abierta |
-| estados previos a ENTREGADA | CANCELADA | Cliente solo antes de iniciar generación; después administrador con razón y conciliación |
+## Regla principal
 
-CANCELADA terminal. No cancelar desde estados de corrección posteriores a entrega: cerrar corrección preservando entrega. APROBADA registra aprobación automática o humana según plan, sin salto implícito. Corrección humana pasa por auditoría antes de volver a REVISION_HUMANA; es una ampliación deliberada del flujo base para no entregar una corrección sin auditar.
+La solicitud, el snapshot y la generación pedagógica son independientes del formato de exportación. Un DOCX o `FormatVersion` no es requisito para enviar ni generar una planeación.
 
-Rechazar/escalar deja REVISION_HUMANA con bloqueo y decisión registrada. Administrador puede pedir corrección, reasignar o cancelar según las guardas; no omitir checklist ni crear aprobación humana ficticia. Error técnico mantiene estado, crea bloqueo con etapa fallida y permite reintento idempotente; no significa cancelación.
+## Flujo de una planeación
 
-## Envío y consumo
+```text
+BORRADOR
+  ↓
+ESPERANDO_INFORMACION / ESPERANDO_PAGO
+  ↓
+LISTA_PARA_PROCESAR
+  ↓
+GENERACION_IA
+  ↓
+AUDITORIA_IA
+  ├─ APROBADA
+  ├─ REVISION_HUMANA
+  └─ CORRECCION_IA → AUDITORIA_IA
 
-Completitud: propietario verificado, grupo activo, grado válido del catálogo, fechas, proyecto/tema, selecciones curriculares compatibles y confirmadas, evaluación confirmada y formato utilizable; distinguir campo opcional de declaración explícita no aplicable. No inventar contenido faltante. Mostrar todas las causas; priorizar ESPERANDO_INFORMACION si faltan datos y pago simultáneamente.
+APROBADA
+  ↓
+GENERANDO_DOCUMENTO
+  ↓
+LISTA_PARA_ENTREGAR
+  ↓
+ENTREGADA
+  ↓
+COMPLETADA
+```
 
-Enviar congela perfil, datos variables, catálogo textual completo seleccionado, cálculo comercial, segmentos, versión de formato, manifest y derechos; valida plan activo/periodo pagado. Reservar planning_units unidades de planeación y, si human_review_required, planning_units unidades de revisión humana en una transacción con bloqueo de periodo. Sin cupo, mostrar bloqueo de derechos en ESPERANDO_PAGO con explicación de que falta plan/cupo, no pago fallido ficticio. No iniciar pipeline. Cambios de perfil no alteran solicitudes enviadas.
+Después de entrega puede existir `CORRECCION_SOLICITADA`. Una corrección aceptada crea una nueva versión, vuelve a auditoría/revisión cuando corresponda y produce una nueva entrega sin borrar la anterior.
 
-Fase 4B materializa el primer salto del pipeline. Al despachar `LISTA_PARA_PROCESAR → GENERACION_IA`, se consume la reserva `planning` dentro de la misma transacción que crea ejecución, evento de estado y outbox. Una reserva `human_review` ya tomada permanece `reserved`; no se consume por anticipado. En modo manual el outbox genera después un paquete privado y deja la ejecución `waiting_manual`. Error al preparar ese paquete conserva `GENERACION_IA`, abre bloqueo técnico y permite reintentar sin segundo consumo.
+## Envío
 
-Fase 4C importa el resultado manual únicamente desde una `AiExecution` generation/manual `waiting_manual`. Primero valida `GeneratedPlanDraftV1`; después reconstruye `CanonicalPlanV1` usando el snapshot confirmado y persiste una `DocumentVersion` nueva e inmutable. Solo tras esa persistencia la ejecución generation queda `succeeded` y la solicitud avanza `GENERACION_IA → AUDITORIA_IA`. La misma transacción congela una PromptVersion audit compatible con `AuditResultV1`, crea `AiExecution(stage=audit,status=pending)` sobre la versión exacta y, desde 4D, registra el outbox audit. Repetir el mismo resultado es no-op; un resultado distinto para una ejecución cerrada se rechaza.
+Antes de enviar deben estar resueltos:
 
-Fase 4D procesa ese outbox sin cambiar de estado: materializa paquete `manual_audit` privado y deja la ejecución audit `waiting_manual`. La importación de `AuditResultV1` valida coherencia pass/fail y hallazgos estructurados, marca audit `succeeded` y conserva la solicitud en `AUDITORIA_IA`. La siguiente transición se decide en 4E; ningún SQL directo puede avanzar a un estado posterior con auditoría pendiente o sin reporte para la `DocumentVersion` actual.
+- propietario y grupo válidos;
+- grado y versión curricular elegibles;
+- fechas y contexto pedagógico requeridos;
+- contenidos/PDA/ejes compatibles y confirmados;
+- cálculo comercial y derechos suficientes.
 
-Fase 4E materializa esa decisión. Auditoría satisfactoria crea `Approval(kind=ai)` para la versión exacta y lleva a `APROBADA` si el plan es solo IA o a `REVISION_HUMANA` si el derecho congelado exige revisión; no consume todavía la reserva humana. Auditoría fallida solo entra a `CORRECCION_IA` cuando todos los hallazgos caben en secciones mutables y existen ciclos/presupuesto interno. La corrección crea una versión hija y vuelve obligatoriamente a `AUDITORIA_IA`; no hereda una aprobación de la versión anterior.
+Al enviar se crea un `RequestInputVersion` inmutable con contexto docente, selección curricular textual, materiales permitidos, manifest, cálculo comercial e `input_revision`.
 
-Los ciclos de corrección **internos del pipeline** están separados de `correction_limit_snapshot`: ese límite comercial corresponde a rondas `client_correction` solicitadas por la persona cliente después de entrega. Un reintento/corrección interna por calidad no crea ni consume `UsageReservation(resource=client_correction)`. Al agotar ciclos internos o detectar alcance inseguro, mantener `AUDITORIA_IA` y abrir bloqueo `ai_quality_attention` para atención; no aprobar, no degradar currículo y no cobrar otra ronda.
+**El formato de exportación no forma parte de este snapshot pedagógico.**
 
-Consumir todas las planning_units reservadas al comenzar primera generación; consumir las unidades humanas reservadas al asignar primer ciclo humano. Cancelar antes de inicio libera reservas. Reintentos, correcciones internas y reasignaciones no vuelven a cobrar cupo. Fallo definitivo administrativo puede restituir cupo con acción auditada; estado released una sola vez. Reserva de corrección cliente se consume al iniciar corrección; fallo definitivo admite restitución auditada. Si hay revisión incluida, las vueltas internas del ciclo no gastan otro cupo humano.
+## Consumo comercial
 
-Plan vencido impide solicitudes nuevas; trabajo ya aceptado y correcciones cubiertas continúan con derechos congelados. Al renovar crear periodo nuevo, nunca resetear el anterior. Grupo permitido limita grupos activos bajo bloqueo de cliente; reducir plan impide crear nuevos y solicitar hasta archivar excedentes elegidos por cliente, sin borrar historial.
+- `planning` se reserva antes del pipeline y se consume una sola vez al iniciar la primera generación.
+- `human_review` se consume al iniciar el primer ciclo humano efectivo cuando el derecho lo exige.
+- `client_correction` corresponde únicamente a rondas contractuales posteriores a entrega.
+- reintentos técnicos, auditorías y correcciones internas no vuelven a consumir unidades.
 
-Editar insumos durante producción requiere acción de administrador que detiene nuevas etapas, incrementa input_revision e invalida aprobaciones vigentes para la nueva entrada. Solo subsanar errores dentro del mismo alcance permite reiniciar bajo las mismas reservas; ampliar fechas, cambiar grupo/currículo o agregar otro proyecto exige nueva solicitud y cotización, no una corrección gratuita. Jobs viejos no pueden promover resultado. Historial y costos de ejecuciones obsoletas se conservan.
+Todas las operaciones deben ser idempotentes.
 
-## Pago y suscripción
+## Generación y auditoría
 
-PaymentGateway: createCheckout(order,idempotencyKey), getPayment(reference), verifyWebhook(headers,rawBody), refund(payment,amount,key). DTOs normalizados; controladores no deciden derechos. Adapter manual permite registrar comprobante y confirmar administrativamente; adapter fake solo pruebas; adapter real posterior.
+La generación produce `GeneratedPlanDraftV1`. El servidor reconstruye `CanonicalPlanV1` desde el snapshot confirmado.
 
-Crear pedido con monto/moneda del plan versionado. Confirmación confiable manual o webhook firmado → validar referencia, monto y moneda → bloquear pedido/cliente → deduplicar evento → registrar pago → activar periodo una sola vez → outbox. Redirección del navegador nunca confirma pago. Eventos retrasados no degradan un pago exitoso; discrepancia queda en conciliación. Dos pagos exitosos por el mismo pedido se registran como cobro excedente a resolver, no activan dos periodos.
+La auditoría pertenece a una `DocumentVersion` exacta. Si una corrección crea una versión hija, esa versión debe auditarse nuevamente. Ninguna aprobación se hereda automáticamente.
 
-Renovación: pedido nuevo; activar solo después de pago; fallo produce past_due y aviso. No asumir cobro recurrente hasta integrar consentimiento y proveedor. Cancelación al fin del periodo conserva derechos pagados. Devolución no borra pago ni versiones; solicitud administrativa decide acceso futuro y restitución de cupos, preserva trabajo entregado y ajusta métricas. Devolución pendiente no se cuenta como confirmada.
+Hallazgos que intenten modificar currículo oficial o contexto congelado no se autocorrigen.
 
-## Materialización 5A — entrada a revisión humana
+## Revisión humana
 
-Al terminar una auditoría satisfactoria de un plan con `human_review_required_snapshot=true`, el sistema conserva `REVISION_HUMANA` e intenta `AssignReviewer` dentro del mismo flujo. Solo candidatos con usuario/rol/perfil activos, autorización exacta `grade_id + curriculum_version_id`, una ventana que cubra el SLA y capacidad suficiente son elegibles. Se bloquean perfiles en orden estable antes de recalcular carga para serializar dos solicitudes concurrentes.
+Cuando aplica, una revisión congela asignación, `DocumentVersion` y checklist. Aprobar exige criterios obligatorios completos.
 
-La primera asignación consume `human_review` U una sola vez y congela tarifa×U; si no existe candidato no consume, abre `no_reviewer` y permite `review:assign` posterior. Reasignar no cobra otra unidad humana: termina la fila anterior, conserva historial/ciclo y crea reemplazo con su propia tarifa snapshot. Sin reemplazo viable se mantiene la asignación activa actual. Inicio/completado de review, checklist, aprobación humana y trabajo pagable se materializan en subfases siguientes.
+Una petición de cambios crea una nueva versión y regresa a auditoría antes de volver a revisión humana.
 
-## Asignación y revisión
+## Exportación
 
-Filtrar revisores activos, grade_id autorizado de esa versión curricular, disponibilidad cubriendo ventana y carga en unidades + planning_units <= max_load; daily_max también mide unidades de asignaciones iniciales del día local (incluye completadas, excluye anuladas antes de iniciar). Al publicar nuevo catálogo, autorizaciones de grado requieren remapeo explícito, no herencia por ordinal. Orden: vencimiento de solicitudes, menor carga relativa, asignación más antigua, ID estable. Bloquear candidato y solicitud y recalcular límites antes de asignar. Sin candidato: no_reviewer y alerta; nunca asignar a no autorizado. Reasignación administrativa conserva historial y tarifa, libera carga anterior y verifica nuevo candidato.
+Solo después de `APROBADA` se resuelve el formato:
 
-Checklist inicial con 15 claves: grado, fechas, contenidos, PDA, campos, ejes, coherencia, dificultad, actividades, inicio/desarrollo/cierre, evaluación, materiales, transversalidad, ortografía, formato. Admin publica versiones configurables; revisión congela una versión. Todos los obligatorios deben ser true en servidor, versión actual y asignación activa. Nueva versión no hereda respuestas ni aprobación. Revisor marca secciones y comentarios, CorrectionService modifica solo alcance solicitado.
+- sin selección explícita → Standard v2;
+- formato institucional válido → adaptador institucional publicado/ready.
 
-Fase 5B materializa el tramo de aprobación: al iniciar, `Review` congela `assignment_id + DocumentVersion + review_checklist_version`; las respuestas se guardan por item y los comentarios por sección. Solo el revisor de la asignación activa puede editar. `ApproveHumanReview` exige todos los items obligatorios en `true`, completa la asignación, crea `Approval(kind=human, review_id=...)` y registra `REVISION_HUMANA → APROBADA` con `reason=human_review_approved`. Checklist publicado, identidad de la review, respuestas terminales y aprobación son inmutables en PostgreSQL.
+Cambiar formato no modifica el contenido canónico, no incrementa `input_revision` y no ejecuta IA de nuevo.
 
-Fase 5C abre las decisiones restantes. `changes_requested` requiere al menos un criterio obligatorio fallido y comentarios en una o más secciones mutables (`planning` solo título/proyecto, diseño pedagógico, sesiones, evaluación, recursos o adecuaciones); grado, fechas, currículo, PDA/campos/ejes y contexto congelado no se autocorrigen. La review y asignación actuales terminan, `REVISION_HUMANA → CORRECCION_IA` crea una ejecución con `source_kind=human_review`, el resultado produce una `DocumentVersion` hija y siempre vuelve a auditoría. Si la auditoría aprueba, se crea otra asignación del mismo ciclo, preferentemente al revisor anterior si sigue elegible, y una nueva review sin respuestas heredadas. `escalated`/`rejected` cancelan la asignación y abren `human_review_attention`; la solicitud permanece `REVISION_HUMANA` hasta resolución administrativa.
+## Entrega
 
-Aprobar crea trabajo pagable una vez: planning_units × tarifa por unidad congelada; units_snapshot y total_fee_minor quedan fijos. Correcciones cubiertas e internas del mismo alcance forman parte de ese trabajo; no generan otro honorario ni consumo humano automático. Ciclos internos no generan pagos extra. Reasignación antes de aprobar no genera honorario automático; excepciones deben quedar como ajuste administrativo explícito, fuera del cálculo ordinario. Admin aprueba liquidación y marca pagado con referencia; sin nómina.
+`ENTREGADA` significa que una versión aprobada y sus archivos exactos están publicados privadamente. Un fallo de email no revierte la entrega y una descarga no crea una entrega nueva.
 
-## Entrega y notificaciones
+Las correcciones conservan las versiones y entregas anteriores.
 
-ENTREGADA significa disponible en portal con registro de versión y manifest, no que el correo se leyó. Fallo de email no revierte entrega. Descargas sucesivas no duplican entrega. Corrección conserva acceso a versión anterior y entrega nueva independiente.
+## Fallos técnicos
 
-Fase 6C materializa esa definición: `PublishPlanningDelivery` congela la versión vigente, el run de render exitoso y sus DOCX/PDF en `delivery_files`; solo después registra `LISTA_PARA_ENTREGAR → ENTREGADA`. La descarga usa controlador autenticado y verifica propietario, pertenencia del archivo, estado clean, retención y presencia del byte en storage privado; cada descarga se registra. La retención de resultados es configurable y su purga borra bytes vencidos, nunca las filas históricas ni una entrega.
+Errores de IA, render, worker, almacenamiento o notificación abren `request_blocks` y permiten reintento idempotente. No equivalen a cancelación ni provocan otro consumo comercial por sí mismos.
 
-Eventos: PaymentConfirmed, InformationRequired, ProcessingStarted, ReviewAssigned, DocumentReady, CorrectionCompleted, RenewalUpcoming. Notificaciones internas y email mediante listeners/jobs; futuros canales por adapter, sin lógica WhatsApp. Deduplicar evento+destinatario+canal; scheduler no repite aviso en cada ejecución. Registrar auditoría para pago, transición, asignación, aprobación, IA, corrección, entrega y descarga sensible.
+## Invariantes
 
-
-## NUEVA PLANEACIÓN desde el docente — MVP
-
-1. Pulsa NUEVA PLANEACIÓN. RÁPIDO es el modo inicial; AVANZADO está disponible sin reiniciar el borrador. Elegir grupo precarga grado/fase, duración de sesión, características, dificultades, necesidades, preferencias, materiales disponibles, restricciones y formato preferido. Mostrar resumen compacto con «Cambiar», no un formulario repetido. Si falta perfil esencial, pedir solo ese dato.
-2. Indica fechas, tema/proyecto, páginas/material y eventos u observaciones. Estos últimos pueden omitirse si no aplican. Se muestra al instante cuántas unidades ocupará; no pedir datos curriculares de memoria. Archivos se reutilizan por referencia autorizada, no se suben de nuevo. No inferir contenido de páginas de un libro no identificado.
-3. En RÁPIDO el servicio propone campos, contenidos, PDA, ejes y evaluación inicial desde catálogo publicado filtrado por grado. Mostrar textos legibles y breve explicación. Docente confirma o cambia selección; sin coincidencia ofrecer búsqueda AVANZADA y conservar lo capturado. En AVANZADO selecciona contenidos/PDA del catálogo con filtros y ejes; campos se derivan y evaluación puede escribirse o aceptar sugerencia. Cambiar modo conserva selecciones compatibles; jamás confirma automáticamente.
-4. Revisa resumen de periodo, grupo, selección, formato, unidades requeridas/disponibles y revisión incluida. Confirmación explícita cubre currículo y consumo. Si fechas/perfil/material/catálogo cambiaron desde la propuesta, pedir reconfirmar solo lo afectado. Si el plan cambió, recalcular cotización y volver a confirmar; un webhook no autoriza por sí solo un consumo distinto. Formato institucional pendiente ofrece estándar o esperar configuración, sin prometer render universal.
-5. Envía. Servidor revalida perfil, catálogo, fingerprint, derechos y archivos; congela snapshot y reserva unidades atómicamente. No comprar extras ni dividir automáticamente en solicitudes cobradas sin confirmación. Muestra seguimiento en lenguaje sencillo; cuando termina recibe aviso y descarga. Corrección desde entrega con descripción y límites visibles; renovación desde plan/uso al finalizar periodo.
-
-Meta: solicitud repetida <3 minutos, idealmente menos, medida desde pulsar NUEVA PLANEACIÓN hasta confirmación con datos básicos listos, incluyendo respuesta del servicio. No garantizar tiempo de procesamiento posterior ni ocultar espera del asistente en la métrica. Generar propuesta/guardar borrador no consume cupo; límites operativos de frecuencia protegen servicio.
-
-## Unidad comercial y límites — MVP
-
-Regla calendar_days_v1: D = (ends_on - starts_on) + 1, en DATE, días naturales inclusivos; M = PlanVersion.max_planning_days; U = ceil(D/M). M>0, D>0. Una unidad cubre como máximo M días consecutivos para un grupo y un proyecto (puede integrar varios campos). Segmentos consecutivos de hasta M días, último puede ser menor. Una solicitud larga conserva un solo documento/revisión pero consume U unidades y produce secciones por segmento. Fechas no contiguas, cálculo por festivos/días lectivos y varios proyectos independientes por unidad quedan POST-MVP.
-
-| Configuración | Semántica |
-|---|---|
-| max_planning_days | Máximo de días naturales por unidad, no límite total por solicitud |
-| planning_limit | Unidades disponibles por periodo de suscripción; reservar/consumir U |
-| human_review_limit | Unidades revisadas disponibles por periodo; reservar/consumir U si human_review_required |
-| correction_limit | Número de rondas de corrección del cliente por solicitud enviada, cada ronda sobre su alcance original; reservar/consumir 1 |
-
-correction_limit sustituye correction_limit_per_request como nombre, mantiene alcance por solicitud. No multiplicar rondas por U: cada ronda puede corregir todos los segmentos originales. No hay otra cuota periódica de correcciones en MVP. Trabajo interno por fallos de plataforma no consume esas rondas. Plan revisado publica human_review_required=true y human_review_limit suficiente para planning_limit, sin degradar silenciosamente a IA; plan IA tiene false y human_review_limit=0. Límites finitos en MVP.
-
-Ejemplo puramente ilustrativo, no seeder comercial: M=7, D=7 → U=1; D=8 → U=2; D=28 → U=4. No se hardcodea semana de cinco o siete días. Días naturales incluyen fines de semana y festivos aunque no haya sesiones; es una unidad de cobertura temporal, no conteo de sesiones. La ficha del plan debe decirlo expresamente. Calendario lectivo configurable queda POST-MVP si el piloto demuestra necesidad.
-
-Reserva conjunta exige saldo de U unidades de cada recurso necesario en un solo periodo; no tomar saldo de dos periodos ni acumular remanentes. Si no alcanza, mantener borrador/espera comercial y proponer acortar fechas o contratar/renovar según disponibilidad, sin enviar automáticamente. Propuesta no consume; primera generación consume U una sola vez; cancelación previa libera U; reintento no suma. El cálculo congelado prevalece aunque se publique otro plan.
-
-Un período educativo puede cruzar fechas del periodo de facturación: el derecho se evalúa al envío, U completo se carga al periodo activo y queda congelado. Correcciones conservan fechas y unidades originales. La ventana contractual de corrección comienza con la primera entrega publicada y no se reinicia con reentregas; una corrección solicitada dentro de esa ventana conserva su derecho aunque el periodo/suscripción expire antes de que administración la procese. Contenido nuevo o ampliación de periodo requiere nueva solicitud. Si hay edición de fechas antes de generar, cancelar/liberar reserva y volver a confirmar/reservar atómicamente; nunca cambiar la cantidad sin validarla y mostrarla.
-
-## Presentación de estados /app
-
-| Backend o condición | Texto docente / acción |
-|---|---|
-| BORRADOR | Borrador / Continuar |
-| ESPERANDO_INFORMACION o bloqueo que requiere datos | Necesitamos información / Completar lo indicado |
-| ESPERANDO_PAGO | Activa tu plan, Completa tu pago o Unidades insuficientes, según causa real |
-| LISTA_PARA_PROCESAR, GENERACION_IA, AUDITORIA_IA, CORRECCION_IA, APROBADA, GENERANDO_DOCUMENTO | Preparando |
-| REVISION_HUMANA | En revisión |
-| CORRECCION_SOLICITADA | Corrección solicitada |
-| LISTA_PARA_ENTREGAR | Preparando, hasta publicación efectiva |
-| ENTREGADA, COMPLETADA con entrega publicada | Lista para descargar |
-| CANCELADA | Cancelada |
-
-Bloqueo técnico nunca muestra proveedor/error/tokens: «Tu planeación está tardando más de lo esperado» y atención interna. No pedir información al docente por un fallo técnico. Durante corrección se conserva acceso visible a la entrega anterior. Mapper de presentación independiente del enum; no renombrar estados de dominio ni exponer metadatos técnicos en respuestas al cliente.
-
-Corrección posterior con humano: reabrir el mismo ciclo mediante una nueva asignación, prefiriendo al revisor anterior si sigue elegible y disponible, recalculando carga operativa U pero sin nuevo consumo comercial ni honorario. La nueva versión obtiene otra review y no hereda respuestas ni aprobación; el trabajo pagable único se conserva. Si el revisor anterior no puede atender, se elige otro candidato o administración interviene según el bloqueo vigente, sin cobrar de nuevo al cliente.
+1. las transiciones críticas se realizan mediante acciones, no editando `status` libremente;
+2. cada aprobación pertenece a una versión exacta;
+3. cada corrección de contenido crea una nueva versión;
+4. toda nueva versión se reaudita;
+5. una respuesta obsoleta no puede promoverse;
+6. una reserva no se consume dos veces;
+7. la exportación no cambia el contenido canónico;
+8. el formato institucional nunca condiciona la generación.
