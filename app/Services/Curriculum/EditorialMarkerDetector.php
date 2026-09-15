@@ -5,18 +5,14 @@ namespace App\Services\Curriculum;
 use Illuminate\Support\Str;
 
 /**
- * Detects explicit editorial/demo markers without treating ordinary words
- * such as "democracia" or "demográfico" as DEMO content.
+ * Detects explicit editorial/demo markers without rejecting legitimate
+ * curricular language such as "democracia" or "seres ficticios".
  */
 final class EditorialMarkerDetector
 {
     /** @var list<string> */
     private const STANDALONE_WORDS = [
         'demo',
-        'ficticio',
-        'ficticia',
-        'ficticios',
-        'ficticias',
     ];
 
     /** @var list<string> */
