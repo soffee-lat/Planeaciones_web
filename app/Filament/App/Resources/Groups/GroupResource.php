@@ -65,7 +65,9 @@ class GroupResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Datos del grupo')->schema([
+            Section::make('Datos del grupo')
+                ->extraAttributes(['style' => 'overflow: visible;'])
+                ->schema([
                 Select::make('school_id')
                     ->label('Escuela')
                     ->options(fn () => School::query()
