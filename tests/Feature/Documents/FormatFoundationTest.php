@@ -61,12 +61,17 @@ class FormatFoundationTest extends PedagogyTestCase
         $this->assertSame('standard-v1', $resolved->renderer);
     }
 
-    public function test_resolver_prefiere_formato_del_grupo(): void
+    public function test_resolver_ignora_preferencia_legacy_del_grupo_y_usa_estandar(): void
     {
-        $scene = $this->seedFullTeacher(); app(EnsureStandardFormat::class)->execute();
+        $scene = $this->seedFullTeacher();
+        $standard = app(EnsureStandardFormat::class)->execute()['version'];
         $published = $this->publishedInstitutionalFormat($scene['user']->id);
         $scene['profile']->update(['preferred_format_id' => $published->format_id]);
-        $this->assertSame($published->id, app(PlanningFormatResolver::class)->resolve($this->requestFor($scene))->id);
+
+        $resolved = app(PlanningFormatResolver::class)->resolve($this->requestFor($scene));
+
+        $this->assertSame($standard->id, $resolved->id);
+        $this->assertNotSame($published->id, $resolved->id);
     }
 
     public function test_version_explicita_de_solicitud_tiene_prioridad(): void
