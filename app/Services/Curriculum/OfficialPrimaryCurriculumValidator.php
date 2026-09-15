@@ -44,17 +44,6 @@ final class OfficialPrimaryCurriculumValidator
         'Artes y experiencias estéticas',
     ];
 
-    /** @var list<string> */
-    private const BLOCKED_TEXT = [
-        'demo',
-        'ficticio',
-        'ficticia',
-        'sin validez curricular',
-        '__pending_editorial__',
-        'contenido de ejemplo',
-        'pda de ejemplo',
-    ];
-
     public function assertReadyForPublication(CurriculumVersion $version): void
     {
         $version->loadMissing([
@@ -179,11 +168,8 @@ final class OfficialPrimaryCurriculumValidator
     private function assertNoBlockedText(array $values, string $location): void
     {
         foreach ($values as $value) {
-            $text = $this->normalize((string) $value);
-            foreach (self::BLOCKED_TEXT as $marker) {
-                if (str_contains($text, $this->normalize($marker))) {
-                    throw new RuntimeException('OFFICIAL_PRIMARY_EDITORIAL_TEXT_INVALID:' . $location);
-                }
+            if (EditorialMarkerDetector::contains($value)) {
+                throw new RuntimeException('OFFICIAL_PRIMARY_EDITORIAL_TEXT_INVALID:' . $location);
             }
         }
     }
