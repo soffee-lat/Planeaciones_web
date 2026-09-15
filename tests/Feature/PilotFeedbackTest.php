@@ -75,19 +75,19 @@ class PilotFeedbackTest extends PedagogyTestCase
         $this->actingAs($owner)
             ->get('/app/planning-requests/' . $scene['request']->id)
             ->assertOk()
-            ->assertSee('Antes de terminar')
-            ->assertSee('¿Cuánto tiempo calculas que te ahorró esta planeación?')
-            ->assertSee('¿Usarías Planeaciones para tu siguiente planeación real?');
+            ->assertSee('Ayúdanos a mejorar')
+            ->assertSee('¿Cuánto tiempo te ahorró?')
+            ->assertSee('¿La usarías nuevamente?');
 
         app(SubmitPilotFeedback::class)->execute($owner, $scene['request'], '30_60', 'activities', 'maybe');
 
         $this->actingAs($owner)
             ->get('/app/planning-requests/' . $scene['request']->id)
             ->assertOk()
-            ->assertSee('Feedback registrado')
-            ->assertSee('Entre 30 y 60 minutos')
-            ->assertSee('Actividades')
-            ->assertSee('Tal vez');
+            ->assertSee('Gracias por ayudarnos a mejorar')
+            ->assertSee('Tus respuestas ya quedaron registradas.')
+            ->assertSee('Encuesta respondida')
+            ->assertDontSee('Enviar respuestas');
     }
 
     public function test_otro_docente_no_puede_enviar_feedback_y_respuesta_es_inmutable(): void
