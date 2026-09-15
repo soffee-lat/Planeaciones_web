@@ -69,6 +69,40 @@ class ProductionCurriculumPolicyTest extends TestCase
         ]);
     }
 
+    public function test_it_accepts_democracia_in_a_production_snapshot(): void
+    {
+        $policy = new ProductionCurriculumPolicy();
+
+        $policy->assertSnapshotEligible([
+            'curriculum' => [
+                'curriculum' => [
+                    'code' => 'MX-NEM-PRIMARIA',
+                    'name' => 'Educación Primaria — Nueva Escuela Mexicana',
+                    'country_code' => 'MX',
+                    'educational_level' => 'primaria',
+                ],
+                'version' => [
+                    'label' => 'SEP 2024 · Fases 3-5',
+                    'source_reference' => 'https://educacionbasica.sep.gob.mx/',
+                    'checksum' => str_repeat('a', 64),
+                    'published_at' => '2026-01-01T00:00:00+00:00',
+                ],
+                'phase' => ['name' => 'Fase 3'],
+                'grade' => ['name' => 'Primer grado'],
+                'formative_fields' => [],
+                'contents' => [[
+                    'code' => 'F3-ENS-C012',
+                    'title' => 'Democracia como forma de vida',
+                    'full_text' => 'Construcción participativa de normas para una convivencia democrática.',
+                ]],
+                'pdas' => [],
+                'axes' => [],
+            ],
+        ]);
+
+        $this->addToAssertionCount(1);
+    }
+
     private function version(array $curriculumData, string $label): CurriculumVersion
     {
         $curriculum = new Curriculum($curriculumData);
