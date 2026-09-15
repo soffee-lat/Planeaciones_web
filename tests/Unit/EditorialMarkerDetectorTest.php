@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 class EditorialMarkerDetectorTest extends TestCase
 {
     #[DataProvider('allowedTexts')]
-    public function test_it_allows_words_that_only_contain_demo_as_a_substring(string $text): void
+    public function test_it_allows_legitimate_curricular_language(string $text): void
     {
         $this->assertFalse(EditorialMarkerDetector::contains($text));
     }
@@ -27,6 +27,9 @@ class EditorialMarkerDetectorTest extends TestCase
             ['Participación democrática en la comunidad'],
             ['Análisis demográfico de la población'],
             ['Una demostración mediante ejemplos'],
+            ['Describe objetos, lugares y seres vivos reales o ficticios.'],
+            ['Crea personajes ficticios a partir de una narración.'],
+            ['Compara situaciones reales y ficticias.'],
         ];
     }
 
@@ -36,8 +39,6 @@ class EditorialMarkerDetectorTest extends TestCase
             ['Catálogo DEMO'],
             ['DEMO-1'],
             ['demo_catalog'],
-            ['Contenido ficticio'],
-            ['Situaciones ficticias'],
             ['Sin validez curricular'],
             ['Contenido de ejemplo'],
             ['PDA de ejemplo'],
