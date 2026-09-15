@@ -1,102 +1,157 @@
-# Pipeline IA y procesamiento asíncrono
+# Pipeline IA vigente
 
-## Contratos
+Actualizado: 2026-09-15.
 
-### Contrato canónico v1
+Este documento describe el pipeline IA actual. La regla principal es que **la generación pedagógica es canónica e independiente del formato de exportación**.
 
-Fase 4A separa deliberadamente la salida generable del proveedor de la autoridad curricular. `GeneratedPlanDraftV1` contiene únicamente diseño pedagógico y referencias por código; no puede aportar textos curriculares oficiales. `CanonicalPlanAssembler` combina ese draft validado con el `RequestInputVersion` congelado y construye `CanonicalPlanV1`. Los textos, códigos, fase, grado, contenidos, PDA y ejes del bloque `curricular_alignment` proceden exclusivamente del snapshot confirmado.
+## Fuente de verdad
 
-Contratos versionados en `resources/schemas/ai/`; decisión y reglas completas en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`. Cambiar la forma del JSON requiere una nueva versión de contrato. Auditoría, corrección, revisión y renderer futuros reciben el canonical, no la respuesta cruda del proveedor. `curricular_alignment.coverage` se calcula server-side desde las referencias de las sesiones y todo PDA confirmado debe quedar cubierto.
+El proveedor IA nunca es autoridad curricular.
 
-La validación v1 combina JSON Schema con invariantes PHP: IDs/secuencias de sesión, inicio-desarrollo-cierre, suma de minutos, instrumentos y referencias curriculares contra el snapshot. `date` de sesión permanece nullable y las unidades comerciales no equivalen al número de sesiones.
+La entrada de generación se construye desde un `RequestInputVersion` inmutable que contiene el contexto docente y el currículo confirmado. La salida del proveedor usa `GeneratedPlanDraftV1`, que contiene diseño pedagógico y referencias curriculares por código. `CanonicalPlanAssembler` valida esas referencias y reconstruye `CanonicalPlanV1` usando los textos curriculares oficiales del snapshot.
 
-### Materialización Fase 4B — arranque manual
+Por tanto:
 
-`DispatchPlanningGeneration` materializa únicamente `LISTA_PARA_PROCESAR → GENERACION_IA`. Bajo lock de `PlanningRequest` valida autorización comercial, PromptVersion generation activa/publicada y snapshot vigente; consume una sola vez la reserva `planning`, crea `AiExecution` pending/manual, `RequestStateEvent` de sistema y `outbox_events` con `event_key` único dentro de la misma transacción. La reserva `human_review` no se consume al generar: sigue reservada hasta la etapa de revisión.
+- la IA no crea ni reescribe contenidos, PDA, campos, ejes, fase o grado oficiales;
+- la IA no recibe un DOCX institucional como contrato pedagógico;
+- `format_version_id`, `template_contract` y campos derivados de una plantilla no forman parte del input de generación;
+- cambiar el formato de salida no vuelve a ejecutar IA ni incrementa `input_revision`.
 
-El outbox no llama una API. `ai:process-outbox` reclama eventos mediante lease, reconstruye `GenerationInput` desde snapshots inmutables y comprueba hashes del manifest. En modo manual renderiza el prompt exacto y crea un paquete JSON privado versionado por `AiExecution`; solo entonces la ejecución queda `waiting_manual`. La escritura de bytes se hace fuera de la transacción que persiste el paquete para no mantener locks durante I/O. Repetir dispatch, claim o package build es idempotente.
+## Contratos vigentes
 
-Fallo técnico no cambia la solicitud a un estado ficticio de error ni libera unidades ya consumidas: el evento queda reintentable, se abre `request_blocks(code=ai_failed, stage=generation)` con detalle sanitizado y el cliente continúa viendo un estado público de preparación. Al procesarse correctamente el evento se resuelve ese bloqueo. `AI_MODE=api` falla antes de consumir derechos mientras no exista adapter real; integración HTTP permanece en Fase 7.
+- `GeneratedPlanDraftV1`: salida generable del proveedor.
+- `CanonicalPlanV1`: representación interna de autoridad para una versión de planeación.
+- `AuditResultV1`: resultado estructurado de auditoría.
+- `CorrectionResultV1`: corrección estructurada y acotada.
 
-### Materialización Fase 4C — resultado manual y versión canónica
+Los schemas viven en `resources/schemas/ai/`. Un cambio incompatible requiere una nueva versión de contrato.
 
-`ai:import-generation-result` recibe el JSON `GeneratedPlanDraftV1` de una `AiExecution` generation/manual que ya está `waiting_manual`. El payload se valida primero; luego `CanonicalPlanAssembler` lo combina con `RequestInputVersion` vigente y vuelve a imponer referencias curriculares, cobertura PDA, fechas y demás invariantes. El resultado validado se persiste como `DocumentVersion(status=validated)` inmutable dentro de un `Document` lógico único por solicitud. `content_hash` cubre el canonical y `source_payload_hash` conserva la identidad del draft sin duplicar el payload crudo.
+## Flujo
 
-La importación es transaccional e idempotente. La ejecución generation pasa a `succeeded` solo después de crear la versión y enlazar `resulting_version_id`; proveedor/modelo/costo real se registran únicamente si el operador los conoce, de lo contrario quedan `null`. Repetir el mismo draft devuelve la misma versión; un draft diferente para una ejecución ya cerrada produce conflicto y no reescribe historial. `human_review` continúa reservado.
+```text
+RequestInputVersion
+    ↓
+DispatchPlanningGeneration
+    ↓
+AiExecution: generation
+    ↓
+GeneratedPlanDraftV1
+    ↓
+CanonicalPlanAssembler
+    ↓
+DocumentVersion / CanonicalPlanV1
+    ↓
+AiExecution: audit
+    ↓
+AuditResultV1
+    ├─ pasa → aprobación IA o revisión humana
+    └─ falla → corrección interna acotada
+                  ↓
+             nueva DocumentVersion
+                  ↓
+             nueva auditoría
+```
 
-Antes de cambiar `GENERACION_IA → AUDITORIA_IA`, 4C exige una `PromptVersion` audit activa/publicada y crea una `AiExecution(stage=audit,status=pending)` congelando `source_version_id`, hash, revisión y correlación. Desde 4D ese prompt además debe cumplir exactamente `AuditResultV1`; la misma transacción crea el outbox `planning.audit.requested`, evitando congelar una ejecución audit imposible de procesar. PostgreSQL protege `DocumentVersion`, resultado generation succeeded y la transición posterior mediante triggers/FK diferidos.
+Una `DocumentVersion` nueva invalida cualquier aprobación perteneciente exclusivamente a su versión padre. Nunca se hereda una aprobación a contenido corregido.
 
-### Materialización Fase 4D — paquete y resultado manual de auditoría
+## Generación
 
-El outbox de auditoría reutiliza leases/reintentos de 4B. `ai:process-outbox` reconstruye la `DocumentVersion` fuente exacta, valida su hash y `CanonicalPlanV1`, renderiza el PromptVersion audit congelado y escribe un paquete privado `manual_audit`; después deja `AiExecution(stage=audit)` en `waiting_manual`. Un fallo abre `request_blocks(code=ai_failed, stage=audit)` sin cambiar la solicitud ni duplicar consumo.
+Antes de iniciar se valida estado, snapshot vigente, autorización comercial, reserva de planeación y contrato/prompt publicado compatible.
 
-`ai:import-audit-result` acepta únicamente `AuditResultV1`: `passed` y hallazgos estructurados con categoría, severidad, JSON Pointer, explicación y corrección esperada. `passed=true` exige cero hallazgos y `passed=false` exige al menos uno. El reporte queda en `AiExecution.audit_report`, la ejecución pasa a `succeeded` y el `PlanningRequest` permanece en `AUDITORIA_IA`; la decisión `APROBADA`/`REVISION_HUMANA`/`CORRECCION_IA` pertenece a 4E. Repetir el mismo reporte es idempotente; uno distinto no reescribe historial.
+Al iniciar la primera generación se consume la reserva `planning` una sola vez. Los reintentos técnicos no consumen otra unidad.
 
-4D no llama proveedor HTTP ni crea otra `DocumentVersion`. PostgreSQL exige outbox audit coherente desde `AUDITORIA_IA`, paquete manual cuando la ejecución está `waiting_manual`, `audit_report` válido para `audit/succeeded` y una auditoría succeeded sobre la versión actual antes de permitir estados posteriores a `AUDITORIA_IA`.
+La salida generada contiene únicamente diseño pedagógico permitido por el contrato: propósito, estructura de sesiones, actividades, evaluación, materiales, apoyos, recursos y referencias a códigos curriculares confirmados.
 
-### Materialización Fase 4E — ruteo, aprobación AI y corrección interna
+## Auditoría
 
-`ai:route-audit-result` decide exclusivamente sobre una auditoría `succeeded` de la `DocumentVersion` actual. Si `passed=true`, crea una `Approval(kind=ai)` inmutable ligada a esa versión/auditoría y transiciona a `APROBADA` para planes sin revisión humana o a `REVISION_HUMANA` cuando `human_review_required_snapshot=true`. La reserva `human_review` sigue `reserved`; su consumo pertenece al primer ciclo humano de Fase 5. La aprobación humana todavía no es operativa y PostgreSQL rechaza fabricarla sin la infraestructura review/checklist.
+La auditoría trabaja sobre una `DocumentVersion` exacta y validada. Comprueba coherencia pedagógica, cobertura curricular, estructura y restricciones del contrato.
 
-Si `passed=false`, `InternalCorrectionPolicy` deriva `section_keys` únicamente de zonas mutables (`planning.title|project_name`, `pedagogical_design`, `sessions`, `assessment_plan`, `resources`, `adaptation_notes`). Hallazgos sobre `source`, `context`, `curricular_alignment` u otro alcance no seguro no se corrigen automáticamente: se abre `request_blocks(code=ai_quality_attention)` y la solicitud permanece en `AUDITORIA_IA`. Los ciclos internos usan `AI_INTERNAL_CORRECTION_MAX_ROUNDS` y presupuesto técnico opcional; **no usan ni consumen `correction_limit_snapshot`/`client_correction`**, que son rondas comerciales solicitadas por el cliente después de entrega.
+`passed=true` exige ausencia de hallazgos. `passed=false` exige hallazgos estructurados.
 
-Cuando hay capacidad interna, el ruteo congela PromptVersion correction compatible con `CorrectionResultV1`, crea `AiExecution(stage=correction,status=pending)`, outbox `planning.correction.requested` y `AUDITORIA_IA → CORRECCION_IA`. El outbox materializa paquete privado `manual_correction` con canonical, audit report exacto, hash, ronda y section_keys; después queda `waiting_manual`.
+Si pasa, se crea `Approval(kind=ai)` para esa versión y la solicitud pasa a `APROBADA` si no exige revisión humana, o a `REVISION_HUMANA` si el derecho congelado la exige.
 
-`ai:import-correction-result` acepta un patch estructurado y acotado. `CanonicalPlanCorrectionApplier` rehace `GeneratedPlanDraftV1`, lo valida y vuelve a ensamblar `CanonicalPlanV1` server-side; `source`, `context` y `curricular_alignment` no pueden cambiar. El resultado crea una `DocumentVersion` hija, cierra correction `succeeded` y siempre vuelve `CORRECCION_IA → AUDITORIA_IA` con nueva ejecución/outbox audit sobre la nueva versión. Reauditorías fallidas pueden iniciar otra ronda hasta el límite interno; alcanzado el límite se conserva `AUDITORIA_IA` con bloqueo de atención, sin gastar rondas del cliente. PostgreSQL protege Approval AI, manifest correction y las rutas post-auditoría con constraint triggers diferidos.
+## Correcciones internas
 
-GenerationService.generate(GenerationInput): GenerationResult; AuditService.audit(AuditInput): AuditResult; CorrectionService.correct(CorrectionInput): CorrectionResult; DocumentAnalysisService.analyze(DocumentInput): AnalysisResult. Servicios orquestan validación, prompts y persistencia mediante AiProvider adapter; nunca llamar proveedor desde controlador o componente Filament. DocumentRenderer es contrato separado: generación de contenido no es renderizado de DOCX.
+Las correcciones internas de calidad son distintas de las correcciones solicitadas por el cliente.
 
-DTO de entrada: request_id, input_revision, perfil pedagógico minimizado, datos variables, snapshot curricular textual confirmado, planning_units y segmentos, manifest de archivos limpios, prompt_version_id, output_schema_version, correlation_id y operation_key. Corrección añade source_version_id, section_keys y observaciones. Salida: contenido estructurado/patch validado, referencias, alertas y metadatos de uso; no HTML ejecutable ni llamadas a herramientas arbitrarias.
+Solo pueden modificar raíces pedagógicas explícitamente mutables: título/proyecto, diseño pedagógico, sesiones, evaluación, recursos y adecuaciones/apoyos.
 
-AI_MODE=manual resuelve adapter que crea ejecución waiting_manual y paquete privado con texto exacto y manifest. Operador autorizado exporta paquete, procesa fuera y carga resultado identificado con proveedor/modelo real, fecha y costo conocido; si desconocido, null, nunca cero inventado. No enviar datos automáticamente. La carga pasa las mismas validaciones/auditoría/versionado que API; nunca marcar éxito solo por copiar prompt. Espera manual no ocupa worker.
+No pueden modificar `source`, contexto congelado, `curricular_alignment`, grado, fase, contenidos, PDA, campos ni ejes confirmados.
 
-AI_MODE=api requiere adapter configurado y credenciales. Si no existe, error de configuración visible; no hacer fallback silencioso a datos ficticios. Fake determinista solo en tests. Un adapter real se elegirá y probará antes del lanzamiento automático.
+Una corrección crea una `DocumentVersion` hija y vuelve obligatoriamente a auditoría. Los ciclos internos no consumen `client_correction`.
 
-## Prompts y trazabilidad
+## Revisión humana
 
-PromptTemplate categorías generation, audit, correction, document_analysis y format_adaptation. PromptVersion publicada inmutable: cuerpo, variables permitidas, schema, número y autor; activar nueva versión no altera ejecuciones existentes. Administrable en /admin, vista previa y validación antes de publicar. Sustitución por lista permitida, sin eval ni Blade arbitrario. Guardar versión exacta, hash y payload renderizado privado con retención y acceso limitado. No hardcodear prompts en UI/jobs.
+Cuando el plan requiere revisión humana, el revisor trabaja sobre una `DocumentVersion` exacta, con checklist versionado y asignación vigente.
 
-Cada ejecución conserva modo, proveedor, modelo, prompt/version, fecha, duración, estado, errores sanitizados, costo estimado/real si existe, relación solicitud o formato, revisión de entrada y versión resultante. ai_attempts conserva reintentos, IDs de proveedor y consumo; costo incluye intentos fallidos cobrados. Secretos y payload sensible no van al log general.
+Una solicitud de cambios humanos genera una corrección sobre secciones permitidas, produce una nueva versión y regresa a auditoría antes de volver a revisión humana. La aprobación humana pertenece exclusivamente a la versión revisada.
 
-## Etapas
+## Modo manual
 
-1. Validar derechos/reservas, información y archivos; congelar input_revision y formato publicado.
-2. DispatchGeneration crea/reutiliza execution por operation_key, consume planning_units una sola vez y pide estructura canónica: objetivos, sesiones con inicio/desarrollo/cierre, materiales, evaluación, adecuaciones y referencias a contenidos/PDA.
-3. Validar schema, fechas, campos requeridos, secciones y límites. No promover respuesta truncada o inválida. Crear DocumentVersion inmutable bajo bloqueo; enlazar ejecución y padre.
-4. DispatchAudit evalúa esa versión contra entrada y rúbrica; devuelve hallazgos por sección, gravedad y pass/fail. Campos curriculares ausentes → falta información, no invención. Auditoría independiente no garantiza verdad: registrar incertidumbres.
-5. Hallazgos corregibles → corrección acotada; hallazgo no corregible → bloqueo y atención. Ciclos máximos y presupuesto configurables. Resultado satisfactorio crea aprobación AI; ruta según derecho human_review_required.
-6. Revisión humana cuando corresponda; nuevas observaciones generan patch sobre source_version_id. Rechazar patch fuera de section_keys; si exige modificar otra sección, expandir alcance explícitamente. Nueva hija invalida aprobación para ese resultado y se audita nuevamente.
-7. Aprobación requerida completa → DocumentRenderer con formato versionado → validación DOCX/PDF → manifest → entrega y notificación. Render no modifica contenido aprobado silenciosamente.
+`AI_MODE=manual` es el flujo operativo consolidado.
 
-## Formatos
+El sistema materializa paquetes privados versionados para generación, auditoría y corrección. Un operador procesa el paquete externamente e importa el resultado. La importación pasa por los mismos schemas, validadores, hashes e invariantes que deberá respetar cualquier proveedor API.
 
-Estándar administrado por plataforma: estructura conocida, placeholders/tablas controladas, versión de renderer y muestra validada. Institucional: archivo privado → análisis → propuesta de mapping de secciones/campos → configuración humana → render de prueba → validación visual → publicación ready. No utilizar pending/unsupported en producción; ofrecer estándar o bloquear con motivo. Una nueva versión no cambia solicitudes anteriores. OCR universal y fidelidad de cualquier DOCX no forman parte del MVP.
+## Modo API
 
-## Queues, transacciones y fallos
+`AI_MODE=api` requiere un adapter real configurado y validado. No existe fallback silencioso a fake o datos ficticios.
 
-Colas ai, documents y notifications con workers separados; database queue suficiente inicialmente. Jobs pequeños por etapa. Transacción guarda estado, ejecución prevista y outbox; dispatcher publica pendientes después de commit. Evento y job llevan clave única por solicitud+input_revision+etapa+versión+corrección. Repetición es no-op si ya completado. Recuperador revisa outbox no publicado; no confiar solo en afterCommit ante caída entre commit y enqueue.
+La rama `phase-7a-openai-provider` contiene trabajo del borde HTTP, pero no debe considerarse productiva hasta integrarse y probarse sobre esta arquitectura canónica.
 
-No mantener transacción DB durante llamada externa. Antes de llamar, reclamar ejecución con bloqueo y lease; después, bloquear y verificar estado, revisión de entrada y versión base. Respuesta antigua queda registrada sin promoverse. No existe exactly-once universal: clave del proveedor cuando soporte idempotencia; ante timeout ambiguo estado uncertain y consulta de estado/reconciliación antes de repetir un cobro.
+Un adapter API debe respetar contratos estructurados, idempotencia, trazabilidad de proveedor/modelo, costos/uso, timeouts ambiguos, minimización de datos y las mismas validaciones server-side del modo manual.
 
-Timeout HTTP < timeout del job < retry_after de cola, todos configurables y validados en arranque. Reintentos acotados con backoff/jitter para red, 429 y errores temporales; fallos de credencial, schema reiterado o presupuesto agotado bloquean sin bucle. Job único/WithoutOverlapping ayuda, pero bloqueo DB y claves únicas son autoridad. Scheduler detecta leases vencidas, ejecuciones estancadas y failed_jobs; reanuda la etapa válida sin reiniciar toda la solicitud.
+## Idempotencia y procesamiento asíncrono
 
-Workers supervisados, reiniciados en despliegue y monitoreados. Scheduler reconcilia pagos ambiguos, solicitudes sin revisor, vencimientos, renovaciones y outbox. No emitir aviso cada minuto: deduplicar por evento/ventana. Presupuestos de tokens/costo/ciclos por solicitud y periodo; alertar al llegar al límite. Circuit breaker por proveedor evita tormenta de reintentos; contingencia manual requiere acción explícita y trazabilidad.
+Las etapas usan `AiExecution`, `operation_key`, outbox, locks y leases.
 
-## Seguridad y pruebas
+- doble clic o job repetido reutiliza la operación existente;
+- no se mantiene una transacción DB abierta durante una llamada externa;
+- una respuesta vieja no puede promoverse sobre otra `input_revision` o `DocumentVersion`;
+- fallos técnicos abren `request_blocks` y permiten reintento;
+- un fallo técnico no equivale a cancelación comercial;
+- costos e intentos fallidos se conservan cuando el proveedor los cobra.
 
-Documentos e instrucciones de usuario son datos no confiables: separar del prompt de sistema, sin dar acceso a secretos/red/herramientas al contenido. Extraer solo lo necesario tras escaneo; no incluir identificadores personales por defecto. Texto libre puede contener datos personales: advertencia, detección y revisión de payload según política antes de salir. Sanitizar visualización y bloquear recursos remotos al renderizar.
+## Prompts
 
-Tests con fake: flujo IA y revisado; modo manual; prompt exacto; schema inválido; auditoría fallida; corrección fuera de sección; límite de ciclos/costo; timeout ambiguo; job duplicado; worker caído; entrada editada durante ejecución; versión antigua no promovida; render fallido; email fallido sin revertir entrega. Tests reales de adapter acotados en entorno sandbox al integrar proveedor, nunca con datos de alumnos.
+`PromptTemplate` conserva identidad estable y `PromptVersion` publicada es inmutable. Las categorías principales son `generation`, `audit`, `correction` y `document_analysis` cuando corresponda.
 
+Los prompts no deben contener lógica de formato institucional para la generación canónica.
 
-## Propuesta curricular previa al pipeline
+## Documentos y exportación
 
-MVP: CurriculumSuggestionService descrito en CURRICULUM.md, adapter de búsqueda/reglas sobre catálogo del grado y versión publicados. UI → acción autorizada → servicio; no llamar IA directamente. No es GenerationService ni cambia BORRADOR a GENERACION_IA. Propuesta no reserva cupos, no publica texto curricular y requiere confirmación docente. Se guarda curriculum_suggestions con fingerprint completo; timeout no borra borrador y respuesta obsoleta no pisa selección nueva. Búsqueda determinista puede ser síncrona con límite de tiempo; si se añade adapter externo, ejecutarlo mediante queue y mantener exactamente el mismo contrato.
+El renderer se ejecuta después de que una `DocumentVersion` queda aprobada.
 
-POST-MVP para sugerencias: adapter IA/semántico. De añadirse, nueva categoría de prompt curriculum_suggestion, ejecución enlazada a solicitud borrador y sugerencia, límites de costo/frecuencia, IDs candidatos permitidos y validación posterior. No implementar ahora embeddings, índices vectoriales ni integración adicional. AI_MODE gobierna generación/auditoría/corrección existentes; no impide sugerencias deterministas en modo manual.
+```text
+Approved Canonical Plan
+    ↓
+PlanningFormatResolver
+    ├─ Standard v2
+    └─ Institutional export adapter
+    ↓
+DOCX / PDF
+```
 
-GenerationService y AuditService siempre usan snapshot de currículo confirmado al envío, no consultan versión activa para reescribir la solicitud. Validar textos y referencias contra ese snapshot; no inventar PDA ni aceptar IDs nuevos del proveedor. Selección modificada exige nueva confirmación/revisión de entrada. Versiones de currículo retiradas de selección futura siguen siendo válidas para solicitudes históricas.
+La exportación no modifica el contenido pedagógico ni llama nuevamente a generación IA.
 
-Render y generación conocen segmentos comerciales: cubrir explícitamente cada tramo de hasta max_planning_days; no truncar un periodo largo a la primera unidad. Una ejecución lógica por etapa puede incluir varios intentos acotados, sin más consumo comercial. El límite de payload/costo se valida antes de reservar; si U no cabe en capacidad configurada, pedir reducir periodo con explicación, no cobrar y después truncar. No introducir subpipelines por unidad en MVP.
+Ver `docs/STANDARD_EXPORT_V2.md` y `ARCHITECTURE.md`.
 
-La propuesta inicial de evaluación es texto pedagógico sugerido y editable, no parte de un catálogo oficial. Solo la versión confirmada alimenta generación. Materiales sin texto disponible no se presentan como leídos. Frontend recibe datos pedagógicos y estados comprensibles, jamás proveedor/prompt/tokens/execution_id. Información técnica queda en operación autorizada.
+## Seguridad
+
+- archivos y payloads privados fuera de `public`;
+- no enviar nombres de alumnos ni identificadores innecesarios;
+- secretos fuera de logs y paquetes;
+- contenido del usuario tratado como dato no confiable;
+- ningún proveedor recibe herramientas, red o credenciales por medio del contenido de una solicitud.
+
+## Pruebas arquitectónicas mínimas
+
+La suite debe impedir regresiones en estas reglas:
+
+1. generación independiente del formato;
+2. currículo oficial reconstruido desde snapshot;
+3. corrección incapaz de mutar bloque curricular;
+4. aprobación ligada a versión exacta;
+5. reintentos sin doble consumo;
+6. respuestas obsoletas no promovidas;
+7. Standard v2 disponible sin formato institucional;
+8. adapter API sujeto a los mismos contratos del modo manual.
