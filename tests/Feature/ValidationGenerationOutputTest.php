@@ -131,8 +131,8 @@ class ValidationGenerationOutputTest extends PedagogyTestCase
         $this->actingAs($scene['request']->owner)
             ->get('/app/planning-requests/' . $scene['request']->id)
             ->assertOk()
-            ->assertSee('Vista previa de la planeación generada')
-            ->assertSee('Secuencia de sesiones');
+            ->assertSee('Vista previa de la planeación')
+            ->assertSee('Sesiones (2)');
     }
 
     public function test_solicitud_lista_para_procesar_expone_accion_de_generacion(): void
