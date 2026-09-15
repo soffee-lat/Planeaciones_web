@@ -125,7 +125,6 @@ class GroupResource extends Resource
                             ->all();
                     })
                     ->required()
-                    ->native(false)
                     ->helperText('Solo se muestran grados de la versión curricular seleccionada.'),
 
                 TextInput::make('name')
