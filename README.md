@@ -1,309 +1,116 @@
 # Planeaciones
 
-Aplicación Laravel 13 + Filament 5 sobre PostgreSQL. Tres paneles aislados: `/app` (docente cliente), `/review` (revisor) y `/admin` (administración). Diseño y fases en `ARCHITECTURE.md`, `TASKS.md`, `PERMISSIONS.md`, `WORKFLOWS.md`, `AI_PIPELINE.md`, `DATABASE.md`, `CURRICULUM.md` y `MVP.md`. El cierre verificado de Fase 6 está documentado en [`docs/PHASE6_CLOSURE.md`](docs/PHASE6_CLOSURE.md).
+Aplicación Laravel 13 + Filament 5 + PostgreSQL para generar, revisar y entregar planeaciones docentes personalizadas.
+
+La aplicación usa tres paneles aislados:
+
+- `/app`: docente cliente.
+- `/review`: docente revisor.
+- `/admin`: administración.
+
+## Estado actual
+
+Las Fases 1–6 están cerradas funcionalmente. El trabajo activo se concentra en:
+
+1. currículo oficial de primaria para Fases 3–5;
+2. consolidación del flujo docente y validación curricular;
+3. Standard Export v2 como salida predeterminada;
+4. validación del MVP con docentes reales;
+5. integración posterior de un proveedor IA real sobre el contrato canónico.
+
+Consultar primero [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md).
+
+## Regla arquitectónica principal
+
+La generación pedagógica es canónica e independiente del formato de salida.
+
+```text
+Solicitud + currículo confirmado
+        ↓
+Snapshot inmutable
+        ↓
+Generación pedagógica
+        ↓
+Auditoría / correcciones
+        ↓
+Revisión humana cuando aplica
+        ↓
+Planeación aprobada
+        ↓
+Exportación Standard v2 o institucional
+        ↓
+DOCX / PDF
+        ↓
+Entrega privada
+```
+
+Un formato DOCX, `FormatVersion`, `template_contract` o preferencia histórica de grupo no condiciona la generación. El formato se resuelve al exportar una planeación aprobada.
+
+## Documentación vigente
+
+- [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md): estado y prioridades actuales.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): arquitectura y fronteras de dominio.
+- [`CURRICULUM.md`](CURRICULUM.md): catálogo curricular y reglas de producción.
+- [`WORKFLOWS.md`](WORKFLOWS.md): estados y flujo de negocio.
+- [`AI_PIPELINE.md`](AI_PIPELINE.md): contratos y pipeline IA.
+- [`DATABASE.md`](DATABASE.md): modelo de datos e invariantes.
+- [`PERMISSIONS.md`](PERMISSIONS.md): permisos y aislamiento.
+- [`MVP.md`](MVP.md): alcance actual de producto.
+- [`TASKS.md`](TASKS.md): backlog vigente.
+- [`docs/STANDARD_EXPORT_V2.md`](docs/STANDARD_EXPORT_V2.md): contrato de salida estándar.
+- [`docs/PHASE6_CLOSURE.md`](docs/PHASE6_CLOSURE.md): evidencia histórica del cierre de Fase 6.
+
+La documentación histórica o experimental no tiene precedencia sobre código/tests actuales.
 
 ## Desarrollo local en Windows
 
-Este proyecto usa una PostgreSQL local aislada en `.runtime/postgresql/` y requiere la extensión `pdo_pgsql`. El PHP global de Windows normalmente **no** trae `pdo_pgsql` habilitada, por lo que ejecutar `php`, `composer` o `vendor/bin/phpunit` directamente falla con:
+El proyecto usa PostgreSQL local aislado y requiere `pdo_pgsql`. Ejecutar PHP mediante `tools/php.ps1`.
 
-```
-PDOException: could not find driver (Connection: pgsql)
-```
-
-Para evitarlo, todo comando PHP debe pasar por el envoltorio [`tools/php.ps1`](tools/php.ps1), que fija `PHPRC` a `.runtime/php.ini` (php.ini con `extension=pdo_pgsql` y `extension=pgsql` habilitados) y delega en `php`.
-
-### Ejemplos de ejecución
-
-Si la instancia aislada está detenida, arrancar **el clúster existente** desde la raíz del repositorio:
+Arrancar PostgreSQL local existente:
 
 ```powershell
 & .runtime/postgresql/pgsql/bin/pg_ctl.exe -D .runtime/pgdata -l .runtime/postgresql.log -w start
 & .runtime/postgresql/pgsql/bin/pg_isready.exe -h 127.0.0.1 -p 55432
 ```
 
-`.runtime/pgdata/postgresql.conf` fija `127.0.0.1:55432`; no es Docker ni un túnel. `.env.testing` usa `planeaciones_test` y `tests/TestCase.php` exige PostgreSQL con nombre terminado en `_test`. No sustituir el puerto por 5432 ni inicializar otro clúster para resolver una instancia detenida.
-
-Pruebas (suite completa). El cierre de Fase 6 demostró que `128M` puede terminar el proceso cerca del final de la suite larga, por lo que para una corrida integral se usa `512M`:
+Suite completa:
 
 ```powershell
 .\tools\php.ps1 -d memory_limit=512M vendor/phpunit/phpunit/phpunit --do-not-cache-result
 ```
 
-Pruebas específicas de contratos IA / Fase 4A:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/GeneratedPlanDraftValidatorTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI --do-not-cache-result
-```
-
-Pruebas específicas del arranque manual / Fase 4B:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/PlanningRequestStateMachineTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationDispatchTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualGenerationOutboxTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningGenerationIntegrityTest.php --do-not-cache-result
-```
-
-Iniciar manualmente una solicitud ya autorizada (operación interna) y, opcionalmente, preparar su paquete en el mismo comando. Requiere que `/admin` tenga activa una `PromptVersion` de categoría `generation` con key `planning.generation` y el schema versionado de `resources/schemas/ai/generated_plan_draft_v1.schema.json`:
-
-```powershell
-.\tools\php.ps1 artisan ai:dispatch-generation 123
-.\tools\php.ps1 artisan ai:dispatch-generation 123 --process-outbox
-```
-
-Procesar/reintentar outbox manual pendiente:
-
-```powershell
-.\tools\php.ps1 artisan ai:process-outbox --limit=25
-```
-
-`AI_MODE=manual` es el único modo operacional de Fase 4B. Los paquetes se guardan en el disco privado (`storage/app/private/ai/manual/...`) y no se publican mediante `storage:link`. `AI_MODE=api` permanece bloqueado hasta integrar y verificar un proveedor real.
-
-### Fase 4C — importar resultado manual de generación
-
-Antes de importar, `/admin` debe tener una `PromptVersion` publicada y activa de categoría `audit` con key `planning.audit`, schema exacto `AuditResultV1` y variables mínimas `canonical_plan` + `output_schema`. 4D valida ese contrato antes de congelarlo para impedir ejecuciones audit imposibles de procesar.
-
-```powershell
-.\tools\php.ps1 artisan ai:import-generation-result 45 C:\ruta\resultado.json
-```
-
-Metadatos reales opcionales; si se desconocen se omiten y permanecen `null`:
-
-```powershell
-.\tools\php.ps1 artisan ai:import-generation-result 45 C:\ruta\resultado.json `
-  --provider=proveedor-real --model=modelo-real `
-  --actual-cost=0.01234567 --currency=MXN
-```
-
-El JSON debe cumplir `GeneratedPlanDraftV1`. El servidor reconstruye `CanonicalPlanV1` desde el snapshot curricular congelado, crea `Document`/`DocumentVersion` inmutable, marca la ejecución de generación `succeeded` y transiciona `GENERACION_IA → AUDITORIA_IA` preparando una ejecución `audit` pendiente y su outbox. Repetir el mismo payload es idempotente; un payload distinto para la misma ejecución se rechaza.
-
-Procesa después el outbox para generar el paquete privado de auditoría:
-
-```powershell
-.\tools\php.ps1 artisan ai:process-outbox
-```
-
-Tras procesar el paquete fuera del sistema, importa un `AuditResultV1`:
-
-```powershell
-.\tools\php.ps1 artisan ai:import-audit-result <execution_id> <ruta-audit-result.json> --provider=<real> --model=<real>
-```
-
-Proveedor/modelo/costo pueden omitirse si realmente se desconocen. La importación cierra la ejecución audit y deja la solicitud en `AUDITORIA_IA`. Fase 4E enruta el resultado:
-
-```powershell
-.\tools\php.ps1 artisan ai:route-audit-result <audit_execution_id>
-```
-
-Si el audit pasa, crea Approval AI y la solicitud queda `APROBADA` o `REVISION_HUMANA` según el derecho congelado. Si falla y el alcance es corregible, crea una ejecución correction + outbox y cambia a `CORRECCION_IA`. Procesa el outbox para obtener el paquete privado de corrección:
-
-```powershell
-.\tools\php.ps1 artisan ai:process-outbox
-```
-
-Importa después `CorrectionResultV1`:
-
-```powershell
-.\tools\php.ps1 artisan ai:import-correction-result <correction_execution_id> C:\ruta\correction-result.json
-```
-
-La importación crea una `DocumentVersion` hija y prepara reauditoría, por lo que vuelve a `AUDITORIA_IA`. Los ciclos internos se limitan con `AI_INTERNAL_CORRECTION_MAX_ROUNDS` (default 2) y **no consumen `correction_limit` del cliente**. Alcance no seguro o límite agotado abre `ai_quality_attention` y conserva la solicitud en auditoría.
-
-Pruebas específicas de 4E:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Unit/CorrectionResultValidatorTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/AuditRoutingTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualCorrectionPipelineTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/ManualCorrectionResultImportTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/PlanningCorrectionIntegrityTest.php --do-not-cache-result
-```
-
-Prueba integral verificada de cierre de Fase 4 (4F):
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/AI/Phase4EndToEndTest.php --do-not-cache-result
-```
-
-4F no agrega endpoints, estados ni persistencia nuevos: verifica que 4B→4E funcionen unidos y que los replays no dupliquen versiones, aprobaciones, outbox ni consumo. Cierre local: **4 tests / 32 assertions** en `Phase4EndToEndTest`; hardening comercial **44 / 146**; suite completa **432 tests / 1521 assertions**, sin fallos.
-
-### Fase 5A — capacidad y asignación humana
-
-Cerrada en `365301a` / `phase-5a-complete`. Asignación automática al entrar a `REVISION_HUMANA`, con consumo humano únicamente cuando existe un revisor elegible. Evidencia local: **451 tests / 1592 assertions**. Reintento operativo:
-
-```powershell
-.\tools\php.ps1 artisan review:assign <request_id>
-```
-
-Pruebas dirigidas de 5A:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentIntegrityTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerAssignmentConcurrencyTest.php --do-not-cache-result
-```
-
-### Fase 5B — revisión humana y checklist
-
-Cerrada en `phase-5b-complete` sobre la base `365301a`. `StartHumanReview` congela la versión documental y la versión de checklist; `SaveHumanReview` persiste criterios/comentarios; `ApproveHumanReview` solo aprueba con todos los criterios obligatorios en `true`, completa la asignación y registra aprobación humana exacta. El panel `/review` muestra únicamente los trabajos asignados y la versión canónica necesaria para revisar. Evidencia local: **466 tests / 1634 assertions**, sin fallos.
-
-Pruebas dirigidas de 5B:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewChecklistVersionTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewExecutionTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewIntegrityTest.php --do-not-cache-result
-```
-
-5B no implementa todavía `changes_requested/rejected/escalated`; esa rama se abre en 5C para no permitir estados terminales sin integridad completa.
-
-### Fase 5C — corrección y decisiones humanas
-
-5C separa tres decisiones del revisor. `changes_requested` solo permite corregir secciones mutables con observaciones explícitas y reutiliza el pipeline `correction → audit`; `escalated` y `rejected` detienen la asignación y abren atención administrativa sin cancelar la solicitud. Una corrección aprobada por la auditoría vuelve a `REVISION_HUMANA`, intenta conservar al revisor anterior y crea una revisión nueva sin heredar checklist/respuestas.
-
-Pruebas dirigidas:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewDecisionTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/HumanReviewDecisionIntegrityTest.php --do-not-cache-result
-```
-
-Evidencia local de cierre: `HumanReviewDecisionTest` **8 / 41** y `HumanReviewDecisionIntegrityTest` **4 / 5**; regresiones de revisión 5A/5B, ruteo/corrección de Fase 4 y hardening comercial verdes; suite completa **478 tests / 1680 assertions**, sin fallos. `git diff --check` limpio.
-
-### Fase 5D — honorarios y liquidaciones
-
-La aprobación humana crea un único trabajo pagable por ciclo con la tarifa y unidades congeladas en la asignación. `CreateReviewerSettlement`, `ApproveReviewerSettlement` y `MarkReviewerSettlementPaid` agrupan, autorizan y liquidan esos trabajos sin nómina ni transferencia automática. Las correcciones y reasignaciones no generan un segundo honorario por sí solas. El panel `/review` muestra al revisor su carga y sus importes por liquidar/pagados, sin exponer margen comercial.
-
-Pruebas dirigidas:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerCompensationTest.php --do-not-cache-result
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit tests/Feature/Review/ReviewerCompensationIntegrityTest.php --do-not-cache-result
-```
-
-Evidencia local de cierre: `ReviewerCompensationTest` **9 / 45** y `ReviewerCompensationIntegrityTest` **4 / 6**; regresiones de revisión 5A–5C y hardening comercial verdes; suite completa **491 tests / 1731 assertions**, sin fallos. `git diff --check` limpio. Con 5A–5D, la Fase 5 queda cerrada en capacidad, ejecución, corrección y compensación humana.
-
-### Fase 6A — archivos y formatos
-
-Materializa `files`, `institutional_formats`, `format_versions` y `document_version_files`, conecta `group_profiles.preferred_format_id`, `planning_requests.format_version_id` y las FK diferidas de `ai_executions`. `EnsureStandardFormat` publica de forma idempotente el formato estándar v1; `PlanningFormatResolver` aplica prioridad explícito → preferencia de grupo → estándar sin permitir formatos de otro docente.
-
-Evidencia local de cierre: `FormatFoundationTest` **10 / 20**; regresiones de grupos, solicitudes, contratos IA, importación de generación, pipeline E2E y revisión humana verdes; suite completa **501 tests / 1751 assertions**, sin fallos. `git diff --check` limpio.
-
-### Fase 6B — renderer estándar DOCX/PDF
-
-Implementa el pipeline real de render sobre `CanonicalPlanV1 + FormatVersion`: `DispatchDocumentRendering` congela la versión actual y el formato resuelto, crea un `DocumentRenderRun` idempotente y transiciona `APROBADA → GENERANDO_DOCUMENTO`; el job procesa el run con el renderer estándar, persiste DOCX/PDF en storage privado, enlaza `DocumentVersionFile` y solo entonces mueve la solicitud a `LISTA_PARA_ENTREGAR`. Los fallos quedan recuperables y los formatos institucionales sin renderer explícito se bloquean sin fabricar salidas falsas. PostgreSQL valida versión actual, autorización comercial, run y artefactos antes de aceptar estados de render/entrega.
-
-Evidencia local de cierre histórica: `DocumentRenderingTest` **9 / 63** y `DocumentRenderingIntegrityTest` **4 / 8**; suite completa **514 tests / 1822 assertions**, sin fallos.
-
-### Fase 6C — entrega privada y retención
-
-Materializa `deliveries`, `delivery_files` y `delivery_downloads`, publica una entrega idempotente sobre la `DocumentVersion` y `DocumentRenderRun` exactos, y habilita descarga autenticada desde `/app` únicamente al propietario. Los bytes siguen en storage privado; cada acceso queda auditado. La retención de resultados se configura con `DOCUMENT_RESULT_RETENTION_DAYS` y `documents:purge-expired` elimina bytes expirados sin borrar metadatos ni historial.
-
-### Fase 6D — correcciones del cliente
-
-La corrección posterior a entrega conserva la entrega anterior, valida ventana contractual y `correction_limit_snapshot`, consume una ronda `client_correction` únicamente al aceptar el trabajo y crea una nueva `DocumentVersion` hija que vuelve a auditoría antes de una nueva entrega. Cerrada previamente en `phase-6d-complete`.
-
-### Fase 6E/6F — formato institucional self-service, notificaciones y cierre
-
-El flujo institucional final pertenece al docente cliente: sube su DOCX, el sistema analiza estructura, propone mappings, el docente corrige desde el diseñador visual, genera una muestra, la aprueba y publica su versión. `/admin` ya no expone el CRUD operativo de formatos institucionales ajenos.
-
-El diseñador visual soporta bindings precisos por fragmento: en `FECHA: 11/09/2026` se reemplaza `11/09/2026` y se conserva `FECHA:`; en una línea con `GRADO` y `GRUPO`, ambos valores pueden convivir como variables independientes. `institutional-v1.1.0` renderiza esos fragmentos y PostgreSQL exige que muestra, mapping y versión del renderer coincidan antes de publicar.
-
-6F incorpora además notificaciones operativas deduplicadas, aviso de renovación próxima y credenciales demo locales estables para pruebas. La evidencia final verificada es:
-
-```text
-Diseñador visual: 10 tests / 59 assertions
-Bloque documental: 48 tests / 224 assertions
-Renderer: 9 tests / 64 assertions
-Suite completa: 577 tests / 2169 assertions / 0 failures
-QA manual con DOCX institucional real: aprobado
-```
-
-Detalle de arquitectura, QA y limitaciones conocidas: [`docs/PHASE6_CLOSURE.md`](docs/PHASE6_CLOSURE.md).
-
-La expansión del diseñador queda congelada después del cierre. El siguiente sprint es un **MVP de validación curricular**: contexto mínimo → conexiones curriculares propuestas → confirmación docente → generación → formato institucional → DOCX/PDF.
-
-Los contratos versionados viven en `resources/schemas/ai/` y su explicación en `docs/ai/CANONICAL_PLAN_CONTRACT_V1.md`.
-
-Un solo archivo o filtro:
-
-```powershell
-.\tools\php.ps1 vendor/phpunit/phpunit/phpunit --filter IdentityAccess
-```
-
 Artisan:
 
 ```powershell
-.\tools\php.ps1 artisan migrate
-.\tools\php.ps1 artisan serve --host=127.0.0.1 --port=8000
-.\tools\php.ps1 artisan tinker
+.\tools\php.ps1 artisan <comando>
 ```
 
-Composer (solo cuando el paso invoca scripts PHP que abren conexión a PostgreSQL, por ejemplo `post-autoload-dump` con `package:discover`; en la mayoría de comandos de solo dependencia el `composer` global sirve):
+Composer:
 
 ```powershell
-$env:PHPRC = "$PWD\.runtime\php.ini"; composer install
-$env:PHPRC = "$PWD\.runtime\php.ini"; composer require vendor/paquete
+.\tools\php.ps1 composer <comando>
 ```
 
-Si `pdo_pgsql` ya está habilitada en el PHP global (por ejemplo en macOS, Linux o Windows con `pdo_pgsql` cargado en `php.ini`), el envoltorio no es necesario; se puede invocar `php`, `composer` y `vendor/bin/phpunit` directamente. En Windows es obligatorio.
+`.env.testing` debe usar PostgreSQL y una base terminada en `_test`. No sustituir el clúster aislado por SQLite ni por otra PostgreSQL durante pruebas sin cambiar explícitamente la arquitectura del proyecto.
 
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+## Pipeline IA operativo
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://img.shields.io/packagist/l/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+El pipeline actual soporta ejecución manual versionada para `generation`, `audit` y `correction`. Los paquetes y resultados se conservan en almacenamiento privado y pasan por los mismos validadores e invariantes que deberá usar un proveedor API.
 
-## About Laravel
+La generación devuelve diseño pedagógico estructurado; el servidor reconstruye el plan canónico usando el snapshot curricular confirmado. La IA no es autoridad sobre textos curriculares oficiales.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Documentos y exportación
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Standard v2 es la salida predeterminada. Los formatos institucionales son adaptadores opcionales de exportación y no forman parte del contrato de generación.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+La expansión del diseñador institucional como editor Word general está congelada mientras se valida el MVP curricular.
 
-## Learning Laravel
+## Fuente de verdad
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Cuando exista una contradicción, usar este orden:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
-```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+1. código y tests de la rama activa;
+2. `docs/CURRENT_STATE.md`;
+3. documentación vigente de arquitectura/dominio;
+4. documentación específica reciente;
+5. cierres de fase y Git history.
