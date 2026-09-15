@@ -17,17 +17,6 @@ final class ProductionCurriculumPolicy
 {
     public const NOT_READY = 'CURRICULUM_NOT_PRODUCTION_READY';
 
-    /** @var list<string> */
-    private const BLOCKED_MARKERS = [
-        'demo',
-        'ficticio',
-        'ficticia',
-        'sin validez curricular',
-        'contenido de ejemplo',
-        'pda de ejemplo',
-        '__pending_editorial__',
-    ];
-
     public function isPlanningEligible(CurriculumVersion $version): bool
     {
         $version->loadMissing('curriculum');
@@ -138,25 +127,6 @@ final class ProductionCurriculumPolicy
 
     private function containsBlockedMarker(mixed $value): bool
     {
-        if ($value === null) {
-            return false;
-        }
-
-        if (is_array($value) || is_object($value)) {
-            $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-
-        if (! is_scalar($value)) {
-            return false;
-        }
-
-        $normalized = mb_strtolower((string) $value);
-        foreach (self::BLOCKED_MARKERS as $marker) {
-            if (str_contains($normalized, $marker)) {
-                return true;
-            }
-        }
-
-        return false;
+        return EditorialMarkerDetector::contains($value);
     }
 }
