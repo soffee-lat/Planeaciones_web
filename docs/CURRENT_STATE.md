@@ -28,8 +28,14 @@ Las Fases 1 a 6 están cerradas funcionalmente. El trabajo activo se concentra e
 
 La integración de un proveedor IA real debe montarse sobre el contrato canónico y validarse antes de considerarse productiva.
 
+## Documentación experimental
+
+`docs/USER_DEFINED_TEMPLATE_CONTRACT.md` corresponde al experimento adaptativo de plantillas posterior a Fase 6. Sus técnicas de mapping y render pueden reutilizarse para exportación institucional, pero sus contratos de generación adaptativa no son arquitectura vigente.
+
+No usar `adaptive_template_generation_v1`, `canonical_adaptive_plan_v1`, `template_contract` institucional ni `format_version_id` como fuente de verdad para la generación pedagógica actual.
+
 ## Prioridad documental
 
-Ante contradicciones, usar este orden: código y tests de la rama activa; este archivo; documentos de arquitectura vigentes; documentos específicos recientes; cierres de fase; Git history y docs/legacy.
+Ante contradicciones, usar este orden: código y tests de la rama activa; este archivo; documentos de arquitectura vigentes; documentos específicos recientes; cierres de fase; Git history y documentación experimental/legacy.
 
-TASKS.md debe representar el backlog actual, no el diario completo del proyecto.
+`TASKS.md` representa el backlog actual, no el diario completo del proyecto.
