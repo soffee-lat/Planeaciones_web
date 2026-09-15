@@ -134,7 +134,7 @@ class PlanningCommercialUiTest extends PedagogyTestCase
         $request = $this->draft();
         $this->actingAs($request->owner);
         Livewire::test(CreatePlanningRequest::class)
-            ->assertSee('No tienes un plan activo')
+            ->assertSee('Aún no tienes un plan activo')
             ->assertDontSee('Formato de salida');
         $period = $this->period($request, ['human_review_required' => true, 'human_review_limit' => 8]);
         $preview = app(PlanningCommercialPresentation::class)->forCustomer($request->owner, '2026-10-01', '2026-10-28');
