@@ -146,7 +146,7 @@ class PrivateDeliveryTest extends PedagogyTestCase
         $this->actingAs($scene['request']->owner)
             ->get('/app/planning-requests/' . $scene['request']->id)
             ->assertOk()
-            ->assertSee('Archivos de tu planeación')
+            ->assertSee('Planeación lista')
             ->assertSee('Descargar DOCX')
             ->assertSee('Descargar PDF');
     }
