@@ -1,193 +1,181 @@
-# Catálogo curricular y selección asistida
+# Catálogo curricular vigente
 
-Iteración funcional previa a Fase 1. Solo diseño; no datos curriculares reales, migraciones ni seeders ejecutables. Este documento define el módulo curricular del monolito existente.
+Actualizado: 2026-09-15.
 
-## Entidades y relaciones — MVP
+Este documento describe el módulo curricular implementado y la línea activa de trabajo con currículo oficial de primaria para Fases 3, 4 y 5.
 
-Todos los elementos curriculares pertenecen a una CurriculumVersion. Los códigos son únicos dentro de su versión, no identificadores oficiales inventados ni constantes de PHP. Nombres y textos se almacenan completos; no se asume una cantidad fija de fases, grados, campos o ejes.
+## Principio
 
-| Entidad / tabla | Campos y relaciones |
+El currículo es una fuente de verdad versionada e independiente de la IA y de los formatos de exportación.
+
+Una solicitud enviada conserva un snapshot textual completo del currículo confirmado por el docente. El pipeline genera y audita desde ese snapshot; nunca sustituye silenciosamente la versión curricular por otra más reciente.
+
+## Entidades
+
+| Entidad | Responsabilidad |
 |---|---|
-| Curriculum / curricula | id, code UNIQUE, name, country_code, educational_level, description, selectable_version_id nullable |
-| CurriculumVersion / curriculum_versions | curriculum_id FK, number, label, source_reference nullable, effective_from/until nullable, published_at, published_by, checksum; UNIQUE(curriculum_id,number) |
-| EducationalPhase / educational_phases | curriculum_version_id, code, name, description, sort_order |
-| Grade / grades | curriculum_version_id, educational_phase_id, code, name, ordinal, sort_order; fase 1:N grados |
-| FormativeField / formative_fields | curriculum_version_id, code, name, description, sort_order |
-| CurricularContent / curricular_contents | curriculum_version_id, educational_phase_id, formative_field_id, code, title, full_text, source_locator nullable, sort_order |
-| Pda / pdas | curriculum_version_id, curricular_content_id, grade_id, code, full_text, source_locator nullable, sort_order; contenido 1:N PDA; grado 1:N PDA |
-| ArticulatingAxis / articulating_axes | curriculum_version_id, code, name, description, sort_order |
+| `Curriculum` | identidad estable del currículo |
+| `CurriculumVersion` | versión editorial/publicable |
+| `EducationalPhase` | fase educativa |
+| `Grade` | grado dentro de una fase |
+| `FormativeField` | campo formativo |
+| `CurricularContent` | contenido oficial |
+| `Pda` | proceso de desarrollo de aprendizaje asociado a contenido y grado |
+| `ArticulatingAxis` | eje articulador transversal |
 
-UNIQUE(curriculum_version_id,code) en las seis tablas de elementos. UNIQUE(id,curriculum_version_id) habilita FK compuestas que impiden mezclar versiones. Grade enlaza fase de su versión; Content enlaza fase/campo de su versión; Pda enlaza contenido y grado de su versión, cuya fase debe coincidir. Esa última regla se valida transaccionalmente al editar/publicar; no usar CHECK con consultas a otras tablas. Un contenido de fase puede tener PDA distintos por grado; no duplicar el contenido por cada PDA. Para publicar, todo contenido ofrecido para un grado debe tener al menos un PDA aplicable a ese grado. Si una fuente futura requiere otra cardinalidad, se amplía explícitamente; no crear un motor de ontologías en el MVP.
+Todos los elementos pertenecen a una `CurriculumVersion`. Las FK compuestas y restricciones PostgreSQL evitan mezclar elementos entre versiones.
 
-Ejes son transversales: no imponer un eje obligatorio por contenido ni inventar correspondencias oficiales. Solicitud selecciona N campos/contenidos/PDA y N ejes; campos derivados de contenidos, ejes elegidos/confirmados por docente. Se permite trabajo entre campos dentro de una misma versión y grado. Multigrado y mezcla de versiones en una solicitud: POST-MVP.
+## Inmutabilidad
 
-```mermaid
-erDiagram
-  CURRICULA ||--o{ CURRICULUM_VERSIONS : versiona
-  CURRICULUM_VERSIONS ||--o{ EDUCATIONAL_PHASES : contiene
-  EDUCATIONAL_PHASES ||--o{ GRADES : agrupa
-  CURRICULUM_VERSIONS ||--o{ FORMATIVE_FIELDS : define
-  EDUCATIONAL_PHASES ||--o{ CURRICULAR_CONTENTS : organiza
-  FORMATIVE_FIELDS ||--o{ CURRICULAR_CONTENTS : clasifica
-  CURRICULAR_CONTENTS ||--o{ PDAS : desarrolla
-  GRADES ||--o{ PDAS : especifica
-  CURRICULUM_VERSIONS ||--o{ ARTICULATING_AXES : define
-  PLANNING_REQUESTS ||--o{ REQUEST_CURRICULAR_CONTENTS : selecciona
-  CURRICULAR_CONTENTS ||--o{ REQUEST_CURRICULAR_CONTENTS : referencia
-  PLANNING_REQUESTS ||--o{ REQUEST_PDAS : selecciona
-  PDAS ||--o{ REQUEST_PDAS : referencia
-```
+Una `CurriculumVersion` publicada y su árbol son inmutables.
 
-## Publicación y permisos — MVP
+No se permite:
 
-Borrador equivale a published_at null. Administrador edita borrador y publica en una transacción, validando referencias, integridad, textos, grado/fase, procedencia y checksum del árbol. Publicación congela la fila CurriculumVersion, todos sus elementos y relaciones: prohibir INSERT/UPDATE/DELETE del árbol publicado, incluso agregar un PDA. Corrección editorial requiere clonar una nueva versión borrador, nunca actualizar la publicada.
+- editar textos de una versión publicada;
+- agregar o eliminar descendientes;
+- mover elementos a otra versión;
+- corregir una versión publicada en sitio.
 
-Acciones y Policies más triggers PostgreSQL que bloquean mutación del árbol publicado; las escrituras y publicación bloquean la misma fila raíz para evitar carrera publicación/edición. El rol de ejecución no puede desactivar triggers ni hacer DDL/TRUNCATE. Versiones referenciadas usan FK RESTRICT; no borrar historial. No implementar event sourcing.
+Una corrección editorial crea una nueva versión borrador. Las solicitudes históricas conservan la versión y snapshot originales.
 
-La disponibilidad comercial se cambia mediante curricula.selectable_version_id, fuera del árbol inmutable: debe apuntar a versión publicada del mismo currículo. Una versión reemplazada sigue consultable históricamente, pero no se selecciona para nuevas solicitudes. Un borrador viejo requiere reselección y confirmación antes de envío; no sustituirlo silenciosamente. Solicitudes enviadas mantienen su versión y snapshot.
+## Publicación y elegibilidad de producción
 
-Lectura del catálogo disponible para docentes autenticados/verificados; edición/publicación exclusivamente administrativa. Revisor recibe snapshot de trabajo asignado, no facultad para editar catálogo. Aplicar las reglas existentes de PERMISSIONS.md a selecciones/propuestas propias; no modificar ese documento en esta iteración.
+`published_at` no basta para que una versión pueda usarse en nuevas solicitudes.
 
-## Grupos, selecciones y snapshot — MVP
+La elegibilidad productiva se determina además mediante `ProductionCurriculumPolicy` y validadores específicos.
 
-groups guarda curriculum_version_id y grade_id; grado determina fase. Al elegir nueva versión se remapea grado explícitamente, no por igualdad numérica automática. Perfil incluye preferred_format_id como preferencia reutilizable; al enviar se resuelve format_version_id publicada y compatible del cliente o estándar. Cambiar grupo, grado, fechas, tema, materiales o versión invalida propuesta/confirmación; eventos y observaciones también forman parte del fingerprint.
+La versión debe cumplir, entre otras, estas condiciones:
 
-planning_requests guarda curriculum_version_id, grade_id, creation_mode (quick/advanced), curriculum_confirmed_at y selection_revision. Relaciones:
+- metadatos de publicación completos;
+- checksum válido;
+- procedencia identificable;
+- árbol estructuralmente consistente;
+- grado y fase coherentes;
+- contenidos con PDA aplicables;
+- ausencia de marcadores editoriales explícitos;
+- identidad curricular compatible con producción.
 
-- request_curricular_contents(request_id, curriculum_version_id, curricular_content_id), PK(request_id,curricular_content_id).
-- request_pdas(request_id, curriculum_version_id, pda_id), PK(request_id,pda_id).
-- request_articulating_axes(request_id, curriculum_version_id, articulating_axis_id), PK(request_id,articulating_axis_id).
+Una versión oficial nueva debe permanecer en borrador hasta superar validación técnica y editorial.
 
-FK compuestas a solicitud y catálogo garantizan misma versión. Enviar exige PDA del grado elegido y de contenidos seleccionados; cada contenido seleccionado tiene al menos un PDA seleccionado. Campos se derivan, sin una cuarta lista editable inconsistente. Se permiten notas pedagógicas locales separadas; modificar sugerencia significa cambiar selección o anotación, no reescribir un PDA del catálogo. Se validan y congelan selecciones al enviar; revisiones posteriores de entrada conservan versiones anteriores.
+## Marcadores editoriales
 
-Snapshot textual completo en request_input_versions: nombre/código/versión/procedencia del currículo, fase/grado, códigos y textos completos de campos, contenidos, PDA y ejes seleccionados, vínculos contenido-PDA, evaluación inicial confirmada, anotaciones docentes, perfil completo y formato/version, fechas, materiales/manifest y cálculo comercial. No basta guardar IDs ni un resumen IA. Incluye checksum curricular, selection_revision, confirmed_by y confirmed_at. Solo se copian elementos seleccionados y sus ancestros, no todo el catálogo. Pipeline genera y audita desde este snapshot, nunca desde el catálogo activo del momento.
+Los datos DEMO y placeholders deben bloquear producción.
 
-## Propuesta automática — MVP acotado
+Ejemplos de marcadores explícitos:
 
-CurriculumSuggestionService.suggest(SuggestionInput): SuggestionResult es independiente de UI y proveedor. Input: grupo/grade_id, versión publicada, revisión de perfil, fechas, tema/proyecto, páginas/material limpio y observaciones. Output: IDs válidos de contenidos/PDA/ejes, campos derivados, evaluación inicial sugerida, explicación breve y faltantes. No crea contenido curricular oficial. Página sin libro/material identificado no permite afirmar que se leyó el texto; pedir referencia o proponer solo con tema y explicitarlo.
+- palabra aislada `demo`;
+- `sin validez curricular`;
+- `contenido de ejemplo`;
+- `pda de ejemplo`;
+- `__PENDING_EDITORIAL__`.
 
-Adapter inicial de búsqueda/reglas sobre catálogo, determinista y testeable; adapter IA opcional POST-MVP para esta recomendación, sin afectar el adapter IA de generación ya previsto en MVP. Servicio recupera candidatos del grado/versión y no propone elementos de otros grados. Sin coincidencias, no seleccionar arbitrariamente: ofrecer búsqueda avanzada y conservar borrador. La confirmación docente siempre es explícita; una propuesta no es una solicitud enviada y no consume planning_limit.
+La detección no debe bloquear vocabulario pedagógico legítimo. Por ejemplo, `democracia` no contiene la palabra aislada `demo` y no debe rechazarse.
 
-curriculum_suggestions: request_id, input_fingerprint, curriculum_version_id, strategy_version, status (pending/ready/failed/stale), result JSONB con IDs/evaluación/motivos, created_at, confirmed_at nullable; UNIQUE(request_id,input_fingerprint,strategy_version). ownership vía solicitud. Solo una propuesta vigente por fingerprint; resultado de una petición antigua no pisa datos nuevos. Validar IDs otra vez al confirmar y enviar. Límites de frecuencia y caché por fingerprint evitan regeneraciones innecesarias; costos de propuesta, si hubiera adapter IA, se registran aunque el borrador nunca se envíe.
+## Currículo oficial Fases 3–5
 
-## Seeders de ejemplo — diseño, no ejecución
+La línea activa consolida currículo oficial de primaria:
 
-CurriculumExampleSeeder, solo local/test: currículo DEMO, etiqueta visible «Datos ficticios, sin validez curricular», una versión publicada DEMO-1, otra borrador DEMO-2; dos fases ficticias, varios grados, dos campos, contenidos con PDA diferenciados por grado y dos ejes. Textos «Contenido de ejemplo A» y «PDA de ejemplo A1», sin copiar ni simular textos oficiales. Segunda versión cambia un texto para verificar que una solicitud histórica conserva DEMO-1. Fixtures negativas se crean solo en tests, no en catálogo publicado: mezcla de versión/fase, PDA incompatible y falta de texto.
+- Fase 3: 1.º y 2.º.
+- Fase 4: 3.º y 4.º.
+- Fase 5: 5.º y 6.º.
 
-PublicationExampleSeeder propone una publicación válida por las mismas acciones; no bypass de inmutabilidad. SuggestionExampleFixtures cubren coincidencia, varias candidatas y ausencia de coincidencia. No crear estos archivos ahora. Producción no ejecuta seeders demo; antes de vender será necesario cargar y validar un catálogo real por proceso editorial separado, fuera de esta entrega.
+El proceso actual prioriza validar el catálogo ya construido antes de reimportar. Solo debe repetirse una importación cuando exista una razón técnica/editorial concreta y verificable.
 
-## Importación administrativa estructurada — MVP, Fase 2
+La activación de una versión oficial debe realizarse mediante las acciones/comandos previstos, nunca cambiando `selectable_version_id` por SQL directo para saltarse la política de producción.
 
-Permitir cargar cientos de contenidos/PDA previamente estructurados mediante JSON o CSV, sin captura individual. No es extracción inteligente ni sincronización externa. El archivo no constituye una fuente oficial por sí mismo: la validación curricular y de procedencia antes de publicar sigue siendo responsabilidad administrativa/editorial. Validación técnica satisfactoria no equivale a aprobación pedagógica.
+## Grupos
 
-Acción conceptual ImportCurriculumDraft, apoyada por CurriculumImportService.import(source, actor, dryRun): ImportReport. El comando administrativo `php artisan curriculum:import <archivo> --actor=<administrador> [--dry-run]` llama la misma acción, sin duplicar reglas. Solo ejecución desde entorno administrativo autorizado y actor administrador activo; el parámetro actor identifica al responsable, no concede permisos por sí mismo. No existe opción publish, force, overwrite ni actualización de versiones existentes en este MVP.
+`groups` conserva la versión curricular y el grado utilizado para crear nuevas solicitudes.
 
-### Contrato de archivo
+Cambiar de versión curricular requiere remapeo explícito de grado. No se asume que dos versiones comparten IDs ni equivalencias por ordinal.
 
-Aceptar únicamente schema_version=1 del contrato curricular de importación; es independiente del número de CurriculumVersion. Versiones de schema desconocidas, campos desconocidos y formatos distintos se rechazan. Implementación futura debe incluir schema y ejemplos ficticios versionados; no se crean archivos de código ahora.
+El formato de exportación no forma parte de la configuración curricular del grupo ni del snapshot pedagógico. Cualquier columna histórica de preferencia de formato se considera compatibilidad y no debe volver a acoplar currículo/generación con documentos.
 
-- JSON UTF-8: objeto raíz con schema_version, curriculum_code, curriculum_version y arrays educational_phases, grades, formative_fields, curricular_contents, pdas, articulating_axes. curriculum_code debe identificar un Curriculum existente; no cambiar sus metadatos al importar. curriculum_version contiene number, label, source_reference opcional y effective_from/until opcionales. Los elementos contienen code y los campos de su entidad definidos arriba; referencias por phase_code, field_code, content_code y grade_code, nunca IDs de base de datos. Cada array es obligatorio y no vacío en este contrato inicial.
-- CSV UTF-8: un archivo con encabezado fijo y record_type (version/phase/grade/field/content/pda/axis). Columnas: schema_version, curriculum_code, record_type, version_number, label, source_reference, effective_from, effective_until, code, name, description, sort_order, ordinal, phase_code, field_code, title, full_text, source_locator, content_code, grade_code. Una fila version y al menos una por cada otro tipo; schema_version y curriculum_code repetidos e idénticos en todas las filas. Columnas no aplicables deben estar vacías. Separador coma, comillas dobles para textos con coma/salto de línea y escape de comilla duplicada; no adivinar delimitadores ni ejecutar fórmulas. Ambos parsers producen el mismo DTO canónico y aplican el mismo schema semántico.
+## Selección curricular de una solicitud
 
-Campos requeridos: versión number/label; fase/campo/eje code/name; grado code/name/ordinal/phase_code; contenido code/title/full_text/phase_code/field_code; PDA code/full_text/content_code/grade_code. Descripciones, localizadores y sort_order opcionales; orden ausente deriva del orden del archivo. Textos requeridos no vacíos, enteros y fechas válidos, fechas final >= inicial cuando ambas existan. Definir límites explícitos de bytes, filas y longitud de campo antes de implementar; rechazar exceso sin importar parcialmente. Códigos sin espacios exteriores, sensibles a mayúsculas y sin conversión silenciosa; duplicado significa mismo code dentro del mismo tipo y versión. Referencias deben coincidir exactamente.
+Una solicitud puede seleccionar:
 
-### Validación y transacción
+- contenidos;
+- PDA compatibles con el grado;
+- ejes articuladores;
+- campos derivados de los contenidos seleccionados.
 
-1. Autorizar actor, comprobar tipo/tamaño, leer y validar schema. Detectar códigos duplicados, campos inválidos y registros desconocidos con ubicación de origen. No consultar URLs indicadas en source_reference.
-2. Abrir transacción PostgreSQL y bloquear Curriculum padre. Validar existencia del currículo y que (curriculum_id, number) no exista. Si existe publicada, error VERSION_PUBLISHED; si existe borrador, VERSION_EXISTS. Reimportación nunca mezcla, reemplaza ni duplica: corregir archivo fallido o elegir explícitamente otro número para nueva versión.
-3. Resolver todas las relaciones del archivo y validar fases, grados, campos, contenidos, PDA y ejes. Rechazar referencias inexistentes, mezclas de versión, PDA cuyo grado no comparte fase con su contenido y restantes invariantes curriculares. No completar referencias buscando elementos de otra versión. UNIQUE/FK y protecciones de publicación existentes siguen siendo autoridad ante concurrencia.
-4. Si hay errores, abortar sin crear filas. Si es dry-run, devolver diagnóstico y cantidades previstas sin escrituras, auditoría persistida, archivos guardados ni eventos. Ejecutar las mismas comprobaciones de datos/estado del destino; no insertar para luego revertir. El dry-run no reserva número de versión: la importación real revalida todo.
-5. En ejecución real válida, crear únicamente CurriculumVersion borrador (published_at/published_by/checksum de publicación nulos) y sus elementos en orden de dependencias dentro de esa misma transacción. Registrar acción de auditoría con actor, schema_version, hash del archivo y conteos; cualquier fallo revierte toda la importación. No cambiar selectable_version_id, no publicar y no disparar propuestas ni generación.
+Las relaciones deben pertenecer a la misma versión curricular.
 
-El MVP es create-only deliberadamente: incluso un borrador existente se edita por las acciones editoriales ya previstas o se importa como otra versión. Esto evita reemplazos parciales y no añade tablas ni mecanismos de merge. La publicación permanece como acción administrativa independiente tras revisión editorial; los triggers existentes impiden modificar cualquier versión publicada.
+Antes de enviar:
 
-### Resumen, errores y pruebas previstas
+1. el grado debe pertenecer a la versión;
+2. todo PDA seleccionado debe corresponder al grado;
+3. cada contenido seleccionado debe tener al menos un PDA seleccionado aplicable;
+4. la selección debe estar confirmada explícitamente por el docente;
+5. la versión debe ser elegible para nuevas solicitudes.
 
-ImportReport indica modo, éxito/fallo, currículo, número de versión, draft_id solo tras commit, hash del archivo, conteos por entidad y total, advertencias editoriales y errores con code/message/location (ruta JSON o fila/columna CSV, código del elemento y referencia). Nunca informar «importado» en dry-run: «válido, se crearían…». Error devuelve estado no exitoso del comando y resumen «0 registros creados»; no exponer trazas SQL ni volcar textos completos en logs. Un reporte con demasiados errores puede truncar su detalle avisándolo, pero nunca continuar con filas válidas solamente.
+## Snapshot curricular
 
-Fase 2 debe probar JSON/CSV equivalentes, schema desconocido, texto requerido ausente, duplicados, referencias inexistentes, fase/grado incompatible, versión publicada y borrador existente, falta de permisos, rollback ante fallo intermedio, importaciones concurrentes y dry-run sin cambios. Verificar que importación válida termina en borrador no seleccionable y que publicación solo ocurre mediante acción editorial separada. Fixtures únicamente ficticias, sin cargar datos reales en esta entrega.
+`RequestInputVersion` congela la información necesaria para reproducir la generación:
 
-### Contrato JSON definitivo — Subfase 2A.2 (schema_version = 1)
+- identidad y versión curricular;
+- procedencia/checksum relevantes;
+- fase y grado;
+- campos formativos seleccionados/derivados;
+- contenidos completos;
+- PDA completos;
+- ejes seleccionados;
+- vínculos contenido–PDA;
+- confirmación y revisión de selección;
+- contexto pedagógico y datos variables de la solicitud;
+- cálculo comercial y manifest de insumos cuando corresponda.
 
-Este contrato es el implementado en `App\Services\Curriculum\CurriculumImportService` y verificado por `tests/Feature/CurriculumImportTest.php`. El CSV queda POST-MVP; primero se estabiliza JSON. Las diferencias respecto al borrador provisional `curriculum_import_contract_draft.json` se detallan al final de esta sección.
+No incluye el formato de exportación como input pedagógico.
 
-Objeto raíz obligatorio:
+El pipeline usa este snapshot, no el catálogo activo al momento de ejecutar un job posterior.
 
-- `schema_version` — entero, único valor aceptado: `1`.
-- `curriculum` — objeto con:
-  - `code` (string, 1..64, sin espacios exteriores). Identifica el `Curriculum`. Si existe, se reutiliza tal cual y su metadata no se modifica; si no existe, se crea con los campos del objeto.
-  - `name` (string, 1..1024).
-  - `country_code` (string, ≤8, opcional).
-  - `educational_level` (string, ≤64, opcional).
-  - `description` (string, ≤20000, opcional).
-- `version` — objeto con:
-  - `number` (entero ≥ 1). La pareja `(curriculum_id, number)` debe no existir.
-  - `label` (string, 1..255).
-  - `source_reference` (string o objeto JSON, opcional). Si es objeto se serializa a JSON antes de persistir en la columna `source_reference`.
-  - `effective_from`, `effective_until` (string `YYYY-MM-DD` o `null`, opcionales; final ≥ inicial).
-- `educational_phases` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
-- `grades` — arreglo NO vacío de `{code, name, phase_code, ordinal, sort_order?}`.
-- `formative_fields` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
-- `curricular_contents` — arreglo NO vacío de `{code, title, full_text, phase_code, field_code, source_locator?, sort_order?}`.
-- `pdas` — arreglo NO vacío de `{code, full_text, content_code, grade_code, source_locator?, sort_order?}`.
-- `articulating_axes` — arreglo NO vacío de `{code, name, description?, sort_order?}`.
+## Sugerencias curriculares
 
-Reglas de códigos y referencias:
+`CurriculumSuggestionService` es independiente de la UI y de la generación IA principal.
 
-- Todos los `code` son códigos internos de la plataforma; nunca IDs de base de datos ni identificadores oficiales. Son sensibles a mayúsculas y no pueden llevar espacios al inicio o al final.
-- Los `code` deben ser únicos dentro de su propia colección. Duplicados dentro del archivo se rechazan con `DUPLICATE_CODE`.
-- Referencias válidas: `grades[].phase_code`, `curricular_contents[].phase_code|field_code`, `pdas[].content_code|grade_code`. Referencias no encontradas producen `REFERENCE_NOT_FOUND`.
-- Invariante fase/grado: para cada PDA, la `phase_code` del `Grade` referenciado debe coincidir con la `phase_code` del `CurricularContent` referenciado. Incumplimientos: `PDA_GRADE_PHASE_MISMATCH`.
-- Advertencia (no error): si algún contenido queda sin PDA en el archivo, el reporte emite un `warning` porque la publicación posterior fallará hasta agregarlo. La importación de borrador SÍ se permite en ese caso.
+Su función es proponer conexiones válidas dentro del grado y versión seleccionados. La propuesta:
 
-Códigos de error semánticos emitidos por el servicio:
+- no crea contenido curricular oficial;
+- no confirma automáticamente una solicitud;
+- no consume una unidad de planeación;
+- no puede seleccionar elementos de otro grado/versión;
+- se invalida cuando cambia el fingerprint del contexto relevante.
 
-- `SCHEMA_VERSION_UNSUPPORTED`, `MISSING_FIELD`, `INVALID_FIELD`.
-- `DUPLICATE_CODE`, `REFERENCE_NOT_FOUND`, `PDA_GRADE_PHASE_MISMATCH`.
-- `VERSION_EXISTS` (borrador con mismo número), `VERSION_PUBLISHED` (versión publicada con mismo número).
-- `ACTOR_NOT_AUTHORIZED` (actor no administrador activo).
-- `INVALID_JSON` (archivo no parseable) — emitido por `ImportCurriculumDraft`.
-- `IMPORT_TRANSACTION_FAILED` (fallo en escritura una vez validado; provoca rollback total).
+Sin coincidencia suficiente debe devolver falta de coincidencias o permitir búsqueda avanzada, no seleccionar contenido arbitrario.
 
-Comportamiento operativo:
+## Importación administrativa
 
-- Comando: `php artisan curriculum:import <archivo.json> --actor=<email|id> [--dry-run]`. `--actor` es obligatorio y debe resolver a un `User` con rol Administrator y `status=active`.
-- Atomicidad: toda la ingesta ocurre dentro de una única transacción PostgreSQL. Cualquier error revierte todo; no quedan registros parciales. El dry-run realiza las mismas validaciones y aborta la transacción sin escribir.
-- Idempotencia (create-only): la reimportación del mismo archivo falla con `VERSION_EXISTS` o `VERSION_PUBLISHED`. No hay merge, upsert ni sobrescritura. Para corregir, se ajusta el archivo y se importa con otro `version.number`, o se elimina el borrador previo por acción editorial separada.
-- La importación NUNCA publica: `published_at`, `published_by` y `checksum` quedan `NULL`. `curricula.selectable_version_id` NUNCA se modifica desde el importador.
-- Los triggers de inmutabilidad y las FK compuestas de PostgreSQL siguen activos; el servicio no los deshabilita y usa modelos Eloquent normales, respetando policies y guardas.
-- Auditoría: cada ejecución exitosa registra en el log `curriculum.import` con `actor_id`, `curriculum_code`, `version_number`, `draft_id`, `file_hash` (SHA-256 del archivo), conteos y `dry_run`.
+La importación estructurada existe para crear nuevas versiones borrador desde archivos previamente preparados.
 
-Ejemplo mínimo:
+Reglas:
 
-```json
-{
-  "schema_version": 1,
-  "curriculum": {"code": "DEMO-IMP", "name": "Currículo ficticio"},
-  "version": {"number": 1, "label": "Borrador prueba"},
-  "educational_phases": [{"code": "PH-A", "name": "Fase A"}],
-  "grades": [{"code": "GR-A1", "name": "Grado A1", "phase_code": "PH-A", "ordinal": 1}],
-  "formative_fields": [{"code": "FF-LANG", "name": "Lenguajes"}],
-  "curricular_contents": [{
-    "code": "CT-1", "title": "Contenido", "full_text": "Texto ficticio.",
-    "phase_code": "PH-A", "field_code": "FF-LANG"
-  }],
-  "pdas": [{
-    "code": "PDA-1", "full_text": "PDA ficticio.",
-    "content_code": "CT-1", "grade_code": "GR-A1"
-  }],
-  "articulating_axes": [{"code": "AX-INC", "name": "Inclusión"}]
-}
-```
+- schema versionado;
+- create-only;
+- transacción todo-o-nada;
+- `dry-run` sin escrituras;
+- códigos/referencias validados;
+- sin publicación automática;
+- sin cambio automático de versión seleccionable;
+- sin acreditar oficialidad únicamente por haber importado correctamente.
 
-Plantilla completa lista para poblar `MX-NEM-PRIMARIA` en `docs/curriculum_import_template.example.json` (solo estructura y códigos internos; los `full_text` deben rellenarse con los textos oficiales validados por el equipo editorial).
+La importación técnica y la validación editorial son pasos distintos.
 
-Diferencias frente a `curriculum_import_contract_draft.json`:
+## Autoridad de la IA
 
-- El campo raíz `note` no forma parte del schema y se ignoraría (los campos desconocidos NO se validan como error en esta versión, pero es preferible omitirlos).
-- `source_reference` del borrador provisional es un objeto (`{legal_basis, phase_sources}`). El schema definitivo acepta objeto o string; si se envía objeto se serializa a JSON dentro de `curriculum_versions.source_reference` (columna VARCHAR). Si se prefiere estructura persistida, mover esos datos a `source_locator` por elemento o expandir la tabla en una migración futura.
-- Los ejemplos de `contents`/`pdas` del borrador son plantillas incompletas (un solo elemento con `printed_page: null`). La plantilla definitiva enumera explícitamente todos los ejes/campos/grados/fases del manifiesto y deja los `full_text` como marcadores `<pendiente>` para que la revisión editorial los complete antes de la carga real.
+La IA no puede aportar ni modificar textos oficiales.
 
-## POST-MVP
+`GeneratedPlanDraftV1` puede referenciar elementos curriculares por código y proponer diseño pedagógico. `CanonicalPlanAssembler` vuelve a insertar desde el snapshot los textos y relaciones curriculares de autoridad.
 
-Sincronización y actualización automáticas con fuentes externas, importación inteligente desde PDF, scraping, procesamiento automático de documentos curriculares, comparador entre currículos, equivalencias, recomendaciones IA/semánticas, embeddings, personalización aprendida y multigrado. La importación administrativa JSON/CSV conforme a schema definido, aunque incluya cientos de registros, sí es MVP junto con administración de borrador/publicación y búsqueda filtrada. Las menciones previas a importación POST-MVP se refieren a fuentes heterogéneas o procesamiento automático, no a esta carga estructurada.
+Si la salida IA referencia códigos desconocidos, omite cobertura requerida o intenta modificar el bloque curricular, se rechaza/corrige; nunca se acepta como una nueva verdad curricular.
+
+## Fuera del alcance actual
+
+- multigrado en una sola solicitud;
+- equivalencias automáticas entre currículos/versiones;
+- scraping de fuentes oficiales;
+- sincronización externa automática;
+- OCR universal de documentos curriculares;
+- embeddings/recomendaciones aprendidas como autoridad curricular.
+
+Estas capacidades solo deben agregarse después de validar el MVP con docentes y sin debilitar la inmutabilidad/snapshot actual.
