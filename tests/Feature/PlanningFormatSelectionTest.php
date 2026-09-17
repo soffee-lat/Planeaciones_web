@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Documents\EnsureStandardFormat;
 use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
-use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\CurricularContent;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
@@ -25,7 +24,7 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         $foreign = $this->publishedInstitutionalFormat($this->customer()->id);
         $standard = app(EnsureStandardFormat::class)->execute()['version'];
 
-        $options = PlanningRequestResource::formatVersionOptions();
+        $options = app(PlanningFormatResolver::class)->exportOptionsFor($scene['user']->id);
 
         $this->assertArrayHasKey($owned->id, $options);
         $this->assertArrayHasKey($standard->id, $options);
