@@ -7,7 +7,6 @@ use App\Data\Planning\CanonicalPlan;
 use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
 use App\Models\PlanningRequest;
-use App\Services\Documents\PlanningFormatGenerationContext;
 use App\Support\AI\CanonicalJson;
 
 final class CanonicalPlanCorrectionApplier
@@ -22,7 +21,6 @@ final class CanonicalPlanCorrectionApplier
         private CanonicalPlanValidator $canonicalValidator,
         private GeneratedPlanDraftValidator $draftValidator,
         private CanonicalPlanAssembler $assembler,
-        private PlanningFormatGenerationContext $formatContext,
     ) {}
 
     /** @param list<string> $sectionKeys */
@@ -34,7 +32,7 @@ final class CanonicalPlanCorrectionApplier
     ): CanonicalPlan {
         $sourcePayload = $this->canonicalValidator->validate($source->toArray())->toArray();
         if (($sourcePayload['schema_version'] ?? null) === CanonicalPlanValidator::ADAPTIVE_SCHEMA_VERSION) {
-            return $this->applyAdaptive($request, $sourcePayload, $result, $sectionKeys);
+            return $this->applyAdaptive($sourcePayload, $result, $sectionKeys);
         }
 
         return $this->applyLegacy($request, $source, $sourcePayload, $result, $sectionKeys);
@@ -42,25 +40,19 @@ final class CanonicalPlanCorrectionApplier
 
     /** @param array<string,mixed> $sourcePayload @param list<string> $sectionKeys */
     private function applyAdaptive(
-        PlanningRequest $request,
         array $sourcePayload,
         CorrectionResult $result,
         array $sectionKeys,
     ): CanonicalPlan {
         $allowed = array_values(array_unique(array_map('strval', $sectionKeys)));
-        $format = $this->formatContext->build($request);
-        $allowedCustom = [];
-        foreach ((array) ($format['custom_fields'] ?? []) as $field) {
-            if (is_array($field) && trim((string) ($field['key'] ?? '')) !== '') {
-                $allowedCustom[(string) $field['key']] = true;
-            }
-        }
-        $allowedTemplateFields = [];
-        foreach ((array) ($format['ai_standard_fields'] ?? []) as $field) {
-            if (is_array($field) && trim((string) ($field['path'] ?? '')) !== '') {
-                $allowedTemplateFields[(string) $field['path']] = true;
-            }
-        }
+
+        // Compatibilidad histórica: un documento adaptativo antiguo puede
+        // corregir únicamente claves que ya existen en su propio contenido.
+        // No consultamos formatos ni contratos externos para autorizar campos.
+        $existingCustom = is_array($sourcePayload['custom'] ?? null) ? $sourcePayload['custom'] : [];
+        $allowedCustom = array_fill_keys(array_map('strval', array_keys($existingCustom)), true);
+        $existingTemplateFields = is_array($sourcePayload['template_fields'] ?? null) ? $sourcePayload['template_fields'] : [];
+        $allowedTemplateFields = array_fill_keys(array_map('strval', array_keys($existingTemplateFields)), true);
 
         $before = $sourcePayload;
         foreach ($result->patch as $root => $replacement) {
@@ -90,7 +82,6 @@ final class CanonicalPlanCorrectionApplier
                         throw new AiContractException('AI_CORRECTION_CUSTOM_FIELD_NOT_ALLOWED', '$.patch.custom.' . (string) $key);
                     }
                 }
-                $existingCustom = is_array($sourcePayload['custom'] ?? null) ? $sourcePayload['custom'] : [];
                 $sourcePayload['custom'] = [...$existingCustom, ...$replacement];
                 continue;
             }
@@ -104,8 +95,7 @@ final class CanonicalPlanCorrectionApplier
                         throw new AiContractException('AI_CORRECTION_TEMPLATE_FIELD_NOT_ALLOWED', '$.patch.template_fields.' . (string) $path);
                     }
                 }
-                $existingFields = is_array($sourcePayload['template_fields'] ?? null) ? $sourcePayload['template_fields'] : [];
-                $sourcePayload['template_fields'] = [...$existingFields, ...$replacement];
+                $sourcePayload['template_fields'] = [...$existingTemplateFields, ...$replacement];
                 continue;
             }
 
