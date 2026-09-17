@@ -144,11 +144,23 @@ class PlanningRequestSnapshotTest extends PedagogyTestCase
 
     public function test_confirm_rejects_when_content_has_no_selected_pda(): void
     {
-        // Escenario aislado: currículo con 2 contenidos en el mismo grado pero
-        // sólo 1 PDA seleccionable, para forzar el path CONTENT_WITHOUT_PDA.
+        // Escenario aislado: currículo productivamente elegible con 2 contenidos
+        // en el mismo grado, pero sólo 1 PDA seleccionado, para forzar
+        // específicamente el path CONTENT_WITHOUT_PDA.
         $admin = $this->admin();
-        $curr = \App\Models\Curriculum::factory()->create();
-        $ver = \App\Models\CurriculumVersion::factory()->create(['curriculum_id' => $curr->id, 'number' => 1]);
+        $curr = \App\Models\Curriculum::factory()->create([
+            'code' => 'SEP-TEST-Z',
+            'name' => 'Currículo SEP de validación Z',
+            'country_code' => 'MX',
+            'educational_level' => 'primary',
+            'description' => 'Catálogo aislado para validar invariantes de selección curricular.',
+        ]);
+        $ver = \App\Models\CurriculumVersion::factory()->create([
+            'curriculum_id' => $curr->id,
+            'number' => 1,
+            'label' => 'Edición 2026 Z',
+            'source_reference' => 'fixture://planning-request-snapshot/z',
+        ]);
         $phase = \App\Models\EducationalPhase::factory()->create(['curriculum_version_id' => $ver->id, 'code' => 'PH-Z']);
         $grade = \App\Models\Grade::factory()->create(['curriculum_version_id' => $ver->id, 'educational_phase_id' => $phase->id, 'code' => 'GR-Z', 'ordinal' => 1]);
         $field = \App\Models\FormativeField::factory()->create(['curriculum_version_id' => $ver->id, 'code' => 'FF-Z']);
