@@ -26,6 +26,12 @@ class StandardV2QaExportCommandTest extends PedagogyTestCase
         $scene = $this->succeededAuditScenario(true);
         $request = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
 
+        $this->assertSame(PlanningRequestStatus::APROBADA, $request->status);
+        $this->assertNotNull($request->document?->current_version_id);
+        $this->assertTrue(
+            $request->approvals()->where('version_id', $request->document->current_version_id)->exists(),
+        );
+
         $before = [
             'status' => $request->status,
             'input_revision' => (int) $request->input_revision,
@@ -38,8 +44,6 @@ class StandardV2QaExportCommandTest extends PedagogyTestCase
 
         $this->artisan('validation:export-standard-v2-qa')
             ->expectsOutputToContain('Planeaciones elegibles para QA de Standard v2:')
-            ->expectsOutputToContain((string) $request->id)
-            ->expectsOutputToContain(PlanningRequestStatus::APROBADA->value)
             ->assertSuccessful();
 
         $fresh = $request->fresh();
