@@ -45,8 +45,7 @@ class ExportFormatIndependenceTest extends PedagogyTestCase
                 ->all(),
             'input_revision' => (int) $request->input_revision,
             'current_input_version_id' => (int) $request->current_version_id,
-            'usage_reservations' => UsageReservation::query()
-                ->where('request_id', $request->id)
+            'usage_reservations' => $request->usageReservations()
                 ->orderBy('id')
                 ->get()
                 ->map(fn (UsageReservation $reservation): array => $reservation->getRawOriginal())
@@ -88,8 +87,7 @@ class ExportFormatIndependenceTest extends PedagogyTestCase
         );
         $this->assertSame(
             $before['usage_reservations'],
-            UsageReservation::query()
-                ->where('request_id', $request->id)
+            $after->usageReservations()
                 ->orderBy('id')
                 ->get()
                 ->map(fn (UsageReservation $reservation): array => $reservation->getRawOriginal())
