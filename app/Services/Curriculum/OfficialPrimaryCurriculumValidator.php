@@ -46,6 +46,20 @@ final class OfficialPrimaryCurriculumValidator
 
     public function assertReadyForPublication(CurriculumVersion $version): void
     {
+        if ($version->published_at !== null) {
+            throw new RuntimeException('OFFICIAL_PRIMARY_VERSION_ALREADY_PUBLISHED');
+        }
+
+        $this->assertCatalogIntegrity($version);
+    }
+
+    /**
+     * Read-only validation shared by the publication gate and post-publication
+     * audits. It deliberately ignores publication state so an already-published
+     * official catalog can be revalidated without reimporting or mutating it.
+     */
+    public function assertCatalogIntegrity(CurriculumVersion $version): void
+    {
         $version->loadMissing([
             'curriculum',
             'phases',
@@ -55,10 +69,6 @@ final class OfficialPrimaryCurriculumValidator
             'pdas.grade',
             'articulatingAxes',
         ]);
-
-        if ($version->published_at !== null) {
-            throw new RuntimeException('OFFICIAL_PRIMARY_VERSION_ALREADY_PUBLISHED');
-        }
 
         $curriculum = $version->curriculum;
         if (! $curriculum
