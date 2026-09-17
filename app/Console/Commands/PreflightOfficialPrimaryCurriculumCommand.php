@@ -4,17 +4,20 @@ namespace App\Console\Commands;
 
 use App\Models\CurriculumVersion;
 use App\Services\Curriculum\OfficialPrimaryCurriculumValidator;
+use App\Services\Curriculum\ProductionCurriculumPolicy;
 use Illuminate\Console\Command;
 
 final class PreflightOfficialPrimaryCurriculumCommand extends Command
 {
     protected $signature = 'curriculum:preflight-official-primary
-        {version? : ID del CurriculumVersion borrador ya importado}';
+        {version? : ID del CurriculumVersion oficial ya importado}';
 
-    protected $description = 'Valida sin publicar ni modificar el catálogo oficial SEP de Primaria (Fases 3, 4 y 5).';
+    protected $description = 'Valida en solo lectura el catálogo oficial SEP de Primaria (Fases 3, 4 y 5), esté en borrador o publicado.';
 
-    public function handle(OfficialPrimaryCurriculumValidator $validator): int
-    {
+    public function handle(
+        OfficialPrimaryCurriculumValidator $validator,
+        ProductionCurriculumPolicy $productionPolicy,
+    ): int {
         $versionRef = trim((string) ($this->argument('version') ?? ''));
 
         if ($versionRef === '') {
@@ -46,7 +49,12 @@ final class PreflightOfficialPrimaryCurriculumCommand extends Command
         }
 
         try {
-            $validator->assertReadyForPublication($version);
+            if ($version->isDraft()) {
+                $validator->assertReadyForPublication($version);
+            } else {
+                $validator->assertCatalogIntegrity($version);
+                $productionPolicy->assertPlanningEligible($version);
+            }
         } catch (\Throwable $error) {
             $this->error('Preflight fallido: ' . $error->getMessage());
             $this->warn('No se publicó ni modificó ninguna versión curricular.');
@@ -54,10 +62,15 @@ final class PreflightOfficialPrimaryCurriculumCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('Preflight oficial aprobado.');
+        $this->info($version->isDraft()
+            ? 'Preflight oficial aprobado.'
+            : 'Auditoría del catálogo oficial publicado aprobada.');
         $this->line('curriculum=' . $version->curriculum?->code);
         $this->line('curriculum_version_id=' . $version->id);
         $this->line('version=' . $version->number . ' · ' . $version->label);
+        $this->line('status=' . ($version->isDraft() ? 'draft' : 'published'));
+        $this->line('selectable=' . ((int) ($version->curriculum?->selectable_version_id ?? 0) === (int) $version->id ? 'yes' : 'no'));
+        $this->line('checksum=' . ($version->checksum ?: '—'));
         $this->line('phases=' . $version->phases->count());
         $this->line('grades=' . $version->grades->count());
         $this->line('fields=' . $version->formativeFields->count());
@@ -96,21 +109,19 @@ final class PreflightOfficialPrimaryCurriculumCommand extends Command
             ])->all(),
         );
 
-        $draftIds = $versions
-            ->filter(fn (CurriculumVersion $version): bool => $version->isDraft())
-            ->pluck('id')
-            ->values();
-
-        if ($draftIds->isEmpty()) {
-            $this->warn('No hay una versión borrador candidata para ejecutar el preflight.');
-
-            return self::SUCCESS;
-        }
+        $candidate = $versions->first();
 
         $this->newLine();
-        $this->line('Ejecuta el preflight con uno de los ID borrador mostrados arriba. Ejemplo:');
-        $this->line('.\\tools\\php.ps1 artisan curriculum:preflight-official-primary ' . $draftIds->first());
-        $this->warn('El preflight es de solo lectura y no publica el currículo.');
+        $this->line('Ejecuta la validación de solo lectura con el ID que quieras revisar. Ejemplo:');
+        $this->line('.\\tools\\php.ps1 artisan curriculum:preflight-official-primary ' . $candidate->id);
+
+        if ($candidate->isDraft()) {
+            $this->line('La versión mostrada es borrador: se validará como gate previo a publicación.');
+        } else {
+            $this->line('La versión mostrada ya está publicada: se auditarán estructura, procedencia y elegibilidad productiva sin republicarla.');
+        }
+
+        $this->warn('Este comando no importa, publica ni modifica el currículo.');
 
         return self::SUCCESS;
     }
