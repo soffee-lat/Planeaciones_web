@@ -19,7 +19,6 @@ final class ManualGenerationPackageBuilder
         private GenerationPromptPolicy $promptPolicy,
         private ManualAiConfiguration $manualConfiguration,
         private PromptRenderer $promptRenderer,
-        private FormatAwareGenerationSchema $formatAwareSchema,
     ) {}
 
     public function build(AiExecution $execution): AiManualPackage
@@ -38,17 +37,12 @@ final class ManualGenerationPackageBuilder
         }
 
         $this->promptPolicy->assertReady($prompt);
-
-        $promptInputSnapshot = $input->inputSnapshot;
-        if (($input->formatContext['format_version_id'] ?? null) !== null) {
-            $promptInputSnapshot['format_context'] = $input->formatContext;
-        }
-        $outputSchema = $this->formatAwareSchema->extend($prompt->output_schema, $input->formatContext);
+        $outputSchema = $prompt->output_schema;
 
         $supported = [
             'request_id' => $input->requestId,
             'input_revision' => $input->inputRevision,
-            'input_snapshot' => CanonicalJson::encode($promptInputSnapshot),
+            'input_snapshot' => CanonicalJson::encode($input->inputSnapshot),
             'commercial_snapshot' => CanonicalJson::encode($input->commercialSnapshot),
             'planning_units' => $input->planningUnits,
             'segments' => CanonicalJson::encode($input->segments),
@@ -82,7 +76,6 @@ final class ManualGenerationPackageBuilder
                 'input_revision' => $input->inputRevision,
                 'correlation_id' => $input->correlationId,
             ],
-            'format_context' => $input->formatContext,
             'prompt' => [
                 'template_key' => $template->key,
                 'version_id' => (int) $prompt->id,
