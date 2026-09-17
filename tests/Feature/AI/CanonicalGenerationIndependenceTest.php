@@ -45,7 +45,8 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
 
         $this->assertNull($execution->format_version_id);
         $this->assertNull($request->fresh()->format_version_id);
-        $this->assertNull($execution->input_manifest['format_version_id']);
+        $this->assertArrayNotHasKey('format_version_id', $execution->input_manifest);
+        $this->assertArrayNotHasKey('format_context_sha256', $execution->input_manifest);
 
         app(ProcessOutboxEvent::class)->execute(
             OutboxEvent::query()
@@ -62,14 +63,17 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
             JSON_THROW_ON_ERROR,
         );
 
-        $this->assertSame('canonical', $package['format_context']['generation_scope']);
-        $this->assertNull($package['format_context']['format_version_id']);
-        $this->assertNull($package['format_context']['renderer']);
-        $this->assertNull($package['format_context']['template_contract']);
-        $this->assertSame([], $package['format_context']['custom_fields']);
+        $this->assertArrayNotHasKey('format_context', $package);
+        $this->assertArrayNotHasKey('format_version_id', $package['request']);
+        $this->assertArrayNotHasKey('format_version_id', $package['input_manifest']);
+        $this->assertArrayNotHasKey('format_context_sha256', $package['input_manifest']);
         $this->assertSame('generated_plan_draft_v1', $package['output']['schema_version']);
         $this->assertSame('generated_plan_draft_v1', $package['output']['schema']['properties']['contract_version']['const']);
         $this->assertArrayHasKey('sessions', $package['output']['schema']['properties']);
-        $this->assertArrayNotHasKey('format_version_id', $package['request']);
+
+        $serialized = json_encode($package, JSON_THROW_ON_ERROR);
+        $this->assertStringNotContainsString('template_contract', $serialized);
+        $this->assertStringNotContainsString('adaptive_template_generation_v1', $serialized);
+        $this->assertStringNotContainsString('canonical_adaptive_plan_v1', $serialized);
     }
 }
