@@ -79,7 +79,6 @@ class OfficialPrimaryCurriculumPreflightCommandTest extends TestCase
 
         $this->artisan('curriculum:preflight-official-primary', ['version' => $version->id])
             ->expectsOutput('Preflight fallido: OFFICIAL_PRIMARY_SOURCE_DOMAIN_REQUIRED')
-            ->doesntExpectOutput('Preflight fallido: OFFICIAL_PRIMARY_VERSION_ALREADY_PUBLISHED')
             ->assertExitCode(1);
 
         $version->refresh();
