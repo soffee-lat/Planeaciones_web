@@ -81,10 +81,11 @@ class StartPlanningExperimentTest extends PedagogyTestCase
         $response = $this->get(StartPlanning::getUrl());
 
         $response->assertOk();
-        $response->assertSee('¿Qué necesitas trabajar?');
-        $response->assertSee('Tema, proyecto o necesidad');
-        $response->assertSee('No volveremos a preguntarte lo que ya sabemos');
-        $response->assertSee('Ver conexiones curriculares');
+        $response->assertSee('¿Qué quieres trabajar?');
+        $response->assertSee('Escribe el tema, proyecto o necesidad principal.');
+        $response->assertSee('Completa sólo lo esencial.');
+        $response->assertSee('Sólo aparecen grupos con perfil completo');
+        $response->assertSee('Continuar con el currículo');
         $response->assertDontSee('Modalidad');
     }
 }
