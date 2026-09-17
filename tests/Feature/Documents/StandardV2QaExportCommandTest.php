@@ -39,7 +39,7 @@ class StandardV2QaExportCommandTest extends PedagogyTestCase
         $this->artisan('validation:export-standard-v2-qa')
             ->expectsOutputToContain('Planeaciones elegibles para QA de Standard v2:')
             ->expectsOutputToContain((string) $request->id)
-            ->expectsOutputToContain('Ejemplo: php artisan validation:export-standard-v2-qa ' . $request->id)
+            ->expectsOutputToContain(PlanningRequestStatus::APROBADA->value)
             ->assertSuccessful();
 
         $fresh = $request->fresh();
