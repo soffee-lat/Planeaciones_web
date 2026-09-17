@@ -93,10 +93,23 @@ final class StandardDocxRenderer
         $body = '';
         foreach ($blocks as $block) {
             $type = (string) ($block['type'] ?? 'paragraph');
+            if ($type === 'page_break') {
+                continue;
+            }
+
             $body .= match ($type) {
-                'title' => $this->paragraph((string) ($block['text'] ?? ''), 'Title', true, null, '1F2937', 'center'),
+                'title' => $this->paragraph((string) ($block['text'] ?? ''), 'Title', true, null, '1F2937', 'center', true),
                 'subtitle' => $this->paragraph((string) ($block['text'] ?? ''), 'Subtitle', false, null, '4B5563', 'center'),
-                'section' => $this->paragraph((string) ($block['text'] ?? ''), 'Section', true, 'E8EEF5', '1F4E78'),
+                'section' => $this->paragraph(
+                    (string) ($block['text'] ?? ''),
+                    'Section',
+                    true,
+                    'E8EEF5',
+                    '1F4E78',
+                    null,
+                    true,
+                    trim((string) ($block['text'] ?? '')) === 'Evaluación e instrumentos',
+                ),
                 'meta_table' => $this->metaTable((array) ($block['rows'] ?? [])),
                 'two_column_table' => $this->twoColumnTable((array) ($block['rows'] ?? []), (string) ($block['title'] ?? '')),
                 'table' => $this->dataTable((array) ($block['headers'] ?? []), (array) ($block['rows'] ?? [])),
@@ -109,7 +122,6 @@ final class StandardDocxRenderer
                 'moment_header' => $this->momentHeader((string) ($block['text'] ?? ''), (string) ($block['meta'] ?? '')),
                 'activity' => $this->activityBlock($block),
                 'instrument' => $this->instrumentBlock($block),
-                'page_break' => '<w:p><w:r><w:br w:type="page"/></w:r></w:p>',
                 default => $this->paragraph((string) ($block['text'] ?? ''), 'Normal'),
             };
         }
@@ -129,6 +141,8 @@ final class StandardDocxRenderer
         ?string $fill = null,
         ?string $color = null,
         ?string $align = null,
+        bool $keepNext = false,
+        bool $pageBreakBefore = false,
     ): string {
         $text = trim($text);
         if ($text === '') {
@@ -141,6 +155,12 @@ final class StandardDocxRenderer
         }
         if ($align) {
             $pPr .= '<w:jc w:val="' . $align . '"/>';
+        }
+        if ($keepNext) {
+            $pPr .= '<w:keepNext/>';
+        }
+        if ($pageBreakBefore) {
+            $pPr .= '<w:pageBreakBefore/>';
         }
         $rPr = ($bold ? '<w:b/>' : '') . ($color ? '<w:color w:val="' . $color . '"/>' : '');
 
@@ -171,7 +191,7 @@ final class StandardDocxRenderer
             while (count($cells) < 4) {
                 $cells[] = '';
             }
-            $xml .= '<w:tr>'
+            $xml .= $this->rowStart(false)
                 . $this->cell((string) $cells[0], 1800, 'EEF2F7', true, '1F4E78')
                 . $this->cell((string) $cells[1], 3600)
                 . $this->cell((string) $cells[2], 1800, 'EEF2F7', true, '1F4E78')
@@ -184,14 +204,14 @@ final class StandardDocxRenderer
     /** @param array<int,mixed> $rows */
     private function twoColumnTable(array $rows, string $title = ''): string
     {
-        $out = $title !== '' ? $this->paragraph($title, 'Moment', true, null, '1F4E78') : '';
+        $out = $title !== '' ? $this->paragraph($title, 'Moment', true, null, '1F4E78', null, true) : '';
         $out .= $this->tableStart([2400, 8400]);
         foreach ($rows as $row) {
             $cells = is_array($row) ? array_values($row) : [];
             if (count($cells) < 2) {
                 continue;
             }
-            $out .= '<w:tr>'
+            $out .= $this->rowStart(false)
                 . $this->cell((string) $cells[0], 2400, 'F3F4F6', true, '374151')
                 . $this->cell((string) $cells[1], 8400)
                 . '</w:tr>';
@@ -203,31 +223,50 @@ final class StandardDocxRenderer
     private function dataTable(array $headers, array $rows): string
     {
         $count = max(1, count($headers));
-        $width = (int) floor(10800 / $count);
-        $widths = array_fill(0, $count, $width);
+        $widths = $this->tableWidths($headers);
         $out = $this->tableStart($widths);
         if ($headers !== []) {
-            $out .= '<w:tr>';
-            foreach ($headers as $header) {
-                $out .= $this->cell((string) $header, $width, '1F4E78', true, 'FFFFFF');
+            $out .= $this->rowStart(true);
+            foreach ($headers as $index => $header) {
+                $out .= $this->cell((string) $header, $widths[$index] ?? (int) floor(10800 / $count), '1F4E78', true, 'FFFFFF');
             }
             $out .= '</w:tr>';
         }
         foreach ($rows as $row) {
             $cells = is_array($row) ? array_values($row) : [];
-            $out .= '<w:tr>';
+            $out .= $this->rowStart(false);
             for ($i = 0; $i < $count; $i++) {
-                $out .= $this->cell((string) ($cells[$i] ?? ''), $width);
+                $out .= $this->cell((string) ($cells[$i] ?? ''), $widths[$i] ?? (int) floor(10800 / $count));
             }
             $out .= '</w:tr>';
         }
         return $out . '</w:tbl>';
     }
 
+    /** @param array<int,mixed> $headers @return list<int> */
+    private function tableWidths(array $headers): array
+    {
+        $normalized = array_map(static fn (mixed $header): string => trim((string) $header), $headers);
+        if ($normalized === ['Fecha', 'Sesión', 'Objetivo', 'Actividad central', 'Evidencia']) {
+            return [1350, 2050, 2500, 3250, 1650];
+        }
+        if ($normalized !== [] && $normalized[0] === 'Criterio') {
+            $rest = max(1, count($normalized) - 1);
+            $criterion = count($normalized) >= 4 ? 5400 : 6500;
+            $remaining = 10800 - $criterion;
+            $column = (int) floor($remaining / $rest);
+            return array_merge([$criterion], array_fill(0, $rest, $column));
+        }
+
+        $count = max(1, count($normalized));
+        $width = (int) floor(10800 / $count);
+        return array_fill(0, $count, $width);
+    }
+
     private function callout(string $label, string $text): string
     {
         return $this->tableStart([10800])
-            . '<w:tr>' . $this->cell(trim($label . "\n" . $text), 10800, 'F7FAFC', false, '111827') . '</w:tr>'
+            . $this->rowStart(false) . $this->cell(trim($label . "\n" . $text), 10800, 'F7FAFC', false, '111827') . '</w:tr>'
             . '</w:tbl>';
     }
 
@@ -250,7 +289,7 @@ final class StandardDocxRenderer
     /** @param array<int,mixed> $items */
     private function listBlock(string $label, array $items, bool $checklist): string
     {
-        $out = $label !== '' ? $this->paragraph($label, 'Moment', true, null, '1F4E78') : '';
+        $out = $label !== '' ? $this->paragraph($label, 'Moment', true, null, '1F4E78', null, true) : '';
         foreach ($items as $item) {
             $text = trim((string) $item);
             if ($text === '') {
@@ -263,9 +302,9 @@ final class StandardDocxRenderer
 
     private function sessionHeader(string $text, string $meta): string
     {
-        $out = $this->paragraph($text, 'Session', true, 'DCE6F1', '17365D');
+        $out = $this->paragraph($text, 'Session', true, 'DCE6F1', '17365D', null, true);
         if (trim($meta) !== '') {
-            $out .= $this->paragraph($meta, 'Small', false, null, '4B5563');
+            $out .= $this->paragraph($meta, 'Small', false, null, '4B5563', null, true);
         }
         return $out;
     }
@@ -276,7 +315,7 @@ final class StandardDocxRenderer
         if (trim($meta) !== '') {
             $label .= ' · ' . trim($meta);
         }
-        return $this->paragraph($label, 'Moment', true, 'EEF2F7', '1F4E78');
+        return $this->paragraph($label, 'Moment', true, 'EEF2F7', '1F4E78', null, true);
     }
 
     /** @param array<string,mixed> $block */
@@ -291,8 +330,8 @@ final class StandardDocxRenderer
         $checks = $this->stringList($block['checks'] ?? []);
 
         $out = $this->tableStart([5400, 5400]);
-        $out .= '<w:tr>' . $this->cell($instruction, 10800, 'F8FAFC', true, '111827', 2) . '</w:tr>';
-        $out .= '<w:tr>'
+        $out .= $this->rowStart(false) . $this->cell($instruction, 10800, 'F8FAFC', true, '111827', 2) . '</w:tr>';
+        $out .= $this->rowStart(false)
             . $this->cell("DOCENTE\n" . $teacher, 5400, 'FFFFFF', false)
             . $this->cell("ALUMNOS\n" . $student, 5400, 'FFFFFF', false)
             . '</w:tr>';
@@ -310,7 +349,7 @@ final class StandardDocxRenderer
             $detailLines[] = 'Observar: ' . implode(' · ', $checks);
         }
         if ($detailLines !== []) {
-            $out .= '<w:tr>' . $this->cell(implode("\n", $detailLines), 10800, 'F3F4F6', false, '4B5563', 2) . '</w:tr>';
+            $out .= $this->rowStart(false) . $this->cell(implode("\n", $detailLines), 10800, 'F3F4F6', false, '4B5563', 2) . '</w:tr>';
         }
         return $out . '</w:tbl>';
     }
@@ -324,7 +363,7 @@ final class StandardDocxRenderer
         $scale = $this->stringList($block['scale'] ?? []);
         $sessions = $this->stringList($block['sessions'] ?? []);
 
-        $out = $this->paragraph($name, 'Moment', true, 'E8EEF5', '1F4E78');
+        $out = $this->paragraph($name, 'Moment', true, 'E8EEF5', '1F4E78', null, true);
         if ($purpose !== '') {
             $out .= $this->paragraph($purpose, 'Normal');
         }
@@ -359,7 +398,7 @@ final class StandardDocxRenderer
         foreach ($widths as $width) {
             $grid .= '<w:gridCol w:w="' . (int) $width . '"/>';
         }
-        return '<w:tbl><w:tblPr><w:tblW w:w="10800" w:type="dxa"/>'
+        return '<w:tbl><w:tblPr><w:tblW w:w="10800" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
             . '<w:tblBorders>'
             . '<w:top w:val="single" w:sz="4" w:color="D1D5DB"/>'
             . '<w:left w:val="single" w:sz="4" w:color="D1D5DB"/>'
@@ -372,6 +411,11 @@ final class StandardDocxRenderer
             . '</w:tblPr><w:tblGrid>' . $grid . '</w:tblGrid>';
     }
 
+    private function rowStart(bool $header): string
+    {
+        return '<w:tr><w:trPr>' . ($header ? '<w:tblHeader/>' : '') . '<w:cantSplit/></w:trPr>';
+    }
+
     private function cell(
         string $text,
         int $width,
@@ -380,7 +424,7 @@ final class StandardDocxRenderer
         ?string $color = null,
         int $gridSpan = 1,
     ): string {
-        $tcPr = '<w:tcW w:w="' . $width . '" w:type="dxa"/>';
+        $tcPr = '<w:tcW w:w="' . $width . '" w:type="dxa"/><w:vAlign w:val="top"/>';
         if ($fill) {
             $tcPr .= '<w:shd w:val="clear" w:color="auto" w:fill="' . $fill . '"/>';
         }
