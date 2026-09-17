@@ -104,15 +104,20 @@ final class ExportStandardV2QaCommand extends Command
     {
         $statuses = $this->allowedStatuses();
         $requests = PlanningRequest::query()
-            ->with(['document.currentVersion'])
+            ->with(['document.currentVersion', 'approvals'])
             ->whereIn('status', array_map(fn (PlanningRequestStatus $status): string => $status->value, $statuses))
             ->whereHas('document.currentVersion')
-            ->whereHas('approvals', function ($query): void {
-                $query->whereColumn('approvals.version_id', 'documents.current_version_id');
-            })
+            ->whereHas('approvals')
             ->orderByDesc('id')
-            ->limit(20)
-            ->get();
+            ->limit(50)
+            ->get()
+            ->filter(function (PlanningRequest $request): bool {
+                $versionId = $request->document?->current_version_id;
+                return $versionId !== null
+                    && $request->approvals->contains(fn ($approval): bool => (int) $approval->version_id === (int) $versionId);
+            })
+            ->take(20)
+            ->values();
 
         if ($requests->isEmpty()) {
             $this->warn('No hay planeaciones aprobadas elegibles para QA de Standard v2.');
