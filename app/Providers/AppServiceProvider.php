@@ -8,8 +8,6 @@ use App\Models\User;
 use App\Observers\DeliveryDownloadProductEventObserver;
 use App\Observers\DocumentVersionProductEventObserver;
 use App\Policies\UserPolicy;
-use App\Services\AI\CanonicalPlanAssembler;
-use App\Services\AI\TemplateAwareCanonicalPlanAssembler;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -18,7 +16,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(CanonicalPlanAssembler::class, TemplateAwareCanonicalPlanAssembler::class);
+        // La generación pedagógica usa CanonicalPlanAssembler directamente.
+        // Los formatos de salida se resuelven únicamente en la capa documental.
     }
 
     public function boot(): void
