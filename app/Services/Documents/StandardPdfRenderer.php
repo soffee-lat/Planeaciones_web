@@ -7,8 +7,10 @@ final class StandardPdfRenderer
     private const PAGE_WIDTH = 612;
     private const PAGE_HEIGHT = 792;
     private const LEFT = 54;
+    private const RIGHT = 54;
     private const TOP = 742;
     private const BOTTOM = 54;
+    private const CONTENT_WIDTH = self::PAGE_WIDTH - self::LEFT - self::RIGHT;
 
     /** @param list<array<string,mixed>> $blocks */
     public function render(array $blocks): string
@@ -70,72 +72,130 @@ final class StandardPdfRenderer
         foreach ($blocks as $block) {
             $type = (string) ($block['type'] ?? 'paragraph');
             if ($type === 'page_break') {
-                $out[] = ['type' => 'page_break', 'text' => ''];
                 continue;
             }
-            if (in_array($type, ['title', 'subtitle', 'section', 'paragraph'], true)) {
+
+            if ($type === 'section') {
+                $text = trim((string) ($block['text'] ?? ''));
+                if ($text === 'Evaluación e instrumentos') {
+                    $out[] = ['type' => 'page_break', 'text' => ''];
+                }
+                $add($out, 'section', $text);
+                continue;
+            }
+
+            if (in_array($type, ['title', 'subtitle', 'paragraph'], true)) {
                 $add($out, $type, (string) ($block['text'] ?? ''));
                 continue;
             }
+
             if ($type === 'session_header') {
                 $add($out, 'session_header', (string) ($block['text'] ?? ''));
-                $add($out, 'small', (string) ($block['meta'] ?? ''));
+                $add($out, 'session_meta', (string) ($block['meta'] ?? ''));
                 continue;
             }
+
             if ($type === 'moment_header') {
-                $label = (string) ($block['text'] ?? '');
+                $label = strtoupper(trim((string) ($block['text'] ?? '')));
                 $meta = trim((string) ($block['meta'] ?? ''));
                 $add($out, 'moment_header', $label . ($meta !== '' ? ' · ' . $meta : ''));
                 continue;
             }
-            if (in_array($type, ['callout', 'key_value', 'small_note'], true)) {
+
+            if ($type === 'callout') {
                 $label = trim((string) ($block['label'] ?? ''));
                 $text = trim((string) ($block['text'] ?? ''));
-                $add($out, $type === 'callout' ? 'callout' : 'paragraph', ($label !== '' ? $label . ': ' : '') . $text);
+                $add($out, 'callout', ($label !== '' ? $label . "\n" : '') . $text);
                 continue;
             }
+
+            if (in_array($type, ['key_value', 'small_note'], true)) {
+                $label = trim((string) ($block['label'] ?? ''));
+                $text = trim((string) ($block['text'] ?? ''));
+                $add($out, $type, ($label !== '' ? $label . ': ' : '') . $text);
+                continue;
+            }
+
             if (in_array($type, ['list', 'checklist'], true)) {
                 $label = trim((string) ($block['label'] ?? ''));
                 if ($label !== '') {
                     $add($out, 'heading3', $label);
                 }
                 foreach ((array) ($block['items'] ?? []) as $item) {
-                    $add($out, 'bullet', ($type === 'checklist' ? '[ ] ' : '') . (string) $item);
+                    $add($out, $type === 'checklist' ? 'checklist_item' : 'bullet', (string) $item);
                 }
                 continue;
             }
-            if (in_array($type, ['meta_table', 'two_column_table'], true)) {
+
+            if ($type === 'meta_table') {
+                foreach ((array) ($block['rows'] ?? []) as $row) {
+                    $cells = is_array($row) ? array_values($row) : [];
+                    if (count($cells) >= 4) {
+                        $add(
+                            $out,
+                            'meta_row',
+                            (string) $cells[0] . ': ' . (string) $cells[1]
+                                . '    ·    '
+                                . (string) $cells[2] . ': ' . (string) $cells[3],
+                        );
+                    }
+                }
+                continue;
+            }
+
+            if ($type === 'two_column_table') {
                 if (($block['title'] ?? '') !== '') {
                     $add($out, 'heading3', (string) $block['title']);
                 }
                 foreach ((array) ($block['rows'] ?? []) as $row) {
                     $cells = is_array($row) ? array_values($row) : [];
-                    if ($type === 'meta_table' && count($cells) >= 4) {
-                        $add($out, 'table_row', (string) $cells[0] . ': ' . (string) $cells[1] . '   |   ' . (string) $cells[2] . ': ' . (string) $cells[3]);
-                    } elseif (count($cells) >= 2) {
-                        $add($out, 'table_row', (string) $cells[0] . ': ' . str_replace("\n", '; ', (string) $cells[1]));
+                    if (count($cells) >= 2) {
+                        $add($out, 'two_col_row', (string) $cells[0] . ': ' . str_replace("\n", '; ', (string) $cells[1]));
                     }
                 }
                 continue;
             }
+
             if ($type === 'table') {
                 $headers = array_map('strval', is_array($block['headers'] ?? null) ? $block['headers'] : []);
+                if ($headers === ['Fecha', 'Sesión', 'Objetivo', 'Actividad central', 'Evidencia']) {
+                    foreach ((array) ($block['rows'] ?? []) as $row) {
+                        $cells = is_array($row) ? array_values($row) : [];
+                        if (count($cells) < 5) {
+                            continue;
+                        }
+                        $add($out, 'weekly_session', trim((string) $cells[0] . ' · ' . (string) $cells[1]));
+                        $add($out, 'weekly_detail', 'Objetivo: ' . (string) $cells[2]);
+                        $add($out, 'weekly_detail', 'Actividad central: ' . (string) $cells[3]);
+                        $add($out, 'weekly_detail', 'Evidencia: ' . (string) $cells[4]);
+                        $out[] = ['type' => 'spacer', 'text' => ''];
+                    }
+                    continue;
+                }
+
                 if ($headers !== []) {
-                    $add($out, 'table_header', implode(' | ', $headers));
+                    $add($out, 'table_header', implode(' · ', $headers));
                 }
                 foreach ((array) ($block['rows'] ?? []) as $row) {
-                    $cells = is_array($row) ? array_map(fn ($v) => str_replace("\n", '; ', (string) $v), array_values($row)) : [];
-                    $add($out, 'table_row', implode(' | ', $cells));
+                    $cells = is_array($row) ? array_map(
+                        static fn ($value): string => str_replace("\n", '; ', (string) $value),
+                        array_values($row),
+                    ) : [];
+                    $add($out, 'table_row', implode(' · ', $cells));
                 }
                 continue;
             }
+
             if ($type === 'activity') {
                 $add($out, 'activity_title', (string) ($block['instruction'] ?? 'Actividad'));
-                $add($out, 'paragraph', 'Docente: ' . (string) ($block['teacher_action'] ?? ''));
-                $add($out, 'paragraph', 'Alumnos: ' . (string) ($block['student_action'] ?? ''));
+                $add($out, 'activity_label', 'DOCENTE');
+                $add($out, 'activity_body', (string) ($block['teacher_action'] ?? '—'));
+                $add($out, 'activity_label', 'ALUMNOS');
+                $add($out, 'activity_body', (string) ($block['student_action'] ?? '—'));
+
                 $organization = trim((string) ($block['organization'] ?? ''));
                 if ($organization !== '') {
-                    $add($out, 'small', 'Organización: ' . $organization);
+                    $add($out, 'activity_detail', 'Organización: ' . $organization);
                 }
                 foreach ([
                     'Materiales' => 'materials',
@@ -144,22 +204,25 @@ final class StandardPdfRenderer
                 ] as $label => $key) {
                     $items = array_values(array_filter(array_map('strval', (array) ($block[$key] ?? []))));
                     if ($items !== []) {
-                        $add($out, 'small', $label . ': ' . implode('; ', $items));
+                        $add($out, 'activity_detail', $label . ': ' . implode(' · ', $items));
                     }
                 }
                 continue;
             }
+
             if ($type === 'instrument') {
-                $add($out, 'heading2', (string) ($block['name'] ?? 'Instrumento'));
+                $add($out, 'instrument_heading', (string) ($block['name'] ?? 'Instrumento'));
                 $add($out, 'paragraph', (string) ($block['purpose'] ?? ''));
                 $sessions = array_values(array_filter(array_map('strval', (array) ($block['sessions'] ?? []))));
                 if ($sessions !== []) {
-                    $add($out, 'small', 'Aplica a: ' . implode(', ', $sessions));
+                    $add($out, 'small_note', 'Aplica a: ' . implode(', ', $sessions));
                 }
                 $scale = array_values(array_filter(array_map('strval', (array) ($block['scale'] ?? []))));
                 foreach ((array) ($block['criteria'] ?? []) as $criterion) {
-                    $suffix = $scale !== [] ? '  [' . implode(' / ', $scale) . ']' : '  [ ]';
-                    $add($out, 'bullet', (string) $criterion . $suffix);
+                    $choices = $scale !== []
+                        ? implode('    ', array_map(static fn (string $item): string => '[ ] ' . $item, $scale))
+                        : '[ ] Registro';
+                    $add($out, 'instrument_criterion', (string) $criterion . "\n" . $choices);
                 }
                 continue;
             }
@@ -172,7 +235,7 @@ final class StandardPdfRenderer
 
     /**
      * @param list<array{type:string,text:string}> $blocks
-     * @return list<list<array{font:string,size:float,text:string,leading:float,type:string}>>
+     * @return list<list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float}>>
      */
     private function paginate(array $blocks): array
     {
@@ -190,107 +253,182 @@ final class StandardPdfRenderer
                 continue;
             }
 
-            [$font, $size, $leading, $before] = match ($block['type']) {
-                'title' => ['F2', 18.0, 23.0, 0.0],
-                'subtitle' => ['F1', 11.5, 16.0, 1.0],
-                'section' => ['F2', 13.0, 18.0, 11.0],
-                'session_header' => ['F2', 14.0, 19.0, 8.0],
-                'moment_header' => ['F2', 11.0, 15.0, 7.0],
-                'heading1' => ['F2', 14.0, 18.0, 10.0],
-                'heading2' => ['F2', 12.0, 16.0, 8.0],
-                'heading3' => ['F2', 10.5, 14.0, 5.0],
-                'callout' => ['F1', 10.5, 14.0, 4.0],
-                'activity_title' => ['F2', 10.5, 14.0, 5.0],
-                'table_header' => ['F2', 8.8, 12.0, 4.0],
-                'table_row' => ['F1', 8.8, 12.0, 1.0],
-                'small' => ['F1', 8.8, 12.0, 1.0],
-                'bullet' => ['F1', 10.0, 13.5, 1.0],
-                default => ['F1', 10.0, 13.5, 1.0],
-            };
+            if ($block['type'] === 'spacer') {
+                $y -= 5.0;
+                continue;
+            }
 
-            if ($y - $before < self::BOTTOM + $leading) {
+            $style = $this->styleFor($block['type']);
+            $minimum = match ($block['type']) {
+                'session_header' => 82.0,
+                'moment_header', 'activity_title' => 55.0,
+                'section', 'instrument_heading', 'heading3' => 42.0,
+                default => $style['leading'],
+            };
+            if ($y - $style['before'] < self::BOTTOM + $minimum) {
                 $page++;
                 $pages[$page] = [];
                 $y = self::TOP;
             }
-            $y -= $before;
+            $y -= $style['before'];
 
-            $prefix = $block['type'] === 'bullet' ? '- ' : '';
-            foreach ($this->wrap($prefix . $block['text'], $size) as $line) {
-                if ($y < self::BOTTOM + $leading) {
+            $prefix = match ($block['type']) {
+                'bullet' => '• ',
+                'checklist_item' => '[ ] ',
+                default => '',
+            };
+            foreach ($this->wrap($prefix . $block['text'], $style['size'], $style['indent']) as $line) {
+                if ($y < self::BOTTOM + $style['leading']) {
                     $page++;
                     $pages[$page] = [];
                     $y = self::TOP;
                 }
                 $pages[$page][] = [
-                    'font' => $font,
-                    'size' => $size,
+                    'font' => $style['font'],
+                    'size' => $style['size'],
                     'text' => $line,
-                    'leading' => $leading,
+                    'leading' => $style['leading'],
                     'type' => $block['type'],
+                    'indent' => $style['indent'],
+                    'fill' => $style['fill'],
+                    'border' => $style['border'],
+                    'align' => $style['align'],
+                    'text_gray' => $style['text_gray'],
                 ];
-                $y -= $leading;
+                $y -= $style['leading'];
             }
+            $y -= $style['after'];
         }
 
         return array_values(array_filter($pages, static fn (array $lines): bool => $lines !== []));
     }
 
-    /** @return list<string> */
-    private function wrap(string $text, float $size): array
+    /** @return array{font:string,size:float,leading:float,before:float,after:float,indent:float,fill:?float,border:bool,align:string,text_gray:float} */
+    private function styleFor(string $type): array
     {
-        $maxChars = max(35, (int) floor(94 * (10.5 / $size)));
-        $words = preg_split('/\s+/u', trim($text)) ?: [];
+        return match ($type) {
+            'title' => $this->style('F2', 17.0, 22.0, 0.0, 5.0, 0.0, null, false, 'center', 0.08),
+            'subtitle' => $this->style('F1', 11.5, 16.0, 0.0, 7.0, 0.0, null, false, 'center', 0.35),
+            'section' => $this->style('F2', 12.0, 17.0, 10.0, 4.0, 0.0, 0.92, false, 'left', 0.18),
+            'session_header' => $this->style('F2', 13.2, 18.0, 9.0, 2.0, 0.0, 0.89, true, 'left', 0.14),
+            'session_meta' => $this->style('F1', 9.2, 12.0, 0.0, 4.0, 4.0, null, false, 'left', 0.35),
+            'moment_header' => $this->style('F2', 10.3, 14.0, 6.0, 2.0, 0.0, 0.95, false, 'left', 0.18),
+            'callout' => $this->style('F1', 9.8, 13.0, 4.0, 5.0, 7.0, 0.97, true, 'left', 0.15),
+            'key_value' => $this->style('F1', 9.5, 13.0, 2.0, 2.0, 0.0, null, false, 'left', 0.10),
+            'small_note' => $this->style('F1', 8.7, 11.8, 2.0, 2.0, 5.0, 0.985, false, 'left', 0.35),
+            'heading3' => $this->style('F2', 10.3, 14.0, 5.0, 2.0, 0.0, null, false, 'left', 0.18),
+            'bullet', 'checklist_item' => $this->style('F1', 9.3, 12.3, 1.0, 1.0, 10.0, null, false, 'left', 0.10),
+            'meta_row' => $this->style('F1', 9.0, 12.0, 1.0, 1.0, 7.0, 0.97, true, 'left', 0.16),
+            'two_col_row' => $this->style('F1', 9.0, 12.0, 1.0, 1.0, 7.0, 0.985, true, 'left', 0.16),
+            'weekly_session' => $this->style('F2', 9.6, 13.0, 3.0, 0.0, 7.0, 0.92, true, 'left', 0.14),
+            'weekly_detail' => $this->style('F1', 8.8, 11.7, 0.0, 0.0, 14.0, 0.985, false, 'left', 0.18),
+            'table_header' => $this->style('F2', 9.0, 12.0, 3.0, 1.0, 7.0, 0.92, true, 'left', 0.14),
+            'table_row' => $this->style('F1', 8.8, 11.8, 0.0, 1.0, 7.0, 0.985, true, 'left', 0.16),
+            'activity_title' => $this->style('F2', 10.0, 13.5, 5.0, 1.0, 7.0, 0.95, true, 'left', 0.10),
+            'activity_label' => $this->style('F2', 8.6, 11.0, 1.0, 0.0, 12.0, null, false, 'left', 0.28),
+            'activity_body' => $this->style('F1', 9.2, 12.2, 0.0, 1.0, 18.0, null, false, 'left', 0.10),
+            'activity_detail' => $this->style('F1', 8.5, 11.3, 0.0, 0.0, 12.0, 0.98, false, 'left', 0.34),
+            'instrument_heading' => $this->style('F2', 11.3, 15.0, 6.0, 2.0, 0.0, 0.92, true, 'left', 0.16),
+            'instrument_criterion' => $this->style('F1', 9.0, 12.0, 2.0, 2.0, 7.0, 0.985, true, 'left', 0.12),
+            default => $this->style('F1', 9.5, 13.0, 1.0, 2.0, 0.0, null, false, 'left', 0.10),
+        };
+    }
+
+    /** @return array{font:string,size:float,leading:float,before:float,after:float,indent:float,fill:?float,border:bool,align:string,text_gray:float} */
+    private function style(
+        string $font,
+        float $size,
+        float $leading,
+        float $before,
+        float $after,
+        float $indent,
+        ?float $fill,
+        bool $border,
+        string $align,
+        float $textGray,
+    ): array {
+        return compact('font', 'size', 'leading', 'before', 'after', 'indent', 'fill', 'border', 'align', 'textGray') + [
+            'text_gray' => $textGray,
+        ];
+    }
+
+    /** @return list<string> */
+    private function wrap(string $text, float $size, float $indent = 0.0): array
+    {
+        $availableRatio = max(0.45, (self::CONTENT_WIDTH - $indent) / self::CONTENT_WIDTH);
+        $maxChars = max(32, (int) floor(92 * (10.5 / $size) * $availableRatio));
+        $paragraphs = preg_split('/\R/u', trim($text)) ?: [$text];
         $lines = [];
-        $line = '';
-        foreach ($words as $word) {
-            if ($word === '') {
-                continue;
-            }
-            $candidate = $line === '' ? $word : $line . ' ' . $word;
-            if ($this->textLength($candidate) <= $maxChars) {
-                $line = $candidate;
-                continue;
+
+        foreach ($paragraphs as $paragraph) {
+            $words = preg_split('/\s+/u', trim((string) $paragraph)) ?: [];
+            $line = '';
+            foreach ($words as $word) {
+                if ($word === '') {
+                    continue;
+                }
+                $candidate = $line === '' ? $word : $line . ' ' . $word;
+                if ($this->textLength($candidate) <= $maxChars) {
+                    $line = $candidate;
+                    continue;
+                }
+                if ($line !== '') {
+                    $lines[] = $line;
+                }
+                while ($this->textLength($word) > $maxChars) {
+                    $lines[] = $this->textSubstr($word, 0, $maxChars);
+                    $word = $this->textSubstr($word, $maxChars);
+                }
+                $line = $word;
             }
             if ($line !== '') {
                 $lines[] = $line;
             }
-            while ($this->textLength($word) > $maxChars) {
-                $lines[] = $this->textSubstr($word, 0, $maxChars);
-                $word = $this->textSubstr($word, $maxChars);
-            }
-            $line = $word;
-        }
-        if ($line !== '') {
-            $lines[] = $line;
         }
 
         return $lines === [] ? [''] : $lines;
     }
 
-    /** @param list<array{font:string,size:float,text:string,leading:float,type:string}> $lines */
+    /** @param list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float}> $lines */
     private function pageStream(array $lines, int $pageNumber, int $pageCount): string
     {
         $commands = [];
         $y = self::TOP;
         foreach ($lines as $line) {
-            if (in_array($line['type'], ['section', 'session_header'], true)) {
-                $commands[] = sprintf('0.94 g %d %.1F 504 %.1F re f 0 g', self::LEFT - 5, $y - 4, $line['leading'] + 4);
-            } elseif (in_array($line['type'], ['moment_header', 'table_header'], true)) {
-                $commands[] = sprintf('0.97 g %d %.1F 504 %.1F re f 0 g', self::LEFT - 3, $y - 3, $line['leading'] + 2);
+            $x = self::LEFT + $line['indent'];
+            $width = self::CONTENT_WIDTH - $line['indent'];
+            $height = $line['leading'] + 3.0;
+
+            if ($line['fill'] !== null) {
+                $commands[] = sprintf('%.3F g %.1F %.1F %.1F %.1F re f 0 g', $line['fill'], $x - 4, $y - 4, $width + 8, $height);
             }
+            if ($line['border']) {
+                $commands[] = sprintf('0.82 G 0.45 w %.1F %.1F %.1F %.1F re S 0 G', $x - 4, $y - 4, $width + 8, $height);
+            }
+            if (in_array($line['type'], ['activity_label', 'activity_body', 'activity_detail'], true)) {
+                $commands[] = sprintf('0.78 G 0.7 w %.1F %.1F m %.1F %.1F l S 0 G', self::LEFT + 4, $y - 4, self::LEFT + 4, $y + $line['leading'] - 3);
+            }
+
+            if ($line['align'] === 'center') {
+                $estimated = min($width, $this->textLength($line['text']) * $line['size'] * 0.48);
+                $x = self::LEFT + (($width - $estimated) / 2.0);
+            }
+
             $commands[] = sprintf(
-                'BT /%s %.1F Tf %d %.1F Td (%s) Tj ET',
+                '%.3F g BT /%s %.1F Tf %.1F %.1F Td (%s) Tj ET 0 g',
+                $line['text_gray'],
                 $line['font'],
                 $line['size'],
-                self::LEFT,
+                $x,
                 $y,
                 $this->pdfText($line['text']),
             );
             $y -= $line['leading'];
         }
+
+        $commands[] = sprintf('0.82 G 0.4 w %d 42 m %d 42 l S 0 G', self::LEFT, self::PAGE_WIDTH - self::RIGHT);
         $footer = 'Planeación didáctica · Página ' . $pageNumber . ' de ' . $pageCount;
-        $commands[] = sprintf('BT /F1 8 Tf %d 30 Td (%s) Tj ET', self::LEFT, $this->pdfText($footer));
+        $commands[] = sprintf('0.45 g BT /F1 8 Tf %d 28 Td (%s) Tj ET 0 g', self::LEFT, $this->pdfText($footer));
 
         return implode("\n", $commands);
     }
