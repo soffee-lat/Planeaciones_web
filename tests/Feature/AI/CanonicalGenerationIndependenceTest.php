@@ -5,6 +5,7 @@ namespace Tests\Feature\AI;
 use App\Actions\AI\DispatchPlanningGeneration;
 use App\Actions\AI\ProcessOutboxEvent;
 use App\Models\OutboxEvent;
+use App\Services\AI\CanonicalPlanAssembler;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
@@ -18,6 +19,14 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
     use CreatesCommercialPlanningScenario;
     use CreatesInstitutionalFormatScenario;
     use CreatesManualAiPipelineScenario;
+
+    public function test_container_resolves_canonical_assembler_without_template_override(): void
+    {
+        $this->assertSame(
+            CanonicalPlanAssembler::class,
+            app(CanonicalPlanAssembler::class)::class,
+        );
+    }
 
     public function test_generation_package_is_canonical_even_when_teacher_has_institutional_format(): void
     {
