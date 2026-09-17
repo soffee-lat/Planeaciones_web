@@ -21,6 +21,37 @@ class StandardV2QaExportCommandTest extends PedagogyTestCase
     use CreatesCommercialPlanningScenario;
     use CreatesManualAiPipelineScenario;
 
+    public function test_sin_id_lista_planeaciones_aprobadas_elegibles_sin_mutarlas(): void
+    {
+        $scene = $this->succeededAuditScenario(true);
+        $request = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
+
+        $before = [
+            'status' => $request->status,
+            'input_revision' => (int) $request->input_revision,
+            'format_version_id' => $request->format_version_id,
+            'ai_executions' => AiExecution::query()->where('request_id', $request->id)->count(),
+            'reservations' => UsageReservation::query()->where('planning_request_id', $request->id)->count(),
+            'render_runs' => DocumentRenderRun::query()->where('request_id', $request->id)->count(),
+            'deliveries' => PlanningDelivery::query()->where('request_id', $request->id)->count(),
+        ];
+
+        $this->artisan('validation:export-standard-v2-qa')
+            ->expectsOutputToContain('Planeaciones elegibles para QA de Standard v2:')
+            ->expectsOutputToContain((string) $request->id)
+            ->expectsOutputToContain('Ejemplo: php artisan validation:export-standard-v2-qa ' . $request->id)
+            ->assertSuccessful();
+
+        $fresh = $request->fresh();
+        $this->assertSame($before['status'], $fresh->status);
+        $this->assertSame($before['input_revision'], (int) $fresh->input_revision);
+        $this->assertSame($before['format_version_id'], $fresh->format_version_id);
+        $this->assertSame($before['ai_executions'], AiExecution::query()->where('request_id', $request->id)->count());
+        $this->assertSame($before['reservations'], UsageReservation::query()->where('planning_request_id', $request->id)->count());
+        $this->assertSame($before['render_runs'], DocumentRenderRun::query()->where('request_id', $request->id)->count());
+        $this->assertSame($before['deliveries'], PlanningDelivery::query()->where('request_id', $request->id)->count());
+    }
+
     public function test_exporta_docx_y_pdf_para_qa_sin_mutar_la_planeacion_aprobada(): void
     {
         $scene = $this->succeededAuditScenario(true);
