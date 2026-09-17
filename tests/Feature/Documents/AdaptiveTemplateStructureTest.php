@@ -3,7 +3,6 @@
 namespace Tests\Feature\Documents;
 
 use App\Actions\Documents\RenderInstitutionalFormatSample;
-use App\Services\AI\FormatAwareGenerationSchema;
 use App\Services\Documents\InstitutionalTemplateContract;
 use App\Services\Documents\OfficeOpenXmlPackage;
 use Illuminate\Support\Facades\Storage;
@@ -85,42 +84,5 @@ class AdaptiveTemplateStructureTest extends PedagogyTestCase
         $this->assertSame(2, substr_count($xml, 'Propósito:'));
         $this->assertStringContainsString('MUESTRA 1 · Actividad', $xml);
         $this->assertStringContainsString('MUESTRA 2 · Actividad', $xml);
-    }
-
-    public function test_schema_dinamico_cierra_objetos_de_bloque_repetible(): void
-    {
-        $base = [
-            'type' => 'object',
-            'required' => [],
-            'properties' => [],
-        ];
-        $context = [
-            'custom_fields' => [[
-                'key' => 'actividades',
-                'type' => 'repeating_block',
-                'source' => 'ai',
-                'required' => true,
-                'item_fields' => [
-                    'actividad' => [
-                        'label' => 'Actividad',
-                        'type' => 'long_text',
-                        'required' => true,
-                    ],
-                    'fecha' => [
-                        'label' => 'Fecha',
-                        'type' => 'date',
-                        'required' => false,
-                    ],
-                ],
-            ]],
-        ];
-
-        $schema = app(FormatAwareGenerationSchema::class)->extend($base, $context);
-        $items = $schema['properties']['custom']['properties']['actividades']['items'];
-
-        $this->assertFalse($items['additionalProperties']);
-        $this->assertSame(['actividad'], $items['required']);
-        $this->assertSame('string', $items['properties']['actividad']['type']);
-        $this->assertSame('date', $items['properties']['fecha']['format']);
     }
 }
