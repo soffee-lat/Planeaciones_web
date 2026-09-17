@@ -4,6 +4,7 @@ namespace Tests\Feature\Documents;
 
 use App\Services\Documents\CanonicalPlanDocumentBuilder;
 use App\Services\Documents\StandardDocxRenderer;
+use App\Services\Documents\StandardPdfRenderer;
 use Tests\TestCase;
 
 class StandardDocumentV2Test extends TestCase
@@ -165,5 +166,18 @@ class StandardDocumentV2Test extends TestCase
         $this->assertStringContainsString('Lista de cotejo', $docx);
         $this->assertStringContainsString('Sí', $docx);
         $this->assertStringContainsString('En proceso', $docx);
+        $this->assertStringContainsString('<w:tblHeader/>', $docx);
+        $this->assertStringContainsString('<w:cantSplit/>', $docx);
+        $this->assertStringContainsString('<w:pageBreakBefore/>', $docx);
+
+        $pdf = (new StandardPdfRenderer())->render($blocks);
+
+        $this->assertStringStartsWith('%PDF-1.4', $pdf);
+        $this->assertStringContainsString('Vista semanal', $pdf);
+        $this->assertStringContainsString('DOCENTE', $pdf);
+        $this->assertStringContainsString('ALUMNOS', $pdf);
+        $this->assertStringContainsString('Actividad central:', $pdf);
+        $this->assertStringContainsString('Lista de cotejo', $pdf);
+        $this->assertStringNotContainsString('Fecha | Sesión | Objetivo | Actividad central | Evidencia', $pdf);
     }
 }
