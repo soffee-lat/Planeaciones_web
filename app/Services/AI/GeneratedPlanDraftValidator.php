@@ -2,7 +2,6 @@
 
 namespace App\Services\AI;
 
-use App\Data\Planning\AdaptiveGeneratedPlan;
 use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
 
@@ -13,17 +12,13 @@ class GeneratedPlanDraftValidator
     public function __construct(private JsonSchemaSubsetValidator $schemaValidator) {}
 
     /** @param array<string,mixed> $payload */
-    public function validate(array $payload): GeneratedPlanDraft|AdaptiveGeneratedPlan
+    public function validate(array $payload): GeneratedPlanDraft
     {
-        if (($payload['contract_version'] ?? null) === FormatAwareGenerationSchema::ADAPTIVE_CONTRACT_VERSION) {
-            return $this->validateAdaptiveEnvelope($payload);
-        }
-
         $schema = $this->loadSchema(resource_path('schemas/ai/generated_plan_draft_v1.schema.json'));
 
-        // `custom` se define dinámicamente por el contrato del formato de esta
-        // ejecución. El contrato base sigue siendo v1; la extensión se valida
-        // de forma segura y acotada para admitir listas, tablas y bloques.
+        // El contrato productivo de generación es único y canónico. `custom`
+        // se conserva sólo por compatibilidad con resultados v1 históricos;
+        // no se deriva de formatos ni contratos documentales.
         $basePayload = $payload;
         unset($basePayload['custom']);
         $this->schemaValidator->validate($basePayload, $schema);
@@ -32,65 +27,6 @@ class GeneratedPlanDraftValidator
         $this->validateInstruments($payload);
 
         return new GeneratedPlanDraft($payload);
-    }
-
-    /** @param array<string,mixed> $payload */
-    private function validateAdaptiveEnvelope(array $payload): AdaptiveGeneratedPlan
-    {
-        if (! array_key_exists('core', $payload) || ! is_array($payload['core']) || array_is_list($payload['core'])) {
-            throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.core');
-        }
-        foreach (['fields', 'custom'] as $optionalObject) {
-            if (! array_key_exists($optionalObject, $payload)) {
-                continue;
-            }
-            if (! is_array($payload[$optionalObject])) {
-                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
-            }
-            // `{}` se decodifica como `[]` en PHP. Se acepta únicamente vacío;
-            // una lista real no vacía sigue siendo inválida para estos objetos.
-            if ($payload[$optionalObject] !== [] && array_is_list($payload[$optionalObject])) {
-                throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
-            }
-        }
-        if (array_diff(array_keys($payload), ['contract_version', 'core', 'fields', 'custom']) !== []) {
-            throw new AiContractException('ADAPTIVE_GENERATION_UNEXPECTED_PROPERTY', '$');
-        }
-
-        $core = $payload['core'];
-        foreach (['title', 'purpose', 'learning_goals', 'assessment_strategy', 'adaptation_considerations', 'pda_coverage'] as $required) {
-            if (! array_key_exists($required, $core)) {
-                throw new AiContractException('ADAPTIVE_GENERATION_CORE_REQUIRED', '$.core.' . $required);
-            }
-        }
-        foreach (['title', 'purpose', 'assessment_strategy'] as $field) {
-            if (! is_string($core[$field]) || trim($core[$field]) === '') {
-                throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.' . $field);
-            }
-        }
-        if (! is_array($core['learning_goals']) || $core['learning_goals'] === [] || ! array_is_list($core['learning_goals'])) {
-            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.learning_goals');
-        }
-        if (! is_array($core['adaptation_considerations']) || ! array_is_list($core['adaptation_considerations'])) {
-            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.adaptation_considerations');
-        }
-        if (! is_array($core['pda_coverage']) || $core['pda_coverage'] === [] || ! array_is_list($core['pda_coverage'])) {
-            throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.pda_coverage');
-        }
-
-        $nodes = 0;
-        foreach ((array) ($payload['fields'] ?? []) as $path => $value) {
-            if (! is_string($path) || preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/', $path) !== 1) {
-                throw new AiContractException('ADAPTIVE_GENERATION_FIELD_PATH_INVALID', '$.fields.' . (string) $path);
-            }
-            $this->validateFlexibleValue($value, '$.fields.' . $path, 0, $nodes);
-        }
-        foreach ((array) ($payload['custom'] ?? []) as $key => $value) {
-            $this->assertCustomKey((string) $key, '$.custom');
-            $this->validateFlexibleValue($value, '$.custom.' . $key, 0, $nodes);
-        }
-
-        return new AdaptiveGeneratedPlan($payload);
     }
 
     private function validateCustom(mixed $custom): void
