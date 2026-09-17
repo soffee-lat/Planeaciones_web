@@ -235,7 +235,7 @@ final class StandardPdfRenderer
 
     /**
      * @param list<array{type:string,text:string}> $blocks
-     * @return list<list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float}>>
+     * @return list<list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float,before:float,after:float}>>
      */
     private function paginate(array $blocks): array
     {
@@ -254,6 +254,25 @@ final class StandardPdfRenderer
             }
 
             if ($block['type'] === 'spacer') {
+                if ($y < self::BOTTOM + 5.0) {
+                    $page++;
+                    $pages[$page] = [];
+                    $y = self::TOP;
+                }
+                $pages[$page][] = [
+                    'font' => 'F1',
+                    'size' => 0.0,
+                    'text' => '',
+                    'leading' => 5.0,
+                    'type' => 'spacer',
+                    'indent' => 0.0,
+                    'fill' => null,
+                    'border' => false,
+                    'align' => 'left',
+                    'text_gray' => 0.0,
+                    'before' => 0.0,
+                    'after' => 0.0,
+                ];
                 $y -= 5.0;
                 continue;
             }
@@ -277,7 +296,9 @@ final class StandardPdfRenderer
                 'checklist_item' => '[ ] ',
                 default => '',
             };
-            foreach ($this->wrap($prefix . $block['text'], $style['size'], $style['indent']) as $line) {
+            $wrapped = $this->wrap($prefix . $block['text'], $style['size'], $style['indent']);
+            $lastIndex = count($wrapped) - 1;
+            foreach ($wrapped as $index => $line) {
                 if ($y < self::BOTTOM + $style['leading']) {
                     $page++;
                     $pages[$page] = [];
@@ -294,6 +315,8 @@ final class StandardPdfRenderer
                     'border' => $style['border'],
                     'align' => $style['align'],
                     'text_gray' => $style['text_gray'],
+                    'before' => $index === 0 ? $style['before'] : 0.0,
+                    'after' => $index === $lastIndex ? $style['after'] : 0.0,
                 ];
                 $y -= $style['leading'];
             }
@@ -347,7 +370,16 @@ final class StandardPdfRenderer
         string $align,
         float $textGray,
     ): array {
-        return compact('font', 'size', 'leading', 'before', 'after', 'indent', 'fill', 'border', 'align', 'textGray') + [
+        return [
+            'font' => $font,
+            'size' => $size,
+            'leading' => $leading,
+            'before' => $before,
+            'after' => $after,
+            'indent' => $indent,
+            'fill' => $fill,
+            'border' => $border,
+            'align' => $align,
             'text_gray' => $textGray,
         ];
     }
@@ -389,12 +421,18 @@ final class StandardPdfRenderer
         return $lines === [] ? [''] : $lines;
     }
 
-    /** @param list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float}> $lines */
+    /** @param list<array{font:string,size:float,text:string,leading:float,type:string,indent:float,fill:?float,border:bool,align:string,text_gray:float,before:float,after:float}> $lines */
     private function pageStream(array $lines, int $pageNumber, int $pageCount): string
     {
         $commands = [];
         $y = self::TOP;
         foreach ($lines as $line) {
+            $y -= $line['before'];
+            if ($line['type'] === 'spacer') {
+                $y -= $line['leading'] + $line['after'];
+                continue;
+            }
+
             $x = self::LEFT + $line['indent'];
             $width = self::CONTENT_WIDTH - $line['indent'];
             $height = $line['leading'] + 3.0;
@@ -423,7 +461,7 @@ final class StandardPdfRenderer
                 $y,
                 $this->pdfText($line['text']),
             );
-            $y -= $line['leading'];
+            $y -= $line['leading'] + $line['after'];
         }
 
         $commands[] = sprintf('0.82 G 0.4 w %d 42 m %d 42 l S 0 G', self::LEFT, self::PAGE_WIDTH - self::RIGHT);
