@@ -13,13 +13,18 @@ use Throwable;
 final class ExportStandardV2QaCommand extends Command
 {
     protected $signature = 'validation:export-standard-v2-qa
-        {request_id : ID de una PlanningRequest con planeación canónica aprobada}';
+        {request_id? : ID de una PlanningRequest con planeación canónica aprobada}';
 
-    protected $description = 'Genera copias QA DOCX/PDF del Standard v2 sin cambiar estado, formato, revisión ni consumo de la planeación.';
+    protected $description = 'Lista candidatas o genera copias QA DOCX/PDF del Standard v2 sin cambiar estado, formato, revisión ni consumo de la planeación.';
 
     public function handle(StandardDocumentRenderer $renderer): int
     {
-        $requestId = (int) $this->argument('request_id');
+        $argument = $this->argument('request_id');
+        if ($argument === null || trim((string) $argument) === '') {
+            return $this->listCandidates();
+        }
+
+        $requestId = (int) $argument;
         if ($requestId < 1) {
             $this->error('STANDARD_V2_QA_REQUEST_ID_INVALID');
             return self::FAILURE;
@@ -33,14 +38,7 @@ final class ExportStandardV2QaCommand extends Command
             return self::FAILURE;
         }
 
-        $allowedStatuses = [
-            PlanningRequestStatus::APROBADA,
-            PlanningRequestStatus::GENERANDO_DOCUMENTO,
-            PlanningRequestStatus::LISTA_PARA_ENTREGAR,
-            PlanningRequestStatus::ENTREGADA,
-            PlanningRequestStatus::COMPLETADA,
-        ];
-        if (! in_array($request->status, $allowedStatuses, true)) {
+        if (! $this->isAllowedStatus($request->status)) {
             $this->error('STANDARD_V2_QA_REQUEST_NOT_APPROVED');
             return self::FAILURE;
         }
@@ -100,5 +98,60 @@ final class ExportStandardV2QaCommand extends Command
         $this->warn('Validación no invasiva: no se cambió estado, formato de exportación, input_revision, reservas ni historial de IA.');
 
         return self::SUCCESS;
+    }
+
+    private function listCandidates(): int
+    {
+        $statuses = $this->allowedStatuses();
+        $requests = PlanningRequest::query()
+            ->with(['document.currentVersion'])
+            ->whereIn('status', array_map(fn (PlanningRequestStatus $status): string => $status->value, $statuses))
+            ->whereHas('document.currentVersion')
+            ->whereHas('approvals', function ($query): void {
+                $query->whereColumn('approvals.version_id', 'documents.current_version_id');
+            })
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        if ($requests->isEmpty()) {
+            $this->warn('No hay planeaciones aprobadas elegibles para QA de Standard v2.');
+            $this->line('Genera/aprueba una planeación y vuelve a ejecutar este comando.');
+            return self::SUCCESS;
+        }
+
+        $this->info('Planeaciones elegibles para QA de Standard v2:');
+        $this->table(
+            ['request_id', 'Estado', 'Planeación', 'Versión documental'],
+            $requests->map(function (PlanningRequest $request): array {
+                $version = $request->document?->currentVersion;
+                return [
+                    (string) $request->id,
+                    $request->status->value,
+                    trim((string) ($request->project ?: $request->topic ?: '—')),
+                    $version ? (string) $version->id : '—',
+                ];
+            })->all(),
+        );
+        $this->line('Ejemplo: php artisan validation:export-standard-v2-qa ' . $requests->first()->id);
+
+        return self::SUCCESS;
+    }
+
+    private function isAllowedStatus(PlanningRequestStatus $status): bool
+    {
+        return in_array($status, $this->allowedStatuses(), true);
+    }
+
+    /** @return list<PlanningRequestStatus> */
+    private function allowedStatuses(): array
+    {
+        return [
+            PlanningRequestStatus::APROBADA,
+            PlanningRequestStatus::GENERANDO_DOCUMENTO,
+            PlanningRequestStatus::LISTA_PARA_ENTREGAR,
+            PlanningRequestStatus::ENTREGADA,
+            PlanningRequestStatus::COMPLETADA,
+        ];
     }
 }
