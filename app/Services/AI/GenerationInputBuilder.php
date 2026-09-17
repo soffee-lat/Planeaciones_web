@@ -44,16 +44,8 @@ final class GenerationInputBuilder
             'units' => (int) $segment->units,
         ])->values()->all();
 
-        // La generación pedagógica es canónica y no depende del DOCX elegido.
-        // Los formatos institucionales/estándar sólo intervienen al exportar.
-        $formatContext = [
-            'schema_version' => 0,
-            'generation_scope' => 'canonical',
-            'format_version_id' => null,
-            'renderer' => null,
-            'custom_fields' => [],
-            'template_contract' => null,
-        ];
+        // La generación pedagógica es canónica. El formato de salida pertenece
+        // exclusivamente a la capa documental posterior a la aprobación.
         $effectiveOutputSchemaVersion = (string) $promptVersion->schema_version;
 
         $inputManifest = [
@@ -63,8 +55,6 @@ final class GenerationInputBuilder
             'input_snapshot_sha256' => CanonicalJson::hash($inputVersion->snapshot),
             'commercial_snapshot_sha256' => CanonicalJson::hash($request->calculation_snapshot),
             'segments_sha256' => CanonicalJson::hash($segments),
-            'format_version_id' => null,
-            'format_context_sha256' => CanonicalJson::hash($formatContext),
             'prompt_version_id' => (int) $promptVersion->id,
             'prompt_checksum' => (string) $promptVersion->checksum,
             'output_schema_version' => $effectiveOutputSchemaVersion,
@@ -78,7 +68,6 @@ final class GenerationInputBuilder
             commercialSnapshot: $request->calculation_snapshot,
             planningUnits: (int) $request->planning_units,
             segments: $segments,
-            formatContext: $formatContext,
             inputManifest: $inputManifest,
             promptVersionId: (int) $promptVersion->id,
             outputSchemaVersion: $effectiveOutputSchemaVersion,
