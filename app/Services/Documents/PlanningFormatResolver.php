@@ -11,6 +11,34 @@ use App\Models\PlanningRequest;
 
 final class PlanningFormatResolver
 {
+    /** @return array<int,string> */
+    public function exportOptionsFor(int $ownerId): array
+    {
+        $formats = InstitutionalFormat::query()
+            ->where('status', InstitutionalFormatStatus::Ready->value)
+            ->where(function ($query) use ($ownerId): void {
+                $query->whereNull('owner_id')->orWhere('owner_id', $ownerId);
+            })
+            ->with('publishedVersions')
+            ->orderBy('name')
+            ->get();
+
+        $options = [];
+        foreach ($formats as $format) {
+            $version = $format->publishedVersions->first();
+            if (! $version) {
+                continue;
+            }
+
+            $suffix = $format->kind === InstitutionalFormatKind::Standard
+                ? ' · estándar'
+                : ' · institucional';
+            $options[(int) $version->id] = $format->name . $suffix;
+        }
+
+        return $options;
+    }
+
     public function resolve(PlanningRequest $request): FormatVersion
     {
         // Un formato explícito sólo representa una elección de EXPORTACIÓN.
