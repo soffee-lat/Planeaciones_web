@@ -18,6 +18,7 @@ use App\Models\CorrectionRequest;
 use App\Models\DocumentRenderRun;
 use App\Models\DocumentVersion;
 use App\Models\PlanningRequest;
+use App\Services\Documents\PlanningFormatResolver;
 use App\Services\Planning\ClientCorrectionPolicy;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
@@ -137,7 +138,7 @@ class ViewPlanningRequest extends ViewRecord
                 ->schema([
                     Select::make('format_version_id')
                         ->label('Formato de salida')
-                        ->options(fn () => PlanningRequestResource::formatVersionOptions())
+                        ->options(fn () => $this->exportFormatOptions())
                         ->default(fn () => $this->defaultExportFormatVersionId())
                         ->required()
                         ->searchable()
@@ -148,7 +149,7 @@ class ViewPlanningRequest extends ViewRecord
                 ->action(function (array $data): void {
                     try {
                         $formatId = (int) ($data['format_version_id'] ?? 0);
-                        $options = PlanningRequestResource::formatVersionOptions();
+                        $options = $this->exportFormatOptions();
                         if ($formatId < 1 || ! array_key_exists($formatId, $options)) {
                             Notification::make()->warning()->title('Formato no disponible')->body('Selecciona un formato válido para tu cuenta.')->send();
                             return;
@@ -254,9 +255,15 @@ class ViewPlanningRequest extends ViewRecord
         ];
     }
 
+    /** @return array<int,string> */
+    private function exportFormatOptions(): array
+    {
+        return app(PlanningFormatResolver::class)->exportOptionsFor((int) $this->getRecord()->owner_id);
+    }
+
     private function defaultExportFormatVersionId(): ?int
     {
-        $options = PlanningRequestResource::formatVersionOptions();
+        $options = $this->exportFormatOptions();
         foreach ($options as $id => $label) {
             if (str_contains(mb_strtolower((string) $label), 'estándar')) {
                 return (int) $id;
