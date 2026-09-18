@@ -4,6 +4,7 @@ namespace App\Filament\App\Resources\Groups\Pages;
 
 use App\Actions\Pedagogy\UpdateGroupProfile;
 use App\Filament\App\Resources\Groups\GroupResource;
+use App\Filament\App\Pages\ManageGroupSchedule;
 use App\Models\Group;
 use App\Models\School;
 use Filament\Resources\Pages\CreateRecord;
@@ -41,5 +42,10 @@ class CreateGroup extends CreateRecord
         }
 
         return $group;
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return ManageGroupSchedule::getUrl(['group' => $this->getRecord()->id]);
     }
 }
