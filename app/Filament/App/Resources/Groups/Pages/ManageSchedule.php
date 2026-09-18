@@ -27,7 +27,7 @@ class ManageSchedule extends Page
     {
         $this->record = Group::query()
             ->where('owner_id', auth()->id())
-            ->with(['activeSchedule.blocks', 'curriculumVersion.formativeFields'])
+            ->with(['activeSchedule.blocks'])
             ->findOrFail($record);
 
         $schedule = $this->record->activeSchedule;
@@ -60,7 +60,7 @@ class ManageSchedule extends Page
             'blocks' => $this->blocks,
         ]);
 
-        $this->record = $this->record->fresh(['activeSchedule.blocks', 'curriculumVersion.formativeFields']);
+        $this->record = $this->record->fresh(['activeSchedule.blocks']);
         $this->blocks = $schedule->blocks->map(fn ($block) => [
             'day_of_week' => (int) $block->day_of_week,
             'sequence' => (int) $block->sequence,
