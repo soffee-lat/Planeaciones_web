@@ -29,7 +29,10 @@ final class PlanningPeriodService
     public function cycleWeeks(string $schoolYear): array
     {
         [$firstYear, $secondYear] = $this->schoolYears($schoolYear);
-        $start = CarbonImmutable::create($firstYear, 8, 1)->nextOrSame(CarbonInterface::MONDAY);
+        $start = CarbonImmutable::create($firstYear, 8, 1)->startOfDay();
+        while ($start->isoWeekday() !== CarbonInterface::MONDAY) {
+            $start = $start->addDay();
+        }
         $end = CarbonImmutable::create($secondYear, 7, 31)->endOfDay();
 
         $weeks = [];
