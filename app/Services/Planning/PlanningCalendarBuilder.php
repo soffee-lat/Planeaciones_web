@@ -20,6 +20,7 @@ final class PlanningCalendarBuilder
             'revision' => (int) $schedule->revision,
             'name' => (string) $schedule->name,
             'active_days' => array_values(array_map('intval', $schedule->active_days ?? [])),
+            'exceptions' => array_values(is_array($schedule->exceptions) ? $schedule->exceptions : []),
             'day_starts_at' => substr((string) $schedule->day_starts_at, 0, 5),
             'day_ends_at' => substr((string) $schedule->day_ends_at, 0, 5),
             'blocks' => $schedule->blocks->map(fn ($block) => [
@@ -57,6 +58,9 @@ final class PlanningCalendarBuilder
 
         $byDay = $schedule->blocks->groupBy(fn ($block) => (int) $block->day_of_week);
         $activeDays = array_values(array_unique(array_map('intval', $schedule->active_days ?? [])));
+        $exceptions = collect(is_array($schedule->exceptions) ? $schedule->exceptions : [])
+            ->filter(fn ($item) => is_array($item) && isset($item['date']))
+            ->keyBy(fn (array $item) => (string) $item['date']);
         $dayStart = substr((string) $schedule->day_starts_at, 0, 5);
         $dayEnd = substr((string) $schedule->day_ends_at, 0, 5);
         $days = [];
@@ -64,6 +68,21 @@ final class PlanningCalendarBuilder
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
             $weekday = (int) $date->isoWeekday();
             if (! in_array($weekday, $activeDays, true)) {
+                continue;
+            }
+
+            $dateKey = $date->format('Y-m-d');
+            $exception = $exceptions->get($dateKey);
+            if (is_array($exception)) {
+                $days[] = [
+                    'date' => $dateKey,
+                    'day_of_week' => $weekday,
+                    'excluded' => true,
+                    'exclusion_label' => (string) ($exception['label'] ?? 'Sin clases'),
+                    'planeable_minutes' => 0,
+                    'requires_planning' => false,
+                    'blocks' => [],
+                ];
                 continue;
             }
 
