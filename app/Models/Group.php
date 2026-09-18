@@ -72,6 +72,11 @@ class Group extends Model
         return $this->hasOne(GroupSchedule::class)->where('is_active', true)->latestOfMany();
     }
 
+    public function planningRequests(): HasMany
+    {
+        return $this->hasMany(PlanningRequest::class);
+    }
+
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
