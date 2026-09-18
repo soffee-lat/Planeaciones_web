@@ -58,6 +58,10 @@ class PlanningRequest extends Model
         'curriculum_version_id',
         'grade_id',
         'creation_mode',
+        'period_type',
+        'period_key',
+        'integrative_project',
+        'integrative_project_purpose',
         'selection_revision',
         'curriculum_confirmed_at',
         'curriculum_selection_fingerprint',
@@ -128,6 +132,11 @@ class PlanningRequest extends Model
     public function segments(): HasMany
     {
         return $this->hasMany(PlanningRequestSegment::class)->orderBy('sequence');
+    }
+
+    public function planningWeeks(): HasMany
+    {
+        return $this->hasMany(PlanningRequestWeek::class)->orderBy('sequence');
     }
 
     public function usageReservations(): HasMany
