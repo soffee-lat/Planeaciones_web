@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 class StartPlanning extends Page
 {
     protected static ?string $title = 'Nueva planeación';
-    protected static ?string $navigationLabel = 'Nueva planeación';
+    protected static ?string $navigationLabel = 'Crear planeación';
     protected static ?string $slug = 'nueva-planeacion';
     protected static ?int $navigationSort = 25;
     protected string $view = 'filament.app.pages.start-planning';
