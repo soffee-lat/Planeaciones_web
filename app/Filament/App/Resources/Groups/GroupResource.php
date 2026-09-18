@@ -207,7 +207,7 @@ class GroupResource extends Resource
                 Action::make('schedule')
                     ->label('Horario')
                     ->icon(Heroicon::OutlinedCalendarDays)
-                    ->url(fn (Group $record): string => static::getUrl('schedule', ['record' => $record])),
+                    ->url(fn (Group $record): string => static::getUrl('schedule', ['record' => $record->getKey()])),
                 EditAction::make(),
                 Action::make('archive')
                     ->label('Archivar')
