@@ -14,7 +14,8 @@
                         <label class="mb-2 block text-sm font-medium">Grupo</label>
                         <select
                             wire:model.live="group_id"
-                            class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                            @disabled($draft_id)
+                            class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
                         >
                             <option value="">Selecciona un grupo…</option>
                             @foreach ($groups as $id => $label)
@@ -215,7 +216,7 @@
 
                         <div class="flex flex-wrap items-center gap-3 pt-2">
                             <x-filament::button type="submit" size="lg" icon="heroicon-o-arrow-right" wire:loading.attr="disabled">
-                                Ver conexiones curriculares
+                                {{ $draft_id ? 'Guardar cambios y revisar conexiones' : 'Ver conexiones curriculares' }}
                             </x-filament::button>
                             <span class="text-sm text-gray-500" wire:loading>Preparando la estructura…</span>
                         </div>
@@ -257,6 +258,9 @@
             <x-filament::section>
                 <x-slot name="heading">Después</x-slot>
                 <ol class="space-y-3 text-sm text-gray-700 dark:text-gray-200">
+                    @if($draft_id)
+                        <li><strong>Ahora.</strong> Guardaremos los cambios sobre esta misma planeación.</li>
+                    @endif
                     <li><strong>1.</strong> Revisas contenidos, PDA, campos y ejes relacionados.</li>
                     <li><strong>2.</strong> Confirmas las conexiones curriculares.</li>
                     <li><strong>3.</strong> La IA genera respetando semanas, materias, horario y transversalidad.</li>
