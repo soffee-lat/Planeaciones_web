@@ -45,7 +45,11 @@ class GroupScheduleTest extends PedagogyTestCase
             ->assertSee('A color')
             ->assertSee('Blanco y negro')
             ->assertSee('Maestro(a):')
-            ->assertSee('Ciclo escolar:');
+            ->assertSee('Ciclo escolar:')
+            ->assertSee($scene['school']->name)
+            ->assertSee($scene['user']->name)
+            ->assertSee($scene['grade']->name)
+            ->assertSee('2026-2027');
     }
 
     public function test_subject_catalog_actions_do_not_rerender_unsaved_timetable(): void
