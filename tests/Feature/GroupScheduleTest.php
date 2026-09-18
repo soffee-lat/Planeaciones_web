@@ -31,7 +31,7 @@ class GroupScheduleTest extends PedagogyTestCase
             ->assertSee('Entrada')
             ->assertSee('Salida')
             ->assertSee('Crear mi horario')
-            ->assertSee('Toca cualquier espacio del horario para agregar una clase.');
+            ->assertSee('Toca cualquier espacio para agregar una clase.');
     }
 
     public function test_teacher_can_save_visual_schedule_and_calendar_expands_real_dates(): void
