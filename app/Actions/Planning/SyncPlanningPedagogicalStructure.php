@@ -140,6 +140,7 @@ final class SyncPlanningPedagogicalStructure
             $integrativePurpose,
             $project,
             $topic,
+            $contextNote,
         ): PlanningRequest {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($request->id);
             if ($fresh->status !== PlanningRequestStatus::BORRADOR) {
@@ -169,6 +170,7 @@ final class SyncPlanningPedagogicalStructure
                 'period_label' => $period['label'],
                 'project' => mb_strimwidth($project, 0, 255, ''),
                 'topic' => $topic,
+                'comments' => $contextNote === '' ? null : $contextNote,
             ])->save();
 
             $fresh->load('planningWeeks.topics');
