@@ -28,7 +28,7 @@ final class StartPlanningExperiment
         $this->assertActor($actor);
 
         $group = Group::query()
-            ->with(['profile', 'curriculumVersion'])
+            ->with(['profile', 'curriculumVersion', 'schedule'])
             ->where('owner_id', $actor->id)
             ->whereNull('archived_at')
             ->whereHas('profile', function ($query): void {
@@ -37,6 +37,7 @@ final class StartPlanningExperiment
                 }
             })
             ->whereHas('curriculumVersion', fn ($query) => $query->whereNotNull('published_at'))
+            ->whereHas('schedule')
             ->find($groupId);
 
         if (! $group) {
@@ -84,6 +85,7 @@ final class StartPlanningExperiment
                     'entry_surface' => 'curricular_validation_v1',
                     'profile_reused' => true,
                     'session_minutes_known' => $group->profile?->session_minutes !== null,
+                    'schedule_revision' => $group->schedule?->revision,
                 ],
             );
 
