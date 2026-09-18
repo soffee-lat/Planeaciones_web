@@ -2677,7 +2677,6 @@
                             <template x-for="block in blocksFor(day.value)" :key="'print-block-' + block._key">
                                 <div class="schedule-print-block" :style="printBlockStyle(block)">
                                     <div class="schedule-print-block-title" x-text="block.subject_name_snapshot || block.label"></div>
-                                    <div x-show="blockBadge(block)" class="schedule-print-block-badge" x-text="blockBadge(block)"></div>
                                     <div class="schedule-print-block-time"><span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span></div>
                                 </div>
                             </template>
