@@ -56,7 +56,9 @@ final class SaveGroupSchedule
             ->get()
             ->keyBy('id');
 
-        foreach ($data['blocks'] ?? [] as $index => &$block) {
+        $data['blocks'] = array_values($data['blocks'] ?? []);
+
+        foreach ($data['blocks'] as $index => &$block) {
             if ($block['ends_at'] <= $block['starts_at']) {
                 throw ValidationException::withMessages([
                     "blocks.$index.ends_at" => 'La hora final debe ser posterior a la inicial.',
