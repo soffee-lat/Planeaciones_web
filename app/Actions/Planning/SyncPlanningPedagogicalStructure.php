@@ -197,6 +197,7 @@ final class SyncPlanningPedagogicalStructure
             'period_key' => $request->period_key,
             'integrative_project' => $request->integrative_project,
             'integrative_project_purpose' => $request->integrative_project_purpose,
+            'context_note' => $request->comments,
             'weeks' => $request->planningWeeks->map(fn ($week) => [
                 'sequence' => (int) $week->sequence,
                 'starts_on' => $week->starts_on?->toDateString(),
