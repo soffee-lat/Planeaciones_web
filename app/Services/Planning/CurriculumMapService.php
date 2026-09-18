@@ -27,6 +27,7 @@ final class CurriculumMapService
     {
         $this->assertEditable($actor, $request);
         $request->refresh();
+        $request->loadMissing('planningWeeks.topics.subject');
 
         $suggestion = $this->suggest($request);
         $suggestionFingerprint = $this->suggestionFingerprint($request, $suggestion);
