@@ -69,13 +69,17 @@
                     <div class="space-y-2 text-sm">
                         <p><strong>{{ $selectedGroup->name }}</strong></p>
                         <p>Grado: {{ $selectedGroup->grade?->name ?? 'Configurado en tu grupo' }}</p>
-                        @if ($selectedGroup->profile?->session_minutes)
-                            <p>Sesiones habituales: {{ $selectedGroup->profile->session_minutes }} min</p>
+                        @if ($selectedGroup->schedule)
+                            <p>
+                                Horario: {{ substr((string) $selectedGroup->schedule->day_starts_at, 0, 5) }}
+                                – {{ substr((string) $selectedGroup->schedule->day_ends_at, 0, 5) }}
+                                · revisión {{ $selectedGroup->schedule->revision }}
+                            </p>
                         @endif
-                        <p class="text-gray-600 dark:text-gray-300">Usaremos automáticamente el perfil pedagógico, materiales, preferencias y restricciones que ya guardaste para este grupo.</p>
+                        <p class="text-gray-600 dark:text-gray-300">Usaremos automáticamente el perfil pedagógico y el horario del grupo para construir los días y la capacidad real de la planeación.</p>
                     </div>
                 @else
-                    <p class="text-sm text-gray-600 dark:text-gray-300">Al seleccionar un grupo reutilizaremos su grado, currículo y perfil pedagógico. No necesitas capturarlos otra vez.</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">Al seleccionar un grupo reutilizaremos su grado, currículo, perfil pedagógico y horario. No necesitas capturarlos otra vez.</p>
                 @endif
             </x-filament::section>
 
