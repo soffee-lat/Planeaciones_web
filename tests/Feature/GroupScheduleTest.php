@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Schedules\SaveGroupSchedule;
+use App\Filament\App\Resources\Groups\GroupResource;
 use App\Models\CurricularContent;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
@@ -12,6 +13,24 @@ use App\Services\Planning\PlanningCalendarBuilder;
 
 class GroupScheduleTest extends PedagogyTestCase
 {
+    public function test_schedule_is_visible_from_group_and_editor_page_is_accessible(): void
+    {
+        $scene = $this->seedFullTeacher();
+
+        $this->actingAs($scene['user'])
+            ->get(GroupResource::getUrl('edit', ['record' => $scene['group']]))
+            ->assertOk()
+            ->assertSee('Horario');
+
+        $this->actingAs($scene['user'])
+            ->get(GroupResource::getUrl('schedule', ['record' => $scene['group']]))
+            ->assertOk()
+            ->assertSee('Horario')
+            ->assertSee('Entrada')
+            ->assertSee('Salida')
+            ->assertSee('+ Bloque');
+    }
+
     public function test_teacher_can_save_visual_schedule_and_calendar_expands_real_dates(): void
     {
         $scene = $this->seedFullTeacher();
