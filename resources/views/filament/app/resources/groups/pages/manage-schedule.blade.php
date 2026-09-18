@@ -12,6 +12,420 @@
     >
         <style>
             [x-cloak] { display: none !important; }
+
+            .schedule-onboarding-wrap {
+                max-width: 980px;
+                margin: 1.25rem auto 0;
+            }
+
+            .schedule-onboarding-card {
+                overflow: hidden;
+                border: 1px solid #e5e7eb;
+                border-radius: 24px;
+                background: #ffffff;
+                box-shadow:
+                    0 1px 2px rgb(15 23 42 / .04),
+                    0 12px 36px rgb(15 23 42 / .08);
+                color: #0f172a;
+            }
+
+            .schedule-onboarding-hero {
+                position: relative;
+                padding: 30px 32px 26px;
+                border-bottom: 1px solid #eef2f7;
+                background:
+                    radial-gradient(circle at 92% 18%, rgb(59 130 246 / .16), transparent 28%),
+                    linear-gradient(135deg, #f8fbff 0%, #ffffff 62%);
+            }
+
+            .schedule-onboarding-kicker {
+                display: inline-flex;
+                align-items: center;
+                gap: .5rem;
+                margin-bottom: .85rem;
+                padding: .38rem .7rem;
+                border-radius: 999px;
+                background: #eff6ff;
+                color: #2563eb;
+                font-size: .72rem;
+                font-weight: 800;
+                letter-spacing: .055em;
+                text-transform: uppercase;
+            }
+
+            .schedule-onboarding-title {
+                margin: 0;
+                max-width: 680px;
+                color: #0f172a;
+                font-size: clamp(1.65rem, 3vw, 2.15rem);
+                line-height: 1.1;
+                font-weight: 800;
+                letter-spacing: -.035em;
+            }
+
+            .schedule-onboarding-copy {
+                max-width: 680px;
+                margin-top: .75rem;
+                color: #64748b;
+                font-size: .95rem;
+                line-height: 1.55;
+            }
+
+            .schedule-onboarding-body {
+                padding: 28px 32px 30px;
+            }
+
+            .schedule-step-label {
+                display: flex;
+                align-items: center;
+                gap: .65rem;
+                margin-bottom: 14px;
+                color: #334155;
+                font-size: .8rem;
+                font-weight: 800;
+                letter-spacing: .04em;
+                text-transform: uppercase;
+            }
+
+            .schedule-step-number {
+                display: inline-grid;
+                width: 28px;
+                height: 28px;
+                place-items: center;
+                border-radius: 9px;
+                background: #eff6ff;
+                color: #2563eb;
+                font-size: .75rem;
+                font-weight: 900;
+            }
+
+            .schedule-time-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 14px;
+            }
+
+            .schedule-time-card {
+                display: grid;
+                grid-template-columns: 42px minmax(0, 1fr);
+                align-items: center;
+                gap: 12px;
+                min-height: 82px;
+                padding: 14px 16px;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                background: #f8fafc;
+                transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+            }
+
+            .schedule-time-card:focus-within {
+                border-color: #60a5fa;
+                box-shadow: 0 0 0 4px rgb(59 130 246 / .10);
+                transform: translateY(-1px);
+            }
+
+            .schedule-time-icon {
+                display: grid;
+                width: 42px;
+                height: 42px;
+                place-items: center;
+                border-radius: 12px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                color: #2563eb;
+                box-shadow: 0 2px 8px rgb(15 23 42 / .05);
+            }
+
+            .schedule-time-meta {
+                display: block;
+                margin-bottom: 2px;
+                color: #64748b;
+                font-size: .72rem;
+                font-weight: 800;
+                letter-spacing: .04em;
+                text-transform: uppercase;
+            }
+
+            .schedule-time-input {
+                width: 100%;
+                padding: 0;
+                border: 0;
+                outline: 0;
+                background: transparent;
+                color: #0f172a;
+                font-size: 1.15rem;
+                font-weight: 800;
+                box-shadow: none;
+            }
+
+            .schedule-recess-card {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 18px;
+                margin-top: 16px;
+                padding: 17px 18px;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                background: #ffffff;
+            }
+
+            .schedule-recess-title {
+                color: #0f172a;
+                font-size: .92rem;
+                font-weight: 750;
+            }
+
+            .schedule-recess-copy {
+                margin-top: 3px;
+                color: #64748b;
+                font-size: .78rem;
+                line-height: 1.45;
+            }
+
+            .schedule-switch {
+                position: relative;
+                width: 46px;
+                height: 26px;
+                flex: 0 0 auto;
+            }
+
+            .schedule-switch input {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .schedule-switch-track {
+                position: absolute;
+                inset: 0;
+                border-radius: 999px;
+                background: #cbd5e1;
+                cursor: pointer;
+                transition: background .2s ease;
+            }
+
+            .schedule-switch-track::after {
+                content: '';
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: #fff;
+                box-shadow: 0 1px 4px rgb(15 23 42 / .22);
+                transition: transform .2s ease;
+            }
+
+            .schedule-switch input:checked + .schedule-switch-track {
+                background: #2563eb;
+            }
+
+            .schedule-switch input:checked + .schedule-switch-track::after {
+                transform: translateX(20px);
+            }
+
+            .schedule-recess-times {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+                margin-top: 12px;
+                padding: 14px;
+                border-radius: 14px;
+                background: #f8fafc;
+            }
+
+            .schedule-mini-label {
+                display: block;
+                margin-bottom: 6px;
+                color: #64748b;
+                font-size: .7rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+            }
+
+            .schedule-mini-input {
+                width: 100%;
+                padding: 9px 11px;
+                border: 1px solid #dbe2ea;
+                border-radius: 10px;
+                background: #fff;
+                color: #0f172a;
+                font-weight: 700;
+                outline: none;
+            }
+
+            .schedule-onboarding-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                margin-top: 24px;
+                padding-top: 22px;
+                border-top: 1px solid #eef2f7;
+            }
+
+            .schedule-footer-note {
+                color: #64748b;
+                font-size: .78rem;
+                line-height: 1.45;
+            }
+
+            .schedule-primary-action {
+                min-width: 190px;
+                padding: 12px 18px;
+                border: 0;
+                border-radius: 12px;
+                background: linear-gradient(135deg, #2563eb, #3b82f6);
+                color: #fff;
+                font-size: .9rem;
+                font-weight: 800;
+                cursor: pointer;
+                box-shadow: 0 8px 22px rgb(37 99 235 / .26);
+                transition: transform .15s ease, box-shadow .15s ease;
+            }
+
+            .schedule-primary-action:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 10px 28px rgb(37 99 235 / .32);
+            }
+
+            .schedule-secondary-action {
+                padding: 11px 16px;
+                border: 1px solid #dbe2ea;
+                border-radius: 12px;
+                background: transparent;
+                color: #475569;
+                font-size: .85rem;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            .schedule-error {
+                margin-top: 12px;
+                padding: 10px 12px;
+                border-radius: 10px;
+                background: #fef2f2;
+                color: #b91c1c;
+                font-size: .8rem;
+                font-weight: 700;
+            }
+
+            html.dark .schedule-onboarding-card,
+            .dark .schedule-onboarding-card {
+                border-color: rgb(255 255 255 / .09);
+                background: #111827;
+                color: #f8fafc;
+                box-shadow: 0 18px 46px rgb(0 0 0 / .28);
+            }
+
+            html.dark .schedule-onboarding-hero,
+            .dark .schedule-onboarding-hero {
+                border-bottom-color: rgb(255 255 255 / .08);
+                background:
+                    radial-gradient(circle at 92% 18%, rgb(59 130 246 / .20), transparent 28%),
+                    linear-gradient(135deg, #111827 0%, #0f172a 100%);
+            }
+
+            html.dark .schedule-onboarding-title,
+            .dark .schedule-onboarding-title,
+            html.dark .schedule-recess-title,
+            .dark .schedule-recess-title {
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-onboarding-copy,
+            .dark .schedule-onboarding-copy,
+            html.dark .schedule-recess-copy,
+            .dark .schedule-recess-copy,
+            html.dark .schedule-footer-note,
+            .dark .schedule-footer-note,
+            html.dark .schedule-time-meta,
+            .dark .schedule-time-meta,
+            html.dark .schedule-mini-label,
+            .dark .schedule-mini-label {
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-step-label,
+            .dark .schedule-step-label {
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-time-card,
+            .dark .schedule-time-card {
+                border-color: rgb(255 255 255 / .09);
+                background: #0b1220;
+            }
+
+            html.dark .schedule-time-icon,
+            .dark .schedule-time-icon {
+                border-color: rgb(255 255 255 / .09);
+                background: #111827;
+                color: #60a5fa;
+                box-shadow: none;
+            }
+
+            html.dark .schedule-time-input,
+            .dark .schedule-time-input,
+            html.dark .schedule-mini-input,
+            .dark .schedule-mini-input {
+                color: #f8fafc;
+                color-scheme: dark;
+            }
+
+            html.dark .schedule-recess-card,
+            .dark .schedule-recess-card {
+                border-color: rgb(255 255 255 / .09);
+                background: #0b1220;
+            }
+
+            html.dark .schedule-recess-times,
+            .dark .schedule-recess-times {
+                background: #111827;
+            }
+
+            html.dark .schedule-mini-input,
+            .dark .schedule-mini-input {
+                border-color: rgb(255 255 255 / .10);
+                background: #0b1220;
+            }
+
+            html.dark .schedule-onboarding-footer,
+            .dark .schedule-onboarding-footer {
+                border-top-color: rgb(255 255 255 / .08);
+            }
+
+            html.dark .schedule-secondary-action,
+            .dark .schedule-secondary-action {
+                border-color: rgb(255 255 255 / .10);
+                color: #cbd5e1;
+            }
+
+            @media (max-width: 720px) {
+                .schedule-onboarding-wrap {
+                    margin-top: .5rem;
+                }
+                .schedule-onboarding-hero,
+                .schedule-onboarding-body {
+                    padding-left: 18px;
+                    padding-right: 18px;
+                }
+                .schedule-time-grid,
+                .schedule-recess-times {
+                    grid-template-columns: 1fr;
+                }
+                .schedule-onboarding-footer {
+                    align-items: stretch;
+                    flex-direction: column;
+                }
+                .schedule-primary-action,
+                .schedule-secondary-action {
+                    width: 100%;
+                }
+            }
             .schedule-canvas {
                 background-image: repeating-linear-gradient(
                     to bottom,
@@ -32,78 +446,112 @@
             }
         </style>
 
-        <section
-            x-show="setupOpen"
-            x-cloak
-            class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900"
-        >
-            <div class="border-b border-gray-100 px-5 py-5 dark:border-white/10 sm:px-6">
-                <div class="flex items-start gap-4">
-                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-lg font-bold text-primary-600 dark:bg-primary-500/10 dark:text-primary-300">1</div>
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-950 dark:text-white" x-text="firstSetup ? 'Crea tu horario en menos de un minuto' : 'Ajusta tu jornada'"></h2>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            Primero dinos cómo es tu jornada. Después podrás acomodar clases y actividades tocando directamente el horario.
-                        </p>
+        <div x-show="setupOpen" x-cloak class="schedule-onboarding-wrap">
+            <section class="schedule-onboarding-card">
+                <div class="schedule-onboarding-hero">
+                    <div class="schedule-onboarding-kicker">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        Configuración inicial
                     </div>
+
+                    <h2 class="schedule-onboarding-title" x-text="firstSetup ? 'Armemos tu semana escolar' : 'Ajusta tu jornada'"></h2>
+                    <p class="schedule-onboarding-copy">
+                        Sólo necesitamos tu hora de entrada y salida. Después podrás acomodar clases, talleres y espacios especiales directamente sobre el horario.
+                    </p>
                 </div>
-            </div>
 
-            <div class="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
-                <label class="block">
-                    <span class="mb-2 block text-sm font-semibold text-gray-800 dark:text-gray-200">Entrada</span>
-                    <input
-                        x-model="dayStart"
-                        type="time"
-                        class="block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/15 dark:bg-gray-950 dark:text-white"
-                    />
-                </label>
+                <div class="schedule-onboarding-body">
+                    <div class="schedule-step-label">
+                        <span class="schedule-step-number">1</span>
+                        Define tu jornada
+                    </div>
 
-                <label class="block">
-                    <span class="mb-2 block text-sm font-semibold text-gray-800 dark:text-gray-200">Salida</span>
-                    <input
-                        x-model="dayEnd"
-                        type="time"
-                        class="block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-950 shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/15 dark:bg-gray-950 dark:text-white"
-                    />
-                </label>
-
-                <div class="sm:col-span-2" x-show="firstSetup">
-                    <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
-                        <label class="flex cursor-pointer items-start gap-3">
-                            <input x-model="recessEnabled" type="checkbox" class="mt-1 rounded border-gray-300" />
+                    <div class="schedule-time-grid">
+                        <label class="schedule-time-card">
+                            <span class="schedule-time-icon">
+                                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                                    <path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </span>
                             <span>
-                                <span class="block text-sm font-semibold text-gray-800 dark:text-gray-200">Agregar recreo de lunes a viernes</span>
-                                <span class="block text-xs text-gray-500 dark:text-gray-400">Opcional. Después podrás cambiarlo o eliminarlo por día.</span>
+                                <span class="schedule-time-meta">Entrada</span>
+                                <input x-model="dayStart" type="time" class="schedule-time-input" />
                             </span>
                         </label>
 
-                        <div x-show="recessEnabled" x-cloak class="mt-4 grid grid-cols-2 gap-3">
-                            <label>
-                                <span class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Empieza</span>
-                                <input x-model="recessStart" type="time" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white" />
-                            </label>
-                            <label>
-                                <span class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Termina</span>
-                                <input x-model="recessEnd" type="time" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white" />
-                            </label>
+                        <label class="schedule-time-card">
+                            <span class="schedule-time-icon">
+                                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                                    <path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="schedule-time-meta">Salida</span>
+                                <input x-model="dayEnd" type="time" class="schedule-time-input" />
+                            </span>
+                        </label>
+                    </div>
+
+                    <div x-show="firstSetup" class="schedule-recess-card">
+                        <div style="flex:1;min-width:0">
+                            <div class="schedule-step-label" style="margin-bottom:6px">
+                                <span class="schedule-step-number">2</span>
+                                Recreo
+                            </div>
+                            <div class="schedule-recess-title">¿Tu grupo tiene un recreo habitual?</div>
+                            <div class="schedule-recess-copy">Puedes agregarlo de una vez de lunes a viernes. Después podrás cambiarlo por día.</div>
+
+                            <div x-show="recessEnabled" x-cloak class="schedule-recess-times">
+                                <label>
+                                    <span class="schedule-mini-label">Empieza</span>
+                                    <input x-model="recessStart" type="time" class="schedule-mini-input" />
+                                </label>
+                                <label>
+                                    <span class="schedule-mini-label">Termina</span>
+                                    <input x-model="recessEnd" type="time" class="schedule-mini-input" />
+                                </label>
+                            </div>
+                        </div>
+
+                        <label class="schedule-switch" aria-label="Agregar recreo">
+                            <input x-model="recessEnabled" type="checkbox" />
+                            <span class="schedule-switch-track"></span>
+                        </label>
+                    </div>
+
+                    <p x-show="setupError" x-cloak x-text="setupError" class="schedule-error"></p>
+
+                    <div class="schedule-onboarding-footer">
+                        <div class="schedule-footer-note">
+                            <strong style="color:inherit">No necesitas definir materias todavía.</strong><br>
+                            Primero creamos la estructura de tu semana y después acomodas cada bloque visualmente.
+                        </div>
+
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <button
+                                x-show="!firstSetup"
+                                type="button"
+                                class="schedule-secondary-action"
+                                x-on:click="setupOpen = false"
+                            >Cancelar</button>
+
+                            <button
+                                type="button"
+                                class="schedule-primary-action"
+                                x-on:click="applySetup()"
+                            >
+                                <span x-text="firstSetup ? 'Crear mi horario' : 'Aplicar jornada'"></span>
+                                <span aria-hidden="true" style="margin-left:8px">→</span>
+                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-white/10 sm:px-6">
-                <p x-show="setupError" x-text="setupError" class="text-sm font-medium text-danger-600 dark:text-danger-400"></p>
-                <div class="ml-auto flex gap-2">
-                    <x-filament::button x-show="!firstSetup" color="gray" type="button" x-on:click="setupOpen = false">
-                        Cancelar
-                    </x-filament::button>
-                    <x-filament::button type="button" x-on:click="applySetup()">
-                        <span x-text="firstSetup ? 'Crear mi horario' : 'Aplicar jornada'"></span>
-                    </x-filament::button>
-                </div>
-            </div>
-        </section>
+            </section>
+        </div>
 
         <template x-if="started">
             <div class="space-y-4">
