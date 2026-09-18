@@ -23,7 +23,7 @@ class InstitutionalFormatResource extends Resource
     protected static ?string $navigationLabel = 'Mis formatos';
     protected static ?string $modelLabel = 'Formato';
     protected static ?string $pluralModelLabel = 'Mis formatos';
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 50;
 
     public static function form(Schema $schema): Schema { return $schema->components([]); }
 
