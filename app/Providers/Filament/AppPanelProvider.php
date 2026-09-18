@@ -5,8 +5,9 @@ use Filament\Support\Colors\Color;
 class AppPanelProvider extends BasePanelProvider {
     public function panel(Panel $panel): Panel {
         return $this->base($panel)->id('app')->path('app')
-            ->brandName('Planeaciones · Docentes')
+            ->brandName('PlaneaDocente')
             ->colors(['primary' => Color::Blue])
+            ->sidebarCollapsibleOnDesktop()
             ->default()->registration(\App\Filament\Auth\Register::class)
             ->pages([
                 \App\Filament\App\Pages\Dashboard::class,
