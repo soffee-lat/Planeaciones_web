@@ -18,12 +18,12 @@ class GroupScheduleTest extends PedagogyTestCase
         $scene = $this->seedFullTeacher();
 
         $this->actingAs($scene['user'])
-            ->get(GroupResource::getUrl('edit', ['record' => $scene['group']]))
+            ->get(GroupResource::getUrl('edit', ['record' => $scene['group']->getKey()]))
             ->assertOk()
             ->assertSee('Horario');
 
         $this->actingAs($scene['user'])
-            ->get(GroupResource::getUrl('schedule', ['record' => $scene['group']]))
+            ->get(GroupResource::getUrl('schedule', ['record' => $scene['group']->getKey()]))
             ->assertOk()
             ->assertSee('Horario')
             ->assertSee('Entrada')
