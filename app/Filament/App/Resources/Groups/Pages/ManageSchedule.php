@@ -34,6 +34,9 @@ class ManageSchedule extends Page
     /** @var array<int,array<string,mixed>> */
     public array $subjectCatalog = [];
 
+    /** @var array<string,string|null> */
+    public array $printMeta = [];
+
     public int $defaultBlockMinutes = 50;
 
     public bool $hasSchedule = false;
@@ -42,16 +45,24 @@ class ManageSchedule extends Page
     {
         if ($record instanceof Group) {
             abort_unless((int) $record->owner_id === (int) auth()->id(), 404);
-            $this->record = $record->loadMissing(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile']);
+            $this->record = $record->loadMissing(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile', 'school', 'grade', 'owner']);
         } else {
             $this->record = Group::query()
                 ->where('owner_id', auth()->id())
-                ->with(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile'])
+                ->with(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile', 'school', 'grade', 'owner'])
                 ->findOrFail($record);
         }
 
         app(EnsureDefaultGroupSubjects::class)->execute($this->record);
         $this->refreshSubjectCatalog();
+
+        $this->printMeta = [
+            'school' => $this->record->school?->name,
+            'teacher' => $this->record->owner?->name,
+            'grade' => $this->record->grade?->name,
+            'group' => $this->record->name,
+            'school_year' => $this->record->school_year,
+        ];
 
         $this->fieldOptions = $this->record->curriculumVersion?->formativeFields
             ?->sortBy('sort_order')
