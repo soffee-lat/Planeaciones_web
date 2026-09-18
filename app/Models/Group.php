@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Group extends Model
@@ -54,6 +55,16 @@ class Group extends Model
     public function profile(): HasOne
     {
         return $this->hasOne(GroupProfile::class);
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(GroupSchedule::class);
+    }
+
+    public function activeSchedule(): HasOne
+    {
+        return $this->hasOne(GroupSchedule::class)->where('is_active', true)->latestOfMany();
     }
 
     public function isArchived(): bool
