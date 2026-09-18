@@ -1941,6 +1941,16 @@
                     margin: 9mm;
                 }
 
+                html,
+                body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    overflow: visible !important;
+                    background: #fff !important;
+                }
+
                 body * {
                     visibility: hidden !important;
                 }
@@ -1950,14 +1960,31 @@
                     visibility: visible !important;
                 }
 
+                /* Ocultar del flujo todo lo que no se imprime evita páginas extra en blanco. */
+                .fi-sidebar,
+                .fi-topbar,
+                .fi-header,
+                .schedule-onboarding-wrap,
+                .schedule-workspace,
+                .schedule-editor-shell,
+                .schedule-catalog-shell,
+                .schedule-print-dialog-shell {
+                    display: none !important;
+                }
+
                 .schedule-print-sheet {
                     display: block !important;
-                    position: fixed;
-                    inset: 0;
-                    width: 100%;
+                    position: static !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: visible !important;
                     background: #fff !important;
                     color: #000 !important;
                     font-family: Arial, sans-serif;
+                    break-inside: avoid;
+                    page-break-inside: avoid;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                 }
