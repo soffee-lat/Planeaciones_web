@@ -26,9 +26,11 @@ class GroupScheduleTest extends PedagogyTestCase
             ->get(GroupResource::getUrl('schedule', ['record' => $scene['group']->getKey()]))
             ->assertOk()
             ->assertSee('Horario')
+            ->assertSee('Crea tu horario en menos de un minuto')
             ->assertSee('Entrada')
             ->assertSee('Salida')
-            ->assertSee('+ Bloque');
+            ->assertSee('Crear mi horario')
+            ->assertSee('Toca cualquier espacio del horario para agregar una clase.');
     }
 
     public function test_teacher_can_save_visual_schedule_and_calendar_expands_real_dates(): void
