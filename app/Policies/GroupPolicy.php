@@ -48,8 +48,10 @@ class GroupPolicy
 
     public function delete(User $user, Group $group): bool
     {
-        // Preferimos archivar en vez de eliminar; delete queda disponible solo para el dueño mientras no haya solicitudes (aplicable en 2C).
-        return $this->isActiveCustomer($user) && $group->owner_id === $user->id;
+        // Un grupo con historial de planeaciones nunca se elimina: se archiva.
+        return $this->isActiveCustomer($user)
+            && $group->owner_id === $user->id
+            && ! $group->planningRequests()->exists();
     }
 
     public function archive(User $user, Group $group): bool
