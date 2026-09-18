@@ -50,7 +50,7 @@ class StartPlanning extends Page
         return Group::query()
             ->where('owner_id', auth()->id())
             ->whereNull('archived_at')
-            ->with(['grade', 'profile'])
+            ->with(['grade', 'profile', 'schedule'])
             ->find($this->group_id);
     }
 
@@ -82,7 +82,7 @@ class StartPlanning extends Page
         } catch (\RuntimeException $e) {
             if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
                 throw ValidationException::withMessages([
-                    'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil pedagógico.',
+                    'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil u horario.',
                 ]);
             }
             throw $e;
