@@ -23,6 +23,11 @@ class EditGroup extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('schedule')
+                ->label('Horario')
+                ->icon('heroicon-o-calendar-days')
+                ->color('primary')
+                ->url(fn (): string => GroupResource::getUrl('schedule', ['record' => $this->getRecord()])),
             Action::make('preferredFormat')
                 ->label('Formato de planeación')
                 ->icon('heroicon-o-document-text')
