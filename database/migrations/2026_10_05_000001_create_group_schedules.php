@@ -13,12 +13,14 @@ return new class extends Migration {
             $table->foreignId('group_id')->unique()->constrained('groups')->cascadeOnDelete();
             $table->unsignedInteger('revision')->default(0);
             $table->string('name', 120)->default('Horario habitual');
+            $table->jsonb('active_days')->default(DB::raw("'[1,2,3,4,5]'::jsonb"));
             $table->time('day_starts_at');
             $table->time('day_ends_at');
             $table->timestampsTz();
         });
 
         DB::statement("ALTER TABLE group_schedules ADD CONSTRAINT group_schedules_time_check CHECK (day_starts_at < day_ends_at)");
+        DB::statement("ALTER TABLE group_schedules ADD CONSTRAINT group_schedules_active_days_json_check CHECK (jsonb_typeof(active_days) = 'array')");
 
         Schema::create('group_schedule_blocks', function (Blueprint $table) {
             $table->id();
