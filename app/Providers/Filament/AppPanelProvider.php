@@ -13,6 +13,7 @@ class AppPanelProvider extends BasePanelProvider {
                 \App\Filament\App\Pages\StartPlanning::class,
                 \App\Filament\App\Pages\Onboarding::class,
                 \App\Filament\App\Pages\MyPlan::class,
+                \App\Filament\App\Pages\ManageGroupSchedule::class,
             ])
             ->resources([
                 \App\Filament\App\Resources\Schools\SchoolResource::class,
