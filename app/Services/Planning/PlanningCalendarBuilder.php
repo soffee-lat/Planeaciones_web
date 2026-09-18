@@ -19,6 +19,7 @@ final class PlanningCalendarBuilder
             'schema_version' => 1,
             'revision' => (int) $schedule->revision,
             'name' => (string) $schedule->name,
+            'active_days' => array_values(array_map('intval', $schedule->active_days ?? [])),
             'day_starts_at' => substr((string) $schedule->day_starts_at, 0, 5),
             'day_ends_at' => substr((string) $schedule->day_ends_at, 0, 5),
             'blocks' => $schedule->blocks->map(fn ($block) => [
@@ -55,20 +56,46 @@ final class PlanningCalendarBuilder
             : CarbonImmutable::parse($endsOn)->startOfDay();
 
         $byDay = $schedule->blocks->groupBy(fn ($block) => (int) $block->day_of_week);
+        $activeDays = array_values(array_unique(array_map('intval', $schedule->active_days ?? [])));
+        $dayStart = substr((string) $schedule->day_starts_at, 0, 5);
+        $dayEnd = substr((string) $schedule->day_ends_at, 0, 5);
         $days = [];
 
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
             $weekday = (int) $date->isoWeekday();
-            $blocks = $byDay->get($weekday, collect());
-            if ($blocks->isEmpty()) {
+            if (! in_array($weekday, $activeDays, true)) {
                 continue;
             }
 
+            $blocks = $byDay->get($weekday, collect())->sortBy('starts_at')->values();
             $serialized = [];
             $planeableMinutes = 0;
+            $cursor = $dayStart;
+            $sequence = 1;
 
             foreach ($blocks as $block) {
-                $duration = $this->durationMinutes((string) $block->starts_at, (string) $block->ends_at);
+                $blockStart = substr((string) $block->starts_at, 0, 5);
+                $blockEnd = substr((string) $block->ends_at, 0, 5);
+
+                if ($this->timeMinutes($blockStart) > $this->timeMinutes($cursor)) {
+                    $gapDuration = $this->durationMinutes($cursor, $blockStart);
+                    $serialized[] = [
+                        'schedule_block_id' => null,
+                        'sequence' => $sequence++,
+                        'starts_at' => $cursor,
+                        'ends_at' => $blockStart,
+                        'duration_minutes' => $gapDuration,
+                        'block_type' => 'flexible',
+                        'label' => 'Tiempo disponible',
+                        'responsibility' => 'main_teacher',
+                        'include_in_planning' => true,
+                        'field_codes' => [],
+                        'notes' => null,
+                    ];
+                    $planeableMinutes += $gapDuration;
+                }
+
+                $duration = $this->durationMinutes($blockStart, $blockEnd);
                 $planeable = (bool) $block->include_in_planning
                     && ! in_array((string) $block->block_type, ['break', 'external'], true)
                     && (string) $block->responsibility !== 'external';
@@ -79,9 +106,9 @@ final class PlanningCalendarBuilder
 
                 $serialized[] = [
                     'schedule_block_id' => (int) $block->id,
-                    'sequence' => (int) $block->sequence,
-                    'starts_at' => substr((string) $block->starts_at, 0, 5),
-                    'ends_at' => substr((string) $block->ends_at, 0, 5),
+                    'sequence' => $sequence++,
+                    'starts_at' => $blockStart,
+                    'ends_at' => $blockEnd,
                     'duration_minutes' => $duration,
                     'block_type' => (string) $block->block_type,
                     'label' => (string) $block->label,
@@ -90,6 +117,26 @@ final class PlanningCalendarBuilder
                     'field_codes' => array_values($block->field_codes ?? []),
                     'notes' => $block->notes,
                 ];
+
+                $cursor = $blockEnd;
+            }
+
+            if ($this->timeMinutes($cursor) < $this->timeMinutes($dayEnd)) {
+                $gapDuration = $this->durationMinutes($cursor, $dayEnd);
+                $serialized[] = [
+                    'schedule_block_id' => null,
+                    'sequence' => $sequence,
+                    'starts_at' => $cursor,
+                    'ends_at' => $dayEnd,
+                    'duration_minutes' => $gapDuration,
+                    'block_type' => 'flexible',
+                    'label' => 'Tiempo disponible',
+                    'responsibility' => 'main_teacher',
+                    'include_in_planning' => true,
+                    'field_codes' => [],
+                    'notes' => null,
+                ];
+                $planeableMinutes += $gapDuration;
             }
 
             $days[] = [
@@ -115,6 +162,13 @@ final class PlanningCalendarBuilder
             ],
             'days' => $days,
         ];
+    }
+
+    private function timeMinutes(string $time): int
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $time));
+
+        return ($hour * 60) + $minute;
     }
 
     private function durationMinutes(string $startsAt, string $endsAt): int
