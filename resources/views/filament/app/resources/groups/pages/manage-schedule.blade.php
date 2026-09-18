@@ -2110,9 +2110,62 @@
                 },
 
                 addBlock(day) {
-                    const existing = this.blocksFor(day);
-                    const start = existing.length ? existing[existing.length - 1].ends_at : this.dayStart;
-                    this.openNewBlock(day, start);
+                    const slot = this.findFirstAvailableSlot(day, this.defaultDuration);
+                    if (!slot) return;
+
+                    this.openNewBlock(day, slot.start);
+                },
+
+                findFirstAvailableSlot(day, preferredDuration = 50) {
+                    const dayStart = this.toMinutes(this.dayStart);
+                    const dayEnd = this.toMinutes(this.dayEnd);
+                    const blocks = this.blocksFor(day)
+                        .map(block => ({
+                            start: this.toMinutes(block.starts_at),
+                            end: this.toMinutes(block.ends_at),
+                        }))
+                        .sort((a, b) => a.start - b.start);
+
+                    const gaps = [];
+                    let cursor = dayStart;
+
+                    for (const block of blocks) {
+                        if (block.end <= cursor) continue;
+
+                        if (block.start > cursor) {
+                            gaps.push({
+                                start: cursor,
+                                end: Math.min(block.start, dayEnd),
+                            });
+                        }
+
+                        cursor = Math.max(cursor, block.end);
+                        if (cursor >= dayEnd) break;
+                    }
+
+                    if (cursor < dayEnd) {
+                        gaps.push({ start: cursor, end: dayEnd });
+                    }
+
+                    // Primero buscamos un hueco donde quepa la duración habitual completa.
+                    const fullGap = gaps.find(gap => (gap.end - gap.start) >= preferredDuration);
+                    if (fullGap) {
+                        return {
+                            start: this.fromMinutes(fullGap.start),
+                            end: this.fromMinutes(fullGap.start + preferredDuration),
+                        };
+                    }
+
+                    // Si no cabe completa, aprovechamos el primer hueco útil de al menos 15 min.
+                    const partialGap = gaps.find(gap => (gap.end - gap.start) >= 15);
+                    if (partialGap) {
+                        return {
+                            start: this.fromMinutes(partialGap.start),
+                            end: this.fromMinutes(partialGap.end),
+                        };
+                    }
+
+                    return null;
                 },
 
                 addBlockAt(day, event) {
