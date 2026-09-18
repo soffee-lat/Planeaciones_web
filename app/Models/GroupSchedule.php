@@ -12,6 +12,7 @@ class GroupSchedule extends Model
         'group_id',
         'revision',
         'name',
+        'active_days',
         'day_starts_at',
         'day_ends_at',
     ];
@@ -20,6 +21,7 @@ class GroupSchedule extends Model
     {
         return [
             'revision' => 'integer',
+            'active_days' => 'array',
         ];
     }
 
@@ -38,9 +40,8 @@ class GroupSchedule extends Model
 
     public function isUsable(): bool
     {
-        return $this->blocks()
-            ->where('include_in_planning', true)
-            ->whereNotIn('block_type', ['break', 'external'])
-            ->exists();
+        return is_array($this->active_days)
+            && $this->active_days !== []
+            && (string) $this->day_starts_at < (string) $this->day_ends_at;
     }
 }
