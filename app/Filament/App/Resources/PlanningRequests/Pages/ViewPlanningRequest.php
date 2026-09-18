@@ -36,6 +36,16 @@ class ViewPlanningRequest extends ViewRecord
 {
     protected static string $resource = PlanningRequestResource::class;
 
+    public function getTitle(): string
+    {
+        return 'Ver planeación';
+    }
+
+    public function getSubheading(): ?string
+    {
+        return 'Consulta los detalles de tu planeación generada y descarga los archivos.';
+    }
+
     public function infolist(Schema $schema): Schema
     {
         return $schema->components([
@@ -62,7 +72,7 @@ class ViewPlanningRequest extends ViewRecord
                     ->placeholder('Disponible después de la primera entrega')
                     ->visible(fn () => $this->getRecord()->deliveries()->exists() && (int) $this->getRecord()->correction_limit_snapshot > 0),
                 TextEntry::make('human_review_required_snapshot')->label('Revisión humana incluida')->formatStateUsing(fn ($state) => $state ? 'Sí' : 'No')->visible(fn () => $this->getRecord()->commercial_authorized_at !== null),
-            ])->columns(2)->columnSpanFull(),
+            ])->columns(3)->columnSpanFull(),
 
             View::make('filament.app.pages.commercial-summary')->viewData(fn () => [
                 'summary' => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->forCustomer(auth()->user(), $this->getRecord()->starts_on?->toDateString(), $this->getRecord()->ends_on?->toDateString()),
