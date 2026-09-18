@@ -2235,12 +2235,16 @@
                         <template x-if="!editMode && hasSavedSchedule">
                             <div style="display:flex;gap:10px;align-items:center">
                                 <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showPrintDialog = true">
-                                    <span aria-hidden="true">🖨</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M7 8V4h10v4M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v6H7v-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                    </svg>
                                     Imprimir
                                 </button>
                                 <button type="button" class="schedule-button schedule-button-primary" x-on:click="beginEdit()">
-                                    <span aria-hidden="true">✎</span>
-                                    Editar horario
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                    </svg>
+                                    Editar
                                 </button>
                             </div>
                         </template>
