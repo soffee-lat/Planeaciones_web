@@ -163,7 +163,8 @@ class GroupResource extends Resource
                         ])
                         ->native(false),
                     TextInput::make('session_minutes')
-                        ->label('Duración de sesión (min)')
+                        ->label('Duración típica de actividad (min, opcional)')
+                        ->helperText('Solo sirve como referencia pedagógica. El horario define la capacidad real de cada día.')
                         ->numeric()
                         ->minValue(15)
                         ->maxValue(480),
