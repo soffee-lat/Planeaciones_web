@@ -21,7 +21,7 @@
                     Construye la semana tocando <strong>+ Bloque</strong>. Los nombres son libres: Matemáticas, English,
                     Robótica, proyecto, etc. El campo formativo es opcional.
                 </div>
-                <x-filament::button type="button" x-on:click="save()">Guardar horario</x-filament::button>
+                <x-filament::button type="button" x-on:click="save($wire)">Guardar horario</x-filament::button>
             </div>
         </div>
 
@@ -278,12 +278,12 @@
                     }[value] || 'Por definir';
                 },
 
-                save() {
+                save(wire) {
                     this.normalize();
                     const clean = this.blocks.map(({ _key, ...block }) => block);
-                    $wire.set('dayStartsAt', this.dayStart);
-                    $wire.set('dayEndsAt', this.dayEnd);
-                    $wire.set('blocks', clean).then(() => $wire.saveSchedule());
+                    wire.set('dayStartsAt', this.dayStart);
+                    wire.set('dayEndsAt', this.dayEnd);
+                    wire.set('blocks', clean).then(() => wire.saveSchedule());
                 },
             };
         }
