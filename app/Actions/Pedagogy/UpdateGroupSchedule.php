@@ -15,6 +15,7 @@ final class UpdateGroupSchedule
     /**
      * @param array{
      *   name?:string,
+     *   active_days?:list<int>,
      *   day_starts_at:string,
      *   day_ends_at:string,
      *   blocks:list<array<string,mixed>>
@@ -41,6 +42,7 @@ final class UpdateGroupSchedule
                     'group_id' => $lockedGroup->id,
                     'revision' => 0,
                     'name' => $normalized['name'],
+                    'active_days' => $normalized['active_days'],
                     'day_starts_at' => $normalized['day_starts_at'],
                     'day_ends_at' => $normalized['day_ends_at'],
                 ]);
@@ -49,6 +51,7 @@ final class UpdateGroupSchedule
 
             $schedule->forceFill([
                 'name' => $normalized['name'],
+                'active_days' => $normalized['active_days'],
                 'day_starts_at' => $normalized['day_starts_at'],
                 'day_ends_at' => $normalized['day_ends_at'],
                 'revision' => (int) $schedule->revision + 1,
@@ -66,7 +69,7 @@ final class UpdateGroupSchedule
 
     /**
      * @param array<string,mixed> $payload
-     * @return array{name:string,day_starts_at:string,day_ends_at:string,blocks:list<array<string,mixed>>}
+     * @return array{name:string,active_days:list<int>,day_starts_at:string,day_ends_at:string,blocks:list<array<string,mixed>>}
      */
     private function normalize(array $payload): array
     {
@@ -76,6 +79,16 @@ final class UpdateGroupSchedule
         }
         if (mb_strlen($name) > 120) {
             throw ValidationException::withMessages(['schedule' => 'El nombre del horario es demasiado largo.']);
+        }
+
+        $activeDays = $payload['active_days'] ?? [1, 2, 3, 4, 5];
+        if (! is_array($activeDays) || ! array_is_list($activeDays)) {
+            throw ValidationException::withMessages(['schedule' => 'Los días activos del horario son inválidos.']);
+        }
+        $activeDays = array_values(array_unique(array_map('intval', $activeDays)));
+        sort($activeDays);
+        if ($activeDays === [] || count($activeDays) > 7 || collect($activeDays)->contains(fn (int $day) => $day < 1 || $day > 7)) {
+            throw ValidationException::withMessages(['schedule' => 'Selecciona al menos un día válido de clase.']);
         }
 
         $dayStartsAt = $this->normalizeTime($payload['day_starts_at'] ?? null, 'Hora de entrada');
@@ -186,6 +199,7 @@ final class UpdateGroupSchedule
 
         return [
             'name' => $name,
+            'active_days' => $activeDays,
             'day_starts_at' => $dayStartsAt,
             'day_ends_at' => $dayEndsAt,
             'blocks' => $resequenced,
