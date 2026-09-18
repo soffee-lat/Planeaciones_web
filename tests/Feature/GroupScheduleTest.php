@@ -11,6 +11,7 @@ use App\Models\CurricularContent;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
 use App\Services\Planning\PlanningCalendarBuilder;
+use Livewire\Attributes\Renderless;
 
 class GroupScheduleTest extends PedagogyTestCase
 {
