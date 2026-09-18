@@ -62,6 +62,11 @@ class Group extends Model
         return $this->hasMany(GroupSchedule::class);
     }
 
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(GroupSubject::class);
+    }
+
     public function activeSchedule(): HasOne
     {
         return $this->hasOne(GroupSchedule::class)->where('is_active', true)->latestOfMany();
