@@ -38,7 +38,14 @@ class GroupScheduleTest extends PedagogyTestCase
             ->assertSee('Incluir en mis planeaciones')
             ->assertSee('Materias')
             ->assertSee('Catálogo de materias')
-            ->assertSee('Nueva materia');
+            ->assertSee('Nueva materia')
+            ->assertSee('Editar')
+            ->assertSee('Imprimir')
+            ->assertSee('Imprimir horario')
+            ->assertSee('A color')
+            ->assertSee('Blanco y negro')
+            ->assertSee('Maestro(a):')
+            ->assertSee('Ciclo escolar:');
     }
 
     public function test_subject_catalog_actions_do_not_rerender_unsaved_timetable(): void
