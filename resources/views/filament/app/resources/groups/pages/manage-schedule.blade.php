@@ -2217,7 +2217,7 @@
             <div class="schedule-workspace">
                 <section class="schedule-toolbar">
                     <div class="schedule-toolbar-main">
-                        <div class="schedule-toolbar-eyebrow">Jornada habitual</div>
+                        <div class="schedule-toolbar-eyebrow">Horario habitual</div>
                         <div class="schedule-toolbar-time">
                             <span x-text="dayStart"></span>
                             <span class="schedule-toolbar-arrow">→</span>
@@ -2629,7 +2629,7 @@
                         <div><strong>Ciclo escolar:</strong> <span x-text="printMeta.school_year || '—'"></span></div>
                     </div>
                 </div>
-                <div class="schedule-print-jornada">Jornada: <span x-text="dayStart"></span>–<span x-text="dayEnd"></span></div>
+                <div class="schedule-print-jornada">Horario: <span x-text="dayStart"></span>–<span x-text="dayEnd"></span></div>
             </header>
 
             <div class="schedule-print-board">
