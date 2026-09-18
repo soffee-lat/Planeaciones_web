@@ -124,6 +124,7 @@ class ManageGroupSchedule extends Page
             'revision' => 0,
             'name' => 'Horario habitual',
             'active_days' => [1, 2, 3, 4, 5],
+            'exceptions' => [],
             'day_starts_at' => '08:00',
             'day_ends_at' => '12:30',
             'blocks' => [],
