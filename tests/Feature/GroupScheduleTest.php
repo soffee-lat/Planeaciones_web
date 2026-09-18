@@ -6,6 +6,7 @@ use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Schedules\SaveGroupSchedule;
 use App\Filament\App\Resources\Groups\GroupResource;
+use App\Filament\App\Resources\Groups\Pages\ManageSchedule;
 use App\Models\CurricularContent;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
@@ -37,6 +38,18 @@ class GroupScheduleTest extends PedagogyTestCase
             ->assertSee('Materias')
             ->assertSee('Catálogo de materias')
             ->assertSee('Nueva materia');
+    }
+
+    public function test_subject_catalog_actions_do_not_rerender_unsaved_timetable(): void
+    {
+        foreach (['createSubject', 'updateSubjectColor'] as $method) {
+            $reflection = new \ReflectionMethod(ManageSchedule::class, $method);
+
+            $this->assertNotEmpty(
+                $reflection->getAttributes(Renderless::class),
+                $method . ' must stay renderless so Alpine timetable state is preserved.',
+            );
+        }
     }
 
     public function test_teacher_can_save_visual_schedule_and_calendar_expands_real_dates(): void
