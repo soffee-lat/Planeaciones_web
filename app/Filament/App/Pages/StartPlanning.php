@@ -363,7 +363,7 @@ class StartPlanning extends Page
             ->where('status', '!=', PlanningRequestStatus::CANCELADA->value)
             ->whereDate('starts_on', '<=', $to)
             ->whereDate('ends_on', '>=', $from)
-            ->when($this->draft_id, fn ($query) => $query->whereKeyNot($this->draft_id))
+            ->when($this->draft_id, fn ($query) => $query->where('id', '!=', $this->draft_id))
             ->get(['id', 'starts_on', 'ends_on', 'status', 'period_type']);
     }
 }
