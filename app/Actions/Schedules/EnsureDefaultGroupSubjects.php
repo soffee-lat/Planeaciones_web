@@ -22,7 +22,7 @@ final class EnsureDefaultGroupSubjects
 
     public function execute(Group $group): void
     {
-        $group->loadMissing('curriculumVersion.formativeFields');
+        $group->loadMissing(['curriculumVersion.formativeFields', 'activeSchedule.blocks']);
 
         $fields = $group->curriculumVersion?->formativeFields
             ?->sortBy('sort_order')
@@ -57,6 +57,32 @@ final class EnsureDefaultGroupSubjects
                 'color' => self::COLORS[$index % count(self::COLORS)],
                 'origin' => 'official',
                 'curriculum_field_code' => (string) $field->code,
+                'is_active' => true,
+            ]);
+        }
+
+        $existingLabels = $group->activeSchedule?->blocks
+            ?->filter(fn ($block) => ! in_array($block->block_type, ['break', 'unavailable'], true))
+            ->pluck('label')
+            ->map(fn ($label) => trim((string) $label))
+            ->filter(fn ($label) => $label !== '' && ! in_array(mb_strtolower($label), ['nueva clase', 'flexible', 'recreo'], true))
+            ->unique(fn ($label) => mb_strtolower($label))
+            ->values() ?? collect();
+
+        $offset = $fields->count();
+        foreach ($existingLabels as $index => $label) {
+            $slug = Str::slug($label);
+            if (GroupSubject::query()->where('group_id', $group->id)->where('slug', $slug)->exists()) {
+                continue;
+            }
+
+            GroupSubject::query()->create([
+                'group_id' => $group->id,
+                'name' => $label,
+                'slug' => $slug,
+                'color' => self::COLORS[($offset + $index) % count(self::COLORS)],
+                'origin' => 'custom',
+                'curriculum_field_code' => null,
                 'is_active' => true,
             ]);
         }
