@@ -71,7 +71,7 @@ class PlanningRequestResource extends Resource
                             ->searchable()
                             ->native(false)
                             ->disabledOn('edit')
-                            ->helperText('Solo grupos activos con perfil pedagógico suficiente.')
+                            ->helperText('Solo grupos activos con perfil pedagógico y horario configurados.')
                             ->columnSpanFull(),
 
                         Radio::make('creation_mode')
@@ -282,6 +282,7 @@ class PlanningRequestResource extends Resource
                 }
             })
             ->whereHas('curriculumVersion', fn ($q) => $q->whereNotNull('published_at'))
+            ->whereHas('schedule')
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
