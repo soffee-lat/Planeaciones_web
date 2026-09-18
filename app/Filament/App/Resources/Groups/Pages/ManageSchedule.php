@@ -23,19 +23,37 @@ class ManageSchedule extends Page
     /** @var array<int,array<string,mixed>> */
     public array $blocks = [];
 
+    /** @var array<int,array{code:string,name:string}> */
+    public array $fieldOptions = [];
+
+    public int $defaultBlockMinutes = 50;
+
+    public bool $hasSchedule = false;
+
     public function mount(Group|int|string $record): void
     {
         if ($record instanceof Group) {
             abort_unless((int) $record->owner_id === (int) auth()->id(), 404);
-            $this->record = $record->loadMissing(['activeSchedule.blocks']);
+            $this->record = $record->loadMissing(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile']);
         } else {
             $this->record = Group::query()
                 ->where('owner_id', auth()->id())
-                ->with(['activeSchedule.blocks'])
+                ->with(['activeSchedule.blocks', 'curriculumVersion.formativeFields', 'profile'])
                 ->findOrFail($record);
         }
 
+        $this->fieldOptions = $this->record->curriculumVersion?->formativeFields
+            ?->sortBy('sort_order')
+            ->map(fn ($field) => [
+                'code' => (string) $field->code,
+                'name' => (string) $field->name,
+            ])
+            ->values()
+            ->all() ?? [];
+        $this->defaultBlockMinutes = max(15, min(180, (int) ($this->record->profile?->session_minutes ?? 50)));
+
         $schedule = $this->record->activeSchedule;
+        $this->hasSchedule = $schedule !== null;
         if (! $schedule) {
             return;
         }
@@ -66,6 +84,7 @@ class ManageSchedule extends Page
         ]);
 
         $this->record = $this->record->fresh(['activeSchedule.blocks']);
+        $this->hasSchedule = true;
         $this->blocks = $schedule->blocks->map(fn ($block) => [
             'day_of_week' => (int) $block->day_of_week,
             'sequence' => (int) $block->sequence,
