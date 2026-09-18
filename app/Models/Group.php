@@ -56,6 +56,11 @@ class Group extends Model
         return $this->hasOne(GroupProfile::class);
     }
 
+    public function schedule(): HasOne
+    {
+        return $this->hasOne(GroupSchedule::class);
+    }
+
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
