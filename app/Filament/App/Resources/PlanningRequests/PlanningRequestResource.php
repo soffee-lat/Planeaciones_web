@@ -121,12 +121,22 @@ class PlanningRequestResource extends Resource
                                 : null)
                             ->columnSpanFull(),
 
-                        Textarea::make('topic')->label('Detalle del tema (opcional)')->rows(2)->columnSpanFull(),
+                        Textarea::make('topic')
+                            ->label('Detalle del tema (opcional)')
+                            ->rows(2)
+                            ->disabled(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true))
+                            ->helperText(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true)
+                                ? 'Se genera a partir de los temas que definiste por semana.'
+                                : null)
+                            ->columnSpanFull(),
                         Textarea::make('book_pages')->label('Páginas / material de referencia (opcional)')->rows(2)->columnSpanFull(),
                         Textarea::make('required_activities')->label('Actividades requeridas (opcional)')->rows(2)->columnSpanFull(),
                         Textarea::make('special_events')->label('Eventos o situaciones especiales (opcional)')->rows(2)->columnSpanFull(),
                         Textarea::make('comments')->label('Observaciones adicionales (opcional)')->rows(2)->columnSpanFull(),
-                        TextInput::make('period_label')->label('Etiqueta de periodo (opcional)')->maxLength(64),
+                        TextInput::make('period_label')
+                            ->label('Etiqueta de periodo (opcional)')
+                            ->maxLength(64)
+                            ->disabled(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true)),
 
                         Placeholder::make('duration_hint')
                             ->label('Duración')
