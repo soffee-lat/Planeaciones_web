@@ -13,6 +13,7 @@ class GroupSchedule extends Model
         'revision',
         'name',
         'active_days',
+        'exceptions',
         'day_starts_at',
         'day_ends_at',
     ];
@@ -22,6 +23,7 @@ class GroupSchedule extends Model
         return [
             'revision' => 'integer',
             'active_days' => 'array',
+            'exceptions' => 'array',
         ];
     }
 
