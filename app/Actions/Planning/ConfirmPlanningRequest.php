@@ -4,6 +4,7 @@ namespace App\Actions\Planning;
 
 use App\Enums\PlanningRequestStatus;
 use App\Models\GroupProfile;
+use App\Services\Planning\PlanningCalendarBuilder;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
@@ -34,6 +35,8 @@ use RuntimeException;
  */
 class ConfirmPlanningRequest
 {
+    public function __construct(private PlanningCalendarBuilder $calendarBuilder) {}
+
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
     {
         Gate::forUser($actor)->authorize('confirm', $request);
@@ -117,8 +120,43 @@ class ConfirmPlanningRequest
      */
     private function buildSnapshot(PlanningRequest $r): array
     {
-        $group = $r->group()->with(['school', 'profile'])->firstOrFail();
+        $group = $r->group()->with(['school', 'profile', 'activeSchedule.blocks'])->firstOrFail();
         $profile = $group->profile;
+        $schedule = $group->activeSchedule;
+        $scheduleSnapshot = null;
+        $planningCalendar = [];
+
+        if ($schedule) {
+            $scheduleSnapshot = [
+                'id' => (int) $schedule->id,
+                'revision' => (int) $schedule->revision,
+                'name' => $schedule->name,
+                'day_starts_at' => $schedule->day_starts_at ? substr((string) $schedule->day_starts_at, 0, 5) : null,
+                'day_ends_at' => $schedule->day_ends_at ? substr((string) $schedule->day_ends_at, 0, 5) : null,
+                'valid_from' => $schedule->valid_from?->format('Y-m-d'),
+                'valid_until' => $schedule->valid_until?->format('Y-m-d'),
+                'blocks' => $schedule->blocks->map(fn ($block) => [
+                    'id' => (int) $block->id,
+                    'day_of_week' => (int) $block->day_of_week,
+                    'sequence' => (int) $block->sequence,
+                    'starts_at' => substr((string) $block->starts_at, 0, 5),
+                    'ends_at' => substr((string) $block->ends_at, 0, 5),
+                    'label' => $block->label,
+                    'block_type' => $block->block_type,
+                    'responsibility' => $block->responsibility,
+                    'include_in_planning' => (bool) $block->include_in_planning,
+                    'is_flexible' => (bool) $block->is_flexible,
+                    'field_codes' => array_values($block->field_codes ?? []),
+                    'notes' => $block->notes,
+                ])->values()->all(),
+            ];
+
+            $planningCalendar = $this->calendarBuilder->build(
+                $schedule,
+                $r->starts_on->format('Y-m-d'),
+                $r->ends_on->format('Y-m-d'),
+            );
+        }
 
         $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
         $grade = $r->grade()->with('educationalPhase')->firstOrFail();
@@ -183,6 +221,8 @@ class ConfirmPlanningRequest
                     'municipality' => $group->school->municipality,
                 ] : null,
                 'profile' => $profileFields,
+                'schedule' => $scheduleSnapshot,
+                'planning_calendar' => $planningCalendar,
             ],
             'curriculum' => [
                 'curriculum' => [
