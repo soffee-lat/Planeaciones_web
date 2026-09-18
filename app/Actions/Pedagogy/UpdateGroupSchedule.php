@@ -16,6 +16,7 @@ final class UpdateGroupSchedule
      * @param array{
      *   name?:string,
      *   active_days?:list<int>,
+     *   exceptions?:list<array{date:string,label?:string}>,
      *   day_starts_at:string,
      *   day_ends_at:string,
      *   blocks:list<array<string,mixed>>
@@ -43,6 +44,7 @@ final class UpdateGroupSchedule
                     'revision' => 0,
                     'name' => $normalized['name'],
                     'active_days' => $normalized['active_days'],
+                    'exceptions' => $normalized['exceptions'],
                     'day_starts_at' => $normalized['day_starts_at'],
                     'day_ends_at' => $normalized['day_ends_at'],
                 ]);
@@ -52,6 +54,7 @@ final class UpdateGroupSchedule
             $schedule->forceFill([
                 'name' => $normalized['name'],
                 'active_days' => $normalized['active_days'],
+                'exceptions' => $normalized['exceptions'],
                 'day_starts_at' => $normalized['day_starts_at'],
                 'day_ends_at' => $normalized['day_ends_at'],
                 'revision' => (int) $schedule->revision + 1,
@@ -69,7 +72,7 @@ final class UpdateGroupSchedule
 
     /**
      * @param array<string,mixed> $payload
-     * @return array{name:string,active_days:list<int>,day_starts_at:string,day_ends_at:string,blocks:list<array<string,mixed>>}
+     * @return array{name:string,active_days:list<int>,exceptions:list<array{date:string,label:string}>,day_starts_at:string,day_ends_at:string,blocks:list<array<string,mixed>>}
      */
     private function normalize(array $payload): array
     {
@@ -90,6 +93,32 @@ final class UpdateGroupSchedule
         if ($activeDays === [] || count($activeDays) > 7 || collect($activeDays)->contains(fn (int $day) => $day < 1 || $day > 7)) {
             throw ValidationException::withMessages(['schedule' => 'Selecciona al menos un día válido de clase.']);
         }
+
+        $exceptions = $payload['exceptions'] ?? [];
+        if (! is_array($exceptions) || ! array_is_list($exceptions) || count($exceptions) > 100) {
+            throw ValidationException::withMessages(['schedule' => 'Las excepciones del horario son inválidas.']);
+        }
+        $normalizedExceptions = [];
+        foreach ($exceptions as $exception) {
+            if (! is_array($exception)) {
+                throw ValidationException::withMessages(['schedule' => 'Una excepción del horario es inválida.']);
+            }
+            try {
+                $date = CarbonImmutable::parse((string) ($exception['date'] ?? ''))->format('Y-m-d');
+            } catch (\Throwable) {
+                throw ValidationException::withMessages(['schedule' => 'Una fecha sin clase es inválida.']);
+            }
+            $label = trim((string) ($exception['label'] ?? 'Sin clases'));
+            if ($label === '') {
+                $label = 'Sin clases';
+            }
+            $normalizedExceptions[$date] = [
+                'date' => $date,
+                'label' => mb_substr($label, 0, 160),
+            ];
+        }
+        ksort($normalizedExceptions);
+        $normalizedExceptions = array_values($normalizedExceptions);
 
         $dayStartsAt = $this->normalizeTime($payload['day_starts_at'] ?? null, 'Hora de entrada');
         $dayEndsAt = $this->normalizeTime($payload['day_ends_at'] ?? null, 'Hora de salida');
@@ -200,6 +229,7 @@ final class UpdateGroupSchedule
         return [
             'name' => $name,
             'active_days' => $activeDays,
+            'exceptions' => $normalizedExceptions,
             'day_starts_at' => $dayStartsAt,
             'day_ends_at' => $dayEndsAt,
             'blocks' => $resequenced,
