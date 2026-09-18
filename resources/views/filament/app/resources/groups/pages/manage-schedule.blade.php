@@ -444,6 +444,606 @@
                     rgb(255 255 255 / .08) var(--half-hour)
                 );
             }
+
+            /* Workspace del horario: estilos encapsulados para no depender de recompilar Tailwind. */
+            .schedule-workspace {
+                max-width: 1480px;
+                margin: 0 auto;
+            }
+
+            .schedule-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                padding: 18px 20px;
+                border: 1px solid #e2e8f0;
+                border-radius: 18px;
+                background: #ffffff;
+                box-shadow: 0 8px 28px rgb(15 23 42 / .06);
+            }
+
+            .schedule-toolbar-main {
+                min-width: 0;
+                flex: 1;
+            }
+
+            .schedule-toolbar-eyebrow {
+                color: #64748b;
+                font-size: .68rem;
+                font-weight: 800;
+                letter-spacing: .08em;
+                text-transform: uppercase;
+            }
+
+            .schedule-toolbar-time {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                margin-top: 4px;
+                color: #0f172a;
+                font-size: 1.2rem;
+                font-weight: 850;
+                letter-spacing: -.02em;
+            }
+
+            .schedule-toolbar-arrow {
+                color: #94a3b8;
+                font-weight: 600;
+            }
+
+            .schedule-count-badge,
+            .schedule-unsaved-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: .72rem;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            .schedule-count-badge {
+                background: #eff6ff;
+                color: #2563eb;
+            }
+
+            .schedule-unsaved-badge {
+                background: #fff7ed;
+                color: #c2410c;
+            }
+
+            .schedule-toolbar-actions {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .schedule-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 40px;
+                padding: 9px 14px;
+                border-radius: 11px;
+                font-size: .8rem;
+                font-weight: 800;
+                cursor: pointer;
+                transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+            }
+
+            .schedule-button:hover {
+                transform: translateY(-1px);
+            }
+
+            .schedule-button-secondary {
+                border: 1px solid #dbe2ea;
+                background: #ffffff;
+                color: #475569;
+            }
+
+            .schedule-button-primary {
+                border: 1px solid #2563eb;
+                background: linear-gradient(135deg, #2563eb, #3b82f6);
+                color: #ffffff;
+                box-shadow: 0 7px 18px rgb(37 99 235 / .22);
+            }
+
+            .schedule-tip {
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                margin-top: 12px;
+                padding: 11px 14px;
+                border: 1px solid #dbeafe;
+                border-radius: 13px;
+                background: #eff6ff;
+                color: #1e40af;
+                font-size: .78rem;
+                line-height: 1.45;
+            }
+
+            .schedule-tip-icon {
+                display: grid;
+                width: 28px;
+                height: 28px;
+                flex: 0 0 auto;
+                place-items: center;
+                border-radius: 9px;
+                background: #ffffff;
+                color: #2563eb;
+                font-size: 1.05rem;
+                font-weight: 900;
+                box-shadow: 0 2px 8px rgb(37 99 235 / .10);
+            }
+
+            .schedule-board {
+                overflow: hidden;
+                margin-top: 16px;
+                border: 1px solid #e2e8f0;
+                border-radius: 18px;
+                background: #ffffff;
+                box-shadow: 0 12px 34px rgb(15 23 42 / .07);
+            }
+
+            .schedule-board-scroll {
+                overflow-x: auto;
+            }
+
+            .schedule-board-inner {
+                min-width: 980px;
+            }
+
+            .schedule-board-header {
+                display: grid;
+                grid-template-columns: 78px repeat(5, minmax(0, 1fr));
+                border-bottom: 1px solid #e2e8f0;
+                background: #f8fafc;
+            }
+
+            .schedule-time-head {
+                display: grid;
+                place-items: center;
+                border-right: 1px solid #e2e8f0;
+                color: #94a3b8;
+                font-size: .66rem;
+                font-weight: 800;
+                letter-spacing: .05em;
+                text-transform: uppercase;
+            }
+
+            .schedule-day-head {
+                position: relative;
+                padding: 13px 10px 12px;
+                border-right: 1px solid #e2e8f0;
+                text-align: center;
+            }
+
+            .schedule-day-head:last-child {
+                border-right: 0;
+            }
+
+            .schedule-day-name {
+                color: #0f172a;
+                font-size: .86rem;
+                font-weight: 850;
+            }
+
+            .schedule-day-add {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                margin-top: 5px;
+                border: 0;
+                background: transparent;
+                color: #2563eb;
+                font-size: .7rem;
+                font-weight: 800;
+                cursor: pointer;
+            }
+
+            .schedule-board-body {
+                display: grid;
+                grid-template-columns: 78px repeat(5, minmax(0, 1fr));
+            }
+
+            .schedule-time-column {
+                position: relative;
+                border-right: 1px solid #e2e8f0;
+                background: #f8fafc;
+            }
+
+            .schedule-time-label {
+                position: absolute;
+                right: 11px;
+                transform: translateY(-50%);
+                color: #64748b;
+                font-size: .68rem;
+                font-weight: 750;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .schedule-day-column {
+                position: relative;
+                border-right: 1px solid #e2e8f0;
+                cursor: crosshair;
+                background-color: #ffffff;
+                background-image:
+                    repeating-linear-gradient(
+                        to bottom,
+                        transparent 0,
+                        transparent calc(var(--half-hour) - 1px),
+                        #edf2f7 calc(var(--half-hour) - 1px),
+                        #edf2f7 var(--half-hour)
+                    );
+                transition: background-color .15s ease;
+            }
+
+            .schedule-day-column:last-child {
+                border-right: 0;
+            }
+
+            .schedule-day-column:hover {
+                background-color: #fbfdff;
+            }
+
+            .schedule-empty-hint {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 130px;
+                transform: translate(-50%, -50%);
+                color: #94a3b8;
+                font-size: .72rem;
+                font-weight: 700;
+                line-height: 1.4;
+                text-align: center;
+                pointer-events: none;
+            }
+
+            .schedule-empty-plus {
+                display: grid;
+                width: 32px;
+                height: 32px;
+                margin: 0 auto 7px;
+                place-items: center;
+                border: 1px dashed #cbd5e1;
+                border-radius: 10px;
+                color: #64748b;
+                font-size: 1rem;
+                background: rgb(255 255 255 / .8);
+            }
+
+            .schedule-block {
+                position: absolute;
+                left: 7px;
+                right: 7px;
+                z-index: 2;
+                overflow: hidden;
+                padding: 8px 9px;
+                border-radius: 11px;
+                text-align: left;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgb(15 23 42 / .08);
+                transition: transform .12s ease, box-shadow .12s ease;
+            }
+
+            .schedule-block:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgb(15 23 42 / .12);
+            }
+
+            .schedule-block-title {
+                overflow: hidden;
+                color: inherit;
+                font-size: .76rem;
+                font-weight: 850;
+                line-height: 1.15;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .schedule-block-time {
+                margin-top: 3px;
+                color: inherit;
+                font-size: .64rem;
+                font-weight: 650;
+                opacity: .75;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .schedule-block-class {
+                border: 1px solid #bfdbfe;
+                background: linear-gradient(135deg, #eff6ff, #dbeafe);
+                color: #1e3a8a;
+            }
+
+            .schedule-block-flexible {
+                border: 1px solid #c4b5fd;
+                background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+                color: #5b21b6;
+            }
+
+            .schedule-block-break {
+                border: 1px dashed #cbd5e1;
+                background: #f8fafc;
+                color: #475569;
+            }
+
+            .schedule-block-external {
+                border: 1px solid #fed7aa;
+                background: linear-gradient(135deg, #fff7ed, #ffedd5);
+                color: #9a3412;
+            }
+
+            .schedule-board-footer {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                margin-top: 12px;
+                padding: 11px 14px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                color: #64748b;
+                font-size: .72rem;
+                line-height: 1.45;
+                background: rgb(248 250 252 / .8);
+            }
+
+            .schedule-mobile {
+                display: none;
+            }
+
+            .schedule-mobile-tabs {
+                display: flex;
+                gap: 7px;
+                overflow-x: auto;
+                padding-bottom: 8px;
+            }
+
+            .schedule-mobile-tab {
+                flex: 0 0 auto;
+                padding: 8px 13px;
+                border: 1px solid #dbe2ea;
+                border-radius: 999px;
+                background: #fff;
+                color: #475569;
+                font-size: .76rem;
+                font-weight: 800;
+                cursor: pointer;
+            }
+
+            .schedule-mobile-tab-active {
+                border-color: #2563eb;
+                background: #2563eb;
+                color: #fff;
+            }
+
+            .schedule-mobile-board {
+                overflow: hidden;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                background: #fff;
+            }
+
+            .schedule-mobile-head {
+                padding: 12px 14px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #0f172a;
+                font-size: .84rem;
+                font-weight: 850;
+                text-align: center;
+                background: #f8fafc;
+            }
+
+            .schedule-mobile-grid {
+                display: grid;
+                grid-template-columns: 66px minmax(0,1fr);
+            }
+
+            html.dark .schedule-toolbar,
+            .dark .schedule-toolbar,
+            html.dark .schedule-board,
+            .dark .schedule-board,
+            html.dark .schedule-mobile-board,
+            .dark .schedule-mobile-board {
+                border-color: rgb(255 255 255 / .09);
+                background: #111827;
+                box-shadow: 0 12px 36px rgb(0 0 0 / .22);
+            }
+
+            html.dark .schedule-toolbar-eyebrow,
+            .dark .schedule-toolbar-eyebrow,
+            html.dark .schedule-time-label,
+            .dark .schedule-time-label,
+            html.dark .schedule-board-footer,
+            .dark .schedule-board-footer {
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-toolbar-time,
+            .dark .schedule-toolbar-time,
+            html.dark .schedule-day-name,
+            .dark .schedule-day-name,
+            html.dark .schedule-mobile-head,
+            .dark .schedule-mobile-head {
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-count-badge,
+            .dark .schedule-count-badge {
+                background: rgb(59 130 246 / .13);
+                color: #93c5fd;
+            }
+
+            html.dark .schedule-unsaved-badge,
+            .dark .schedule-unsaved-badge {
+                background: rgb(249 115 22 / .12);
+                color: #fdba74;
+            }
+
+            html.dark .schedule-button-secondary,
+            .dark .schedule-button-secondary {
+                border-color: rgb(255 255 255 / .10);
+                background: #0b1220;
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-tip,
+            .dark .schedule-tip {
+                border-color: rgb(59 130 246 / .18);
+                background: rgb(59 130 246 / .09);
+                color: #bfdbfe;
+            }
+
+            html.dark .schedule-tip-icon,
+            .dark .schedule-tip-icon {
+                background: #0b1220;
+                color: #60a5fa;
+                box-shadow: none;
+            }
+
+            html.dark .schedule-board-header,
+            .dark .schedule-board-header,
+            html.dark .schedule-time-column,
+            .dark .schedule-time-column,
+            html.dark .schedule-mobile-head,
+            .dark .schedule-mobile-head {
+                border-color: rgb(255 255 255 / .08);
+                background: #0b1220;
+            }
+
+            html.dark .schedule-time-head,
+            .dark .schedule-time-head,
+            html.dark .schedule-day-head,
+            .dark .schedule-day-head,
+            html.dark .schedule-day-column,
+            .dark .schedule-day-column {
+                border-color: rgb(255 255 255 / .08);
+            }
+
+            html.dark .schedule-day-column,
+            .dark .schedule-day-column {
+                background-color: #111827;
+                background-image:
+                    repeating-linear-gradient(
+                        to bottom,
+                        transparent 0,
+                        transparent calc(var(--half-hour) - 1px),
+                        rgb(255 255 255 / .07) calc(var(--half-hour) - 1px),
+                        rgb(255 255 255 / .07) var(--half-hour)
+                    );
+            }
+
+            html.dark .schedule-day-column:hover,
+            .dark .schedule-day-column:hover {
+                background-color: #131d2e;
+            }
+
+            html.dark .schedule-empty-plus,
+            .dark .schedule-empty-plus {
+                border-color: rgb(255 255 255 / .14);
+                background: #0b1220;
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-empty-hint,
+            .dark .schedule-empty-hint {
+                color: #64748b;
+            }
+
+            html.dark .schedule-block-class,
+            .dark .schedule-block-class {
+                border-color: rgb(96 165 250 / .32);
+                background: linear-gradient(135deg, rgb(37 99 235 / .27), rgb(59 130 246 / .14));
+                color: #dbeafe;
+            }
+
+            html.dark .schedule-block-flexible,
+            .dark .schedule-block-flexible {
+                border-color: rgb(167 139 250 / .30);
+                background: linear-gradient(135deg, rgb(124 58 237 / .24), rgb(139 92 246 / .12));
+                color: #ede9fe;
+            }
+
+            html.dark .schedule-block-break,
+            .dark .schedule-block-break {
+                border-color: rgb(148 163 184 / .30);
+                background: rgb(148 163 184 / .08);
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-block-external,
+            .dark .schedule-block-external {
+                border-color: rgb(251 146 60 / .30);
+                background: linear-gradient(135deg, rgb(194 65 12 / .20), rgb(249 115 22 / .10));
+                color: #fed7aa;
+            }
+
+            html.dark .schedule-board-footer,
+            .dark .schedule-board-footer {
+                border-color: rgb(255 255 255 / .08);
+                background: rgb(255 255 255 / .025);
+            }
+
+            html.dark .schedule-mobile-tab,
+            .dark .schedule-mobile-tab {
+                border-color: rgb(255 255 255 / .10);
+                background: #111827;
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-mobile-tab-active,
+            .dark .schedule-mobile-tab-active {
+                border-color: #3b82f6;
+                background: #2563eb;
+                color: #fff;
+            }
+
+            @media (max-width: 900px) {
+                .schedule-toolbar {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .schedule-toolbar-actions {
+                    width: 100%;
+                }
+
+                .schedule-toolbar-actions .schedule-button {
+                    flex: 1;
+                }
+
+                .schedule-desktop {
+                    display: none;
+                }
+
+                .schedule-mobile {
+                    display: block;
+                }
+            }
+
+            @media (max-width: 560px) {
+                .schedule-toolbar {
+                    padding: 15px;
+                    border-radius: 15px;
+                }
+
+                .schedule-toolbar-time {
+                    flex-wrap: wrap;
+                    font-size: 1.05rem;
+                }
+
+                .schedule-toolbar-actions {
+                    flex-direction: column;
+                }
+
+                .schedule-toolbar-actions .schedule-button {
+                    width: 100%;
+                }
+            }
+
         </style>
 
         <div x-show="setupOpen" x-cloak class="schedule-onboarding-wrap">
@@ -554,152 +1154,164 @@
         </div>
 
         <template x-if="started">
-            <div class="space-y-4">
-                <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <div class="mr-auto">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Jornada habitual</div>
-                            <div class="mt-1 flex items-center gap-2 text-base font-semibold text-gray-950 dark:text-white">
-                                <span x-text="dayStart"></span>
-                                <span class="text-gray-400">→</span>
-                                <span x-text="dayEnd"></span>
-                                <span class="ml-2 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                                    <span x-text="planableCount()"></span> bloques planeables
-                                </span>
-                            </div>
+            <div class="schedule-workspace">
+                <section class="schedule-toolbar">
+                    <div class="schedule-toolbar-main">
+                        <div class="schedule-toolbar-eyebrow">Jornada habitual</div>
+                        <div class="schedule-toolbar-time">
+                            <span x-text="dayStart"></span>
+                            <span class="schedule-toolbar-arrow">→</span>
+                            <span x-text="dayEnd"></span>
+                            <span class="schedule-count-badge">
+                                <span>●</span>
+                                <span x-text="planableCount()"></span>
+                                <span>planeables</span>
+                            </span>
+                            <span x-show="dirty" x-cloak class="schedule-unsaved-badge">Cambios sin guardar</span>
                         </div>
-
-                        <span
-                            x-show="dirty"
-                            x-cloak
-                            class="rounded-full bg-warning-50 px-3 py-1.5 text-xs font-semibold text-warning-700 dark:bg-warning-500/10 dark:text-warning-300"
-                        >Cambios sin guardar</span>
-
-                        <x-filament::button color="gray" type="button" x-on:click="setupOpen = true">
-                            Ajustar jornada
-                        </x-filament::button>
-                        <x-filament::button type="button" x-on:click="save($wire)">
-                            Guardar horario
-                        </x-filament::button>
                     </div>
 
-                    <div class="mt-4 flex items-start gap-3 rounded-xl bg-primary-50/70 px-4 py-3 text-sm text-primary-800 dark:bg-primary-500/10 dark:text-primary-200">
-                        <span class="mt-0.5 text-lg">＋</span>
-                        <div>
-                            <strong>Toca cualquier espacio del horario para agregar una clase.</strong>
-                            <span class="block text-xs opacity-80">La hora se toma del lugar donde toques y puedes ajustarla antes de guardar.</span>
+                    <div class="schedule-toolbar-actions">
+                        <button type="button" class="schedule-button schedule-button-secondary" x-on:click="setupOpen = true">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M12 8v4l2.5 1.5M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Ajustar jornada
+                        </button>
+                        <button type="button" class="schedule-button schedule-button-primary" x-on:click="save($wire)">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M5 4h12l2 2v14H5V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                <path d="M8 4v5h7V4M8 20v-6h8v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            </svg>
+                            Guardar horario
+                        </button>
+                    </div>
+                </section>
+
+                <div class="schedule-tip">
+                    <span class="schedule-tip-icon">＋</span>
+                    <div>
+                        <strong>Toca cualquier espacio para agregar una clase.</strong>
+                        La hora se toma automáticamente del lugar donde hagas clic y podrás ajustarla antes de guardar.
+                    </div>
+                </div>
+
+                <section class="schedule-desktop schedule-board">
+                    <div class="schedule-board-scroll">
+                        <div class="schedule-board-inner">
+                            <div class="schedule-board-header">
+                                <div class="schedule-time-head">Hora</div>
+                                <template x-for="day in days" :key="'head-' + day.value">
+                                    <div class="schedule-day-head">
+                                        <div class="schedule-day-name" x-text="day.label"></div>
+                                        <button type="button" class="schedule-day-add" x-on:click="addBlock(day.value)">
+                                            <span>＋</span> Agregar
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="schedule-board-body" :style="'height:' + gridHeight() + 'px'">
+                                <div class="schedule-time-column">
+                                    <template x-for="mark in timeMarks()" :key="'time-' + mark.minutes">
+                                        <span
+                                            class="schedule-time-label"
+                                            :style="'top:' + mark.top + 'px'"
+                                            x-text="mark.label"
+                                        ></span>
+                                    </template>
+                                </div>
+
+                                <template x-for="day in days" :key="'column-' + day.value">
+                                    <div
+                                        class="schedule-day-column"
+                                        :style="'--half-hour:' + halfHourPixels() + 'px'"
+                                        x-on:click="addBlockAt(day.value, $event)"
+                                    >
+                                        <div x-show="blocksFor(day.value).length === 0" class="schedule-empty-hint">
+                                            <span class="schedule-empty-plus">＋</span>
+                                            Haz clic para agregar un bloque
+                                        </div>
+
+                                        <template x-for="block in blocksFor(day.value)" :key="block._key">
+                                            <button
+                                                type="button"
+                                                x-on:click.stop="editBlock(block)"
+                                                class="schedule-block"
+                                                :class="blockClasses(block)"
+                                                :style="blockStyle(block)"
+                                            >
+                                                <div class="schedule-block-title" x-text="block.label"></div>
+                                                <div class="schedule-block-time">
+                                                    <span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span>
+                                                    <span x-show="block.responsibility === 'specialist'"> · Otro docente</span>
+                                                </div>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                <div class="lg:hidden">
-                    <div class="flex gap-2 overflow-x-auto pb-2">
-                        <template x-for="day in days" :key="day.value">
+                <section class="schedule-mobile">
+                    <div class="schedule-mobile-tabs">
+                        <template x-for="day in days" :key="'tab-' + day.value">
                             <button
                                 type="button"
+                                class="schedule-mobile-tab"
+                                :class="activeDay === day.value ? 'schedule-mobile-tab-active' : ''"
                                 x-on:click="activeDay = day.value"
-                                class="shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition"
-                                :class="activeDay === day.value
-                                    ? 'bg-primary-600 text-white shadow-sm'
-                                    : 'bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:ring-white/10'"
-                                x-text="day.label"
+                                x-text="day.short"
                             ></button>
                         </template>
                     </div>
 
-                    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-                        <div class="grid grid-cols-[64px_1fr] border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
-                            <div></div>
-                            <div class="px-4 py-3 text-center font-semibold text-gray-900 dark:text-white" x-text="dayName(activeDay)"></div>
-                        </div>
-                        <div class="relative grid grid-cols-[64px_1fr]" :style="'height:' + gridHeight() + 'px'">
-                            <div class="relative border-r border-gray-200 bg-gray-50/60 dark:border-white/10 dark:bg-white/[0.03]">
-                                <template x-for="mark in timeMarks()" :key="mark.minutes">
+                    <div class="schedule-mobile-board">
+                        <div class="schedule-mobile-head" x-text="dayName(activeDay)"></div>
+                        <div class="schedule-mobile-grid" :style="'height:' + gridHeight() + 'px'">
+                            <div class="schedule-time-column">
+                                <template x-for="mark in timeMarks()" :key="'mobile-time-' + mark.minutes">
                                     <span
-                                        class="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-gray-500 dark:text-gray-400"
+                                        class="schedule-time-label"
                                         :style="'top:' + mark.top + 'px'"
                                         x-text="mark.label"
                                     ></span>
                                 </template>
                             </div>
                             <div
-                                class="schedule-canvas relative cursor-crosshair"
+                                class="schedule-day-column"
                                 :style="'--half-hour:' + halfHourPixels() + 'px'"
                                 x-on:click="addBlockAt(activeDay, $event)"
                             >
-                                <template x-for="block in blocksFor(activeDay)" :key="block._key">
+                                <div x-show="blocksFor(activeDay).length === 0" class="schedule-empty-hint">
+                                    <span class="schedule-empty-plus">＋</span>
+                                    Toca aquí para agregar un bloque
+                                </div>
+
+                                <template x-for="block in blocksFor(activeDay)" :key="'mobile-' + block._key">
                                     <button
                                         type="button"
                                         x-on:click.stop="editBlock(block)"
-                                        class="absolute left-2 right-2 overflow-hidden rounded-xl border px-3 py-2 text-left shadow-sm transition hover:shadow-md"
+                                        class="schedule-block"
                                         :class="blockClasses(block)"
                                         :style="blockStyle(block)"
                                     >
-                                        <div class="truncate text-sm font-semibold" x-text="block.label"></div>
-                                        <div class="mt-0.5 text-[11px] opacity-75"><span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span></div>
+                                        <div class="schedule-block-title" x-text="block.label"></div>
+                                        <div class="schedule-block-time"><span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span></div>
                                     </button>
                                 </template>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div class="hidden overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900 lg:block">
-                    <div class="min-w-[1050px]">
-                        <div class="grid grid-cols-[72px_repeat(5,minmax(0,1fr))] border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5">
-                            <div class="border-r border-gray-200 dark:border-white/10"></div>
-                            <template x-for="day in days" :key="day.value">
-                                <div class="border-r border-gray-200 px-3 py-3 text-center last:border-r-0 dark:border-white/10">
-                                    <div class="font-semibold text-gray-950 dark:text-white" x-text="day.label"></div>
-                                    <button
-                                        type="button"
-                                        class="mt-1 text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400"
-                                        x-on:click="addBlock(day.value)"
-                                    >+ Agregar</button>
-                                </div>
-                            </template>
-                        </div>
-
-                        <div class="relative grid grid-cols-[72px_repeat(5,minmax(0,1fr))]" :style="'height:' + gridHeight() + 'px'">
-                            <div class="relative border-r border-gray-200 bg-gray-50/60 dark:border-white/10 dark:bg-white/[0.03]">
-                                <template x-for="mark in timeMarks()" :key="mark.minutes">
-                                    <span
-                                        class="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-gray-500 dark:text-gray-400"
-                                        :style="'top:' + mark.top + 'px'"
-                                        x-text="mark.label"
-                                    ></span>
-                                </template>
-                            </div>
-
-                            <template x-for="day in days" :key="day.value">
-                                <div
-                                    class="schedule-canvas relative cursor-crosshair border-r border-gray-200 last:border-r-0 dark:border-white/10"
-                                    :style="'--half-hour:' + halfHourPixels() + 'px'"
-                                    x-on:click="addBlockAt(day.value, $event)"
-                                >
-                                    <template x-for="block in blocksFor(day.value)" :key="block._key">
-                                        <button
-                                            type="button"
-                                            x-on:click.stop="editBlock(block)"
-                                            class="absolute left-2 right-2 overflow-hidden rounded-xl border px-3 py-2 text-left shadow-sm transition hover:-translate-y-px hover:shadow-md"
-                                            :class="blockClasses(block)"
-                                            :style="blockStyle(block)"
-                                        >
-                                            <div class="truncate text-sm font-semibold" x-text="block.label"></div>
-                                            <div class="mt-0.5 text-[11px] opacity-75">
-                                                <span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span>
-                                                <span x-show="block.responsibility === 'specialist'"> · Otro docente</span>
-                                            </div>
-                                        </button>
-                                    </template>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:bg-white/5 dark:text-gray-400">
-                    Al confirmar una planeación, se congela esta versión del horario. Los bloques marcados como “No incluir en mi planeación” ocupan su espacio real, pero la IA no genera actividades para ellos.
+                <div class="schedule-board-footer">
+                    <span aria-hidden="true">ℹ</span>
+                    <span>
+                        Al confirmar una planeación se congela esta versión del horario. Los bloques que no incluyas en tu planeación conservan su espacio, pero la IA no genera actividades para ellos.
+                    </span>
                 </div>
             </div>
         </template>
@@ -953,15 +1565,15 @@
 
                 blockClasses(block) {
                     if (block.block_type === 'break') {
-                        return 'border-dashed border-gray-300 bg-gray-100 text-gray-700 dark:border-white/15 dark:bg-white/10 dark:text-gray-200';
+                        return 'schedule-block-break';
                     }
-                    if (!block.include_in_planning) {
-                        return 'border-gray-300 bg-gray-50 text-gray-600 dark:border-white/15 dark:bg-white/5 dark:text-gray-300';
+                    if (!block.include_in_planning || block.responsibility === 'specialist' || block.responsibility === 'external') {
+                        return 'schedule-block-external';
                     }
                     if (block.is_flexible || block.block_type === 'flexible') {
-                        return 'border-primary-200 bg-primary-50 text-primary-900 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-100';
+                        return 'schedule-block-flexible';
                     }
-                    return 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100';
+                    return 'schedule-block-class';
                 },
 
                 addBlock(day) {
