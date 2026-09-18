@@ -19,6 +19,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -64,6 +65,9 @@ class PlanningRequestResource extends Resource
                     ->description('Elige el grupo y cómo quieres armar la planeación')
                     ->icon(Heroicon::OutlinedUsers)
                     ->schema([
+                        Hidden::make('period_type'),
+                        Hidden::make('period_key'),
+
                         Select::make('group_id')
                             ->label('Grupo')
                             ->options(fn () => static::eligibleGroupOptions())
@@ -93,19 +97,28 @@ class PlanningRequestResource extends Resource
                             ->live()
                             ->label('Fecha inicial')
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->disabled(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true))
+                            ->helperText(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true)
+                                ? 'Este periodo fue delimitado desde Nueva planeación y no se modifica manualmente.'
+                                : null),
                         DatePicker::make('ends_on')
                             ->live()
                             ->label('Fecha final')
                             ->required()
                             ->native(false)
-                            ->afterOrEqual('starts_on'),
+                            ->afterOrEqual('starts_on')
+                            ->disabled(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true)),
 
                         TextInput::make('project')
                             ->label('Tema o proyecto')
                             ->required()
                             ->minLength(3)
                             ->maxLength(255)
+                            ->disabled(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true))
+                            ->helperText(fn (Get $get) => in_array($get('period_type'), ['week', 'month'], true)
+                                ? 'Se construye a partir de los temas semanales y del proyecto integrador.'
+                                : null)
                             ->columnSpanFull(),
 
                         Textarea::make('topic')->label('Detalle del tema (opcional)')->rows(2)->columnSpanFull(),
