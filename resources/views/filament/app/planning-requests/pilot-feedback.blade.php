@@ -34,7 +34,7 @@
                 </span>
                 <div>
                     <div class="text-sm font-bold text-gray-950 dark:text-white">Ayúdanos a mejorar</div>
-                    <p class="mt-1 text-xs pd-muted">Tres preguntas rápidas sobre tu experiencia con esta planeación.</p>
+                    <p class="mt-1 text-xs pd-muted">Tu opinión es muy importante para seguir mejorando. Cuéntanos tu experiencia con esta planeación.</p>
                 </div>
             </div>
             <span class="pd-chip">Responder encuesta</span>
