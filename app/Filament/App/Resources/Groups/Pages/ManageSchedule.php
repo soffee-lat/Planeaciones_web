@@ -23,12 +23,17 @@ class ManageSchedule extends Page
     /** @var array<int,array<string,mixed>> */
     public array $blocks = [];
 
-    public function mount(int|string $record): void
+    public function mount(Group|int|string $record): void
     {
-        $this->record = Group::query()
-            ->where('owner_id', auth()->id())
-            ->with(['activeSchedule.blocks'])
-            ->findOrFail($record);
+        if ($record instanceof Group) {
+            abort_unless((int) $record->owner_id === (int) auth()->id(), 404);
+            $this->record = $record->loadMissing(['activeSchedule.blocks']);
+        } else {
+            $this->record = Group::query()
+                ->where('owner_id', auth()->id())
+                ->with(['activeSchedule.blocks'])
+                ->findOrFail($record);
+        }
 
         $schedule = $this->record->activeSchedule;
         if (! $schedule) {
