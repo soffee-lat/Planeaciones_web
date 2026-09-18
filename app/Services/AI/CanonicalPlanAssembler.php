@@ -50,7 +50,7 @@ class CanonicalPlanAssembler
         $profile = is_array($snapshot['group']['profile'] ?? null) ? $snapshot['group']['profile'] : [];
         $sessionMinutes = (int) ($profile['session_minutes'] ?? 0);
         if ($sessionMinutes <= 0) {
-            throw new AiContractException('CANONICAL_SESSION_MINUTES_MISSING');
+            $sessionMinutes = $this->deriveReferenceSessionMinutes($snapshot);
         }
 
         $requestSnapshot = is_array($snapshot['request'] ?? null) ? $snapshot['request'] : [];
@@ -328,7 +328,42 @@ class CanonicalPlanAssembler
             'pedagogical_notes' => $snapshot['request']['pedagogical_notes'] ?? null,
             'required_activities' => $snapshot['request']['required_activities'] ?? null,
             'book_pages' => $snapshot['request']['book_pages'] ?? null,
+            'schedule' => is_array($group['schedule'] ?? null) ? $group['schedule'] : null,
+            'planning_calendar' => is_array($snapshot['planning_calendar'] ?? null) ? $snapshot['planning_calendar'] : null,
         ];
+    }
+
+    /** @param array<string,mixed> $snapshot */
+    private function deriveReferenceSessionMinutes(array $snapshot): int
+    {
+        $calendar = is_array($snapshot['planning_calendar'] ?? null) ? $snapshot['planning_calendar'] : [];
+        $durations = [];
+
+        foreach (($calendar['days'] ?? []) as $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+            foreach (($day['blocks'] ?? []) as $block) {
+                if (! is_array($block) || ! ($block['include_in_planning'] ?? false)) {
+                    continue;
+                }
+                $duration = (int) ($block['duration_minutes'] ?? 0);
+                if ($duration > 0) {
+                    $durations[] = $duration;
+                }
+            }
+        }
+
+        if ($durations === []) {
+            throw new AiContractException('CANONICAL_SESSION_MINUTES_MISSING');
+        }
+
+        sort($durations);
+        $middle = intdiv(count($durations), 2);
+
+        return count($durations) % 2 === 1
+            ? $durations[$middle]
+            : max(1, (int) round(($durations[$middle - 1] + $durations[$middle]) / 2));
     }
 
     /** @param array<string,mixed> $requestSnapshot @return list<string> */
