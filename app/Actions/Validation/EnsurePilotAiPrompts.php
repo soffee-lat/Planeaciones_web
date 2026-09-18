@@ -39,7 +39,20 @@ final class EnsurePilotAiPrompts
                 'category' => PromptCategory::Generation,
                 'key' => trim((string) config('ai.prompts.generation_key', 'planning.generation')),
                 'name' => 'Generación de planeación',
-                'body' => "INPUT={{input_snapshot}}\nOUTPUT={{output_schema}}",
+                'body' => implode("\n", [
+                    'Genera una planeación usando exclusivamente los datos de INPUT y respetando OUTPUT.',
+                    'Si INPUT.group.planning_calendar contiene días, ese calendario es obligatorio:',
+                    '- genera exactamente una sesión por cada bloque con include_in_planning=true;',
+                    '- conserva las fechas y el orden de los bloques de cada día;',
+                    '- session.date debe coincidir con la fecha del día del bloque;',
+                    '- estimated_minutes debe ser exactamente igual a block.minutes;',
+                    '- no generes sesiones para bloques con include_in_planning=false;',
+                    '- no inventes, omitas ni traslades bloques a otras fechas;',
+                    '- si un bloque no flexible contiene field_codes, la sesión debe usar al menos uno de esos campos;',
+                    '- los nombres visibles del horario pueden ser propios de la escuela y no sustituyen el currículo oficial congelado.',
+                    'INPUT={{input_snapshot}}',
+                    'OUTPUT={{output_schema}}',
+                ]),
                 'allowed_variables' => ['input_snapshot', 'output_schema'],
                 'schema_version' => GeneratedPlanDraftValidator::CONTRACT_VERSION,
                 'schema_path' => resource_path('schemas/ai/generated_plan_draft_v1.schema.json'),
@@ -79,8 +92,10 @@ final class EnsurePilotAiPrompts
             throw new RuntimeException('PILOT_AI_PROMPT_KEY_INVALID');
         }
 
+        $schema = $this->loadSchema($definition['schema_path']);
+
         /** @var PromptVersion $version */
-        $version = DB::transaction(function () use ($actor, $definition): PromptVersion {
+        $version = DB::transaction(function () use ($actor, $definition, $schema): PromptVersion {
             $template = PromptTemplate::query()->where('key', $definition['key'])->lockForUpdate()->first();
             if ($template && $template->category !== $definition['category']) {
                 throw new RuntimeException('PILOT_AI_PROMPT_CATEGORY_MISMATCH:' . $definition['key']);
@@ -102,10 +117,11 @@ final class EnsurePilotAiPrompts
                     throw new RuntimeException('PILOT_AI_PROMPT_ACTIVE_VERSION_INVALID:' . $definition['key']);
                 }
 
-                return $active;
+                if ($this->matchesDefinition($active, $definition, $schema)) {
+                    return $active;
+                }
             }
 
-            $schema = $this->loadSchema($definition['schema_path']);
             $number = ((int) PromptVersion::query()->where('template_id', $template->id)->max('number')) + 1;
             $draft = PromptVersion::query()->create([
                 'template_id' => $template->id,
@@ -128,6 +144,18 @@ final class EnsurePilotAiPrompts
         };
 
         return $version->fresh(['template']);
+    }
+
+    /**
+     * @param array{category:PromptCategory,key:string,name:string,body:string,allowed_variables:list<string>,schema_version:string,schema_path:string} $definition
+     * @param array<string,mixed> $schema
+     */
+    private function matchesDefinition(PromptVersion $version, array $definition, array $schema): bool
+    {
+        return $version->body === $definition['body']
+            && array_values($version->allowed_variables ?? []) === $definition['allowed_variables']
+            && $version->schema_version === $definition['schema_version']
+            && $version->output_schema === $schema;
     }
 
     /** @return array<string,mixed> */
