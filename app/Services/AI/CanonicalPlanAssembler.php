@@ -246,7 +246,10 @@ class CanonicalPlanAssembler
         $endsOn = CarbonImmutable::parse($ends);
         $planningCalendar = is_array($snapshot['planning_calendar'] ?? null) ? $snapshot['planning_calendar'] : null;
         if (! $planningCalendar || ! is_array($planningCalendar['days'] ?? null)) {
-            throw new AiContractException('CANONICAL_PLANNING_CALENDAR_MISSING');
+            // Compatibilidad con snapshots confirmados antes de incorporar
+            // horarios de grupo. Toda solicitud nueva congela planning_calendar.
+            $this->validateLegacySessionDates($startsOn, $endsOn, $sessions);
+            return;
         }
 
         $capacityByDate = [];
@@ -352,6 +355,26 @@ class CanonicalPlanAssembler
 
             if ($remaining !== 0 || $segmentIndex < count($segments) - 1) {
                 throw new AiContractException('GENERATED_SCHEDULE_BLOCK_NOT_FILLED', '$.sessions', $date);
+            }
+        }
+    }
+
+    /** @param list<array<string,mixed>> $sessions */
+    private function validateLegacySessionDates(
+        CarbonImmutable $startsOn,
+        CarbonImmutable $endsOn,
+        array $sessions,
+    ): void {
+        foreach ($sessions as $index => $session) {
+            if (($session['date'] ?? null) === null) {
+                continue;
+            }
+            $date = CarbonImmutable::parse((string) $session['date']);
+            if ($date->lt($startsOn) || $date->gt($endsOn)) {
+                throw new AiContractException(
+                    'GENERATED_SESSION_DATE_OUTSIDE_REQUEST',
+                    '$.sessions[' . $index . '].date',
+                );
             }
         }
     }
