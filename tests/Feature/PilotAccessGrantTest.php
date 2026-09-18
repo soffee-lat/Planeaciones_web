@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Actions\AI\PublishPromptVersion;
 use App\Actions\Planning\StartPlanningExperiment;
+use App\Enums\PromptCategory;
 use App\Models\Plan;
 use App\Models\PromptTemplate;
 use App\Models\PromptVersion;
@@ -71,6 +73,47 @@ class PilotAccessGrantTest extends PedagogyTestCase
             ['audit_result_v1', 'correction_result_v1', 'generated_plan_draft_v1'],
             PromptVersion::query()->orderBy('schema_version')->pluck('schema_version')->all(),
         );
+    }
+
+    public function test_prompt_generation_legacy_is_versioned_to_schedule_aware_contract(): void
+    {
+        $this->seedFullTeacher();
+        $admin = $this->admin();
+
+        $template = PromptTemplate::query()->create([
+            'key' => 'planning.generation',
+            'category' => PromptCategory::Generation->value,
+            'name' => 'Generación de planeación',
+            'active_version_id' => null,
+        ]);
+        $schema = json_decode(
+            file_get_contents(resource_path('schemas/ai/generated_plan_draft_v1.schema.json')),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        $legacy = PromptVersion::query()->create([
+            'template_id' => $template->id,
+            'number' => 1,
+            'body' => "INPUT={{input_snapshot}}\nOUTPUT={{output_schema}}",
+            'allowed_variables' => ['input_snapshot', 'output_schema'],
+            'output_schema' => $schema,
+            'schema_version' => 'generated_plan_draft_v1',
+            'created_by' => $admin->id,
+        ]);
+        app(PublishPromptVersion::class)->execute($admin, $legacy, true);
+
+        $this->artisan('validation:ensure-ai-prompts')->assertSuccessful();
+
+        $template = $template->fresh('activeVersion');
+        $this->assertNotSame($legacy->id, $template->active_version_id);
+        $this->assertStringContainsString('planning_calendar', $template->activeVersion->body);
+        $this->assertStringContainsString('include_in_planning=true', $template->activeVersion->body);
+        $this->assertSame(2, PromptVersion::query()->where('template_id', $template->id)->count());
+
+        // La segunda ejecución no crea una tercera versión.
+        $this->artisan('validation:ensure-ai-prompts')->assertSuccessful();
+        $this->assertSame(2, PromptVersion::query()->where('template_id', $template->id)->count());
     }
 
     public function test_dispatch_generation_de_borrador_reporta_not_ready_en_vez_de_error_generico(): void
