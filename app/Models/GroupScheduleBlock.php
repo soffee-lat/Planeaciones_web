@@ -14,6 +14,9 @@ class GroupScheduleBlock extends Model
         'starts_at',
         'ends_at',
         'label',
+        'group_subject_id',
+        'subject_name_snapshot',
+        'subject_color_snapshot',
         'block_type',
         'responsibility',
         'include_in_planning',
@@ -36,5 +39,10 @@ class GroupScheduleBlock extends Model
     public function schedule(): BelongsTo
     {
         return $this->belongsTo(GroupSchedule::class, 'group_schedule_id');
+    }
+
+    public function subject(): BelongsTo
+    {
+        return $this->belongsTo(GroupSubject::class, 'group_subject_id');
     }
 }
