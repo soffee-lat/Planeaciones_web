@@ -45,7 +45,7 @@ class CanonicalPlanAssembler
         }
 
         $alignment = $this->buildCurricularAlignment($curriculum, $generated['sessions']);
-        $this->validateSessionDates($snapshot['request'] ?? [], $generated['sessions']);
+        $this->validateSessionSchedule($snapshot, $generated['sessions']);
 
         $profile = is_array($snapshot['group']['profile'] ?? null) ? $snapshot['group']['profile'] : [];
         $sessionMinutes = (int) ($profile['session_minutes'] ?? 0);
@@ -232,24 +232,65 @@ class CanonicalPlanAssembler
         }
     }
 
-    /** @param array<string,mixed> $requestSnapshot @param list<array<string,mixed>> $sessions */
-    private function validateSessionDates(array $requestSnapshot, array $sessions): void
+    /** @param array<string,mixed> $snapshot @param list<array<string,mixed>> $sessions */
+    private function validateSessionSchedule(array $snapshot, array $sessions): void
     {
+        $requestSnapshot = is_array($snapshot['request'] ?? null) ? $snapshot['request'] : [];
         $starts = (string) ($requestSnapshot['starts_on'] ?? '');
         $ends = (string) ($requestSnapshot['ends_on'] ?? '');
         if ($starts === '' || $ends === '') {
             throw new AiContractException('CANONICAL_REQUEST_DATES_MISSING');
         }
+
         $startsOn = CarbonImmutable::parse($starts);
         $endsOn = CarbonImmutable::parse($ends);
+        $planningCalendar = is_array($snapshot['planning_calendar'] ?? null) ? $snapshot['planning_calendar'] : null;
+        if (! $planningCalendar || ! is_array($planningCalendar['days'] ?? null)) {
+            throw new AiContractException('CANONICAL_PLANNING_CALENDAR_MISSING');
+        }
 
-        foreach ($sessions as $index => $session) {
-            if (($session['date'] ?? null) === null) {
+        $capacityByDate = [];
+        foreach ($planningCalendar['days'] as $day) {
+            if (! is_array($day)) {
                 continue;
             }
-            $date = CarbonImmutable::parse($session['date']);
+            $date = (string) ($day['date'] ?? '');
+            if ($date === '') {
+                continue;
+            }
+            $capacityByDate[$date] = [
+                'planeable_minutes' => max(0, (int) ($day['planeable_minutes'] ?? 0)),
+                'requires_planning' => (bool) ($day['requires_planning'] ?? false),
+            ];
+        }
+
+        $usedMinutes = [];
+        foreach ($sessions as $index => $session) {
+            $rawDate = $session['date'] ?? null;
+            if (! is_string($rawDate) || trim($rawDate) === '') {
+                throw new AiContractException('GENERATED_SESSION_DATE_REQUIRED_WITH_SCHEDULE', '$.sessions[' . $index . '].date');
+            }
+
+            $date = CarbonImmutable::parse($rawDate);
             if ($date->lt($startsOn) || $date->gt($endsOn)) {
                 throw new AiContractException('GENERATED_SESSION_DATE_OUTSIDE_REQUEST', '$.sessions[' . $index . '].date');
+            }
+
+            $key = $date->format('Y-m-d');
+            $capacity = $capacityByDate[$key] ?? null;
+            if (! $capacity || ! $capacity['requires_planning'] || $capacity['planeable_minutes'] < 1) {
+                throw new AiContractException('GENERATED_SESSION_DATE_OUTSIDE_SCHEDULE', '$.sessions[' . $index . '].date', $key);
+            }
+
+            $usedMinutes[$key] = ($usedMinutes[$key] ?? 0) + (int) ($session['estimated_minutes'] ?? 0);
+            if ($usedMinutes[$key] > $capacity['planeable_minutes']) {
+                throw new AiContractException('GENERATED_DAILY_MINUTES_EXCEED_SCHEDULE', '$.sessions[' . $index . '].estimated_minutes', $key);
+            }
+        }
+
+        foreach ($capacityByDate as $date => $capacity) {
+            if ($capacity['requires_planning'] && $capacity['planeable_minutes'] > 0 && ! array_key_exists($date, $usedMinutes)) {
+                throw new AiContractException('GENERATED_SCHEDULE_DATE_NOT_COVERED', '$.sessions', $date);
             }
         }
     }
