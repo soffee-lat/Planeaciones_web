@@ -16,7 +16,7 @@ class StartPlanning extends Page
     protected static ?string $title = 'Nueva planeación';
     protected static ?string $navigationLabel = 'Crear planeación';
     protected static ?string $slug = 'nueva-planeacion';
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 20;
     protected string $view = 'filament.app.pages.start-planning';
 
     public ?int $group_id = null;
