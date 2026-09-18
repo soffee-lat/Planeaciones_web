@@ -1338,6 +1338,20 @@
                 cursor: not-allowed;
             }
 
+            .schedule-editor-day-button-selected {
+                border-color: #3b82f6;
+                background: #eff6ff;
+                color: #1d4ed8;
+                box-shadow: 0 0 0 2px rgb(59 130 246 / .08);
+            }
+
+            html.dark .schedule-editor-day-button-selected,
+            .dark .schedule-editor-day-button-selected {
+                border-color: #3b82f6;
+                background: rgb(59 130 246 / .14);
+                color: #bfdbfe;
+            }
+
             html.dark .schedule-editor-notice,
             .dark .schedule-editor-notice {
                 border-color: rgb(251 146 60 / .25);
@@ -1947,12 +1961,21 @@
                                 <button
                                     type="button"
                                     class="schedule-editor-day-button"
-                                    :class="copyTargetBlocked(day.value) ? 'schedule-editor-day-button-conflict' : ''"
-                                    :disabled="Number(editing?.day_of_week) === Number(day.value) || copyTargetBlocked(day.value)"
-                                    x-on:click="copyEditingTo(day.value)"
-                                    :title="copyTargetBlocked(day.value) ? 'Ya hay un bloque ocupando este horario' : 'Copiar a ' + day.label"
+                                    :class="{
+                                        'schedule-editor-day-button-selected': copyTargetSelected(day.value),
+                                        'schedule-editor-day-button-conflict': copyTargetConflict(day.value),
+                                    }"
+                                    :disabled="Number(editing?.day_of_week) === Number(day.value) || copyTargetConflict(day.value)"
+                                    x-on:click="toggleCopyEditingTo(day.value)"
+                                    :title="
+                                        copyTargetSelected(day.value)
+                                            ? 'Quitar de ' + day.label
+                                            : (copyTargetConflict(day.value)
+                                                ? 'Hay otra clase ocupando este horario'
+                                                : 'Copiar a ' + day.label)
+                                    "
                                 >
-                                    <span x-text="copyTargetBlocked(day.value) ? '✓ ' + day.short : day.short"></span>
+                                    <span x-text="copyTargetSelected(day.value) ? '✓ ' + day.short : day.short"></span>
                                 </button>
                             </template>
                         </div>
@@ -2252,23 +2275,70 @@
                     });
                 },
 
-                copyTargetBlocked(day) {
+                sameCopySignature(a, b) {
+                    if (!a || !b) return false;
+
+                    const fieldsA = Array.isArray(a.field_codes) ? [...a.field_codes].sort() : [];
+                    const fieldsB = Array.isArray(b.field_codes) ? [...b.field_codes].sort() : [];
+
+                    return String(a.starts_at) === String(b.starts_at)
+                        && String(a.ends_at) === String(b.ends_at)
+                        && String(a.label ?? '') === String(b.label ?? '')
+                        && String(a.block_type ?? '') === String(b.block_type ?? '')
+                        && String(a.responsibility ?? '') === String(b.responsibility ?? '')
+                        && Boolean(a.include_in_planning) === Boolean(b.include_in_planning)
+                        && Boolean(a.is_flexible) === Boolean(b.is_flexible)
+                        && JSON.stringify(fieldsA) === JSON.stringify(fieldsB)
+                        && String(a.notes ?? '') === String(b.notes ?? '');
+                },
+
+                equivalentCopyTargets(day) {
+                    if (!this.editing || Number(day) === Number(this.editing.day_of_week)) {
+                        return [];
+                    }
+
+                    return this.blocksFor(day).filter(block => this.sameCopySignature(this.editing, block));
+                },
+
+                copyTargetSelected(day) {
+                    return this.equivalentCopyTargets(day).length > 0;
+                },
+
+                copyTargetConflict(day) {
                     if (!this.editing || Number(day) === Number(this.editing.day_of_week)) {
                         return false;
                     }
 
-                    return this.hasOverlap(
-                        day,
-                        this.editing.starts_at,
-                        this.editing.ends_at,
-                    );
+                    const equivalentKeys = new Set(this.equivalentCopyTargets(day).map(block => block._key));
+                    const startMinutes = this.toMinutes(this.editing.starts_at);
+                    const endMinutes = this.toMinutes(this.editing.ends_at);
+
+                    return this.blocksFor(day).some(block => {
+                        if (equivalentKeys.has(block._key)) return false;
+
+                        const blockStart = this.toMinutes(block.starts_at);
+                        const blockEnd = this.toMinutes(block.ends_at);
+
+                        return startMinutes < blockEnd && endMinutes > blockStart;
+                    });
                 },
 
-                copyEditingTo(day) {
+                toggleCopyEditingTo(day) {
                     if (!this.editing || Number(day) === Number(this.editing.day_of_week)) return;
 
-                    if (this.copyTargetBlocked(day)) {
-                        this.editorNotice = 'Ese día ya tiene un bloque ocupando ' + this.editing.starts_at + '–' + this.editing.ends_at + '. No se creó otra copia.';
+                    const existingCopies = this.equivalentCopyTargets(day);
+
+                    if (existingCopies.length > 0) {
+                        const keys = new Set(existingCopies.map(block => block._key));
+                        this.blocks = this.blocks.filter(block => !keys.has(block._key));
+                        this.editorNotice = 'Se quitó este bloque de ' + this.dayName(day) + '.';
+                        this.dirty = true;
+                        this.normalize();
+                        return;
+                    }
+
+                    if (this.copyTargetConflict(day)) {
+                        this.editorNotice = 'Ese día ya tiene otra clase ocupando ' + this.editing.starts_at + '–' + this.editing.ends_at + '.';
                         return;
                     }
 
