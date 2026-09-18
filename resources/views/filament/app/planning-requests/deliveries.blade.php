@@ -13,7 +13,7 @@
                 <div class="min-w-0">
                     <div class="pd-status-banner__title">Planeación lista</div>
                     <p class="pd-status-banner__description">
-                        Tu documento está preparado. Descárgalo en el formato que prefieras.
+                        Tu planeación ha sido generada correctamente y está lista para descargar.
                     </p>
                     <div class="mt-2 flex flex-wrap gap-2">
                         <span class="pd-chip">Versión {{ $latestDelivery->version?->number ?? $latestDelivery->version_id }}</span>
@@ -41,7 +41,7 @@
                     @else
                         <a
                             href="{{ route('planning-deliveries.download', ['delivery' => $latestDelivery->id, 'file' => $file->id]) }}"
-                            class="pd-download-button {{ $isPdf ? '' : 'pd-download-button--secondary' }}"
+                            class="pd-download-button"
                         >
                             <x-filament::icon icon="{{ $isPdf ? 'heroicon-o-document-text' : 'heroicon-o-document-arrow-down' }}" class="h-5 w-5" />
                             Descargar {{ $label }}
