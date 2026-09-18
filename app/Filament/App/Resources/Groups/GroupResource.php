@@ -5,6 +5,7 @@ namespace App\Filament\App\Resources\Groups;
 use App\Filament\App\Resources\Groups\Pages\CreateGroup;
 use App\Filament\App\Resources\Groups\Pages\EditGroup;
 use App\Filament\App\Resources\Groups\Pages\ListGroups;
+use App\Filament\App\Pages\ManageGroupSchedule;
 use App\Models\Curriculum;
 use App\Models\CurriculumVersion;
 use App\Models\Grade;
@@ -203,6 +204,10 @@ class GroupResource extends Resource
                     ->query(fn (Builder $query) => $query->withoutGlobalScopes()->whereNotNull('archived_at')),
             ])
             ->recordActions([
+                Action::make('schedule')
+                    ->label('Horario')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->url(fn (Group $record) => ManageGroupSchedule::getUrl(['group' => $record->id])),
                 EditAction::make(),
                 Action::make('archive')
                     ->label('Archivar')
