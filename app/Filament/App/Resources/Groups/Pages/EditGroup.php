@@ -27,7 +27,7 @@ class EditGroup extends EditRecord
                 ->label('Horario')
                 ->icon('heroicon-o-calendar-days')
                 ->color('primary')
-                ->url(fn (): string => GroupResource::getUrl('schedule', ['record' => $this->getRecord()])),
+                ->url(fn (): string => GroupResource::getUrl('schedule', ['record' => $this->getRecord()->getKey()])),
             Action::make('preferredFormat')
                 ->label('Formato de planeación')
                 ->icon('heroicon-o-document-text')
