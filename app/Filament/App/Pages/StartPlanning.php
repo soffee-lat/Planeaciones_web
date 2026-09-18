@@ -144,8 +144,6 @@ class StartPlanning extends Page
             return [];
         }
 
-        app(EnsureDefaultGroupSubjects::class)->execute($group);
-
         return $group->subjects()
             ->where('is_active', true)
             ->orderByRaw("CASE WHEN origin = 'official' THEN 0 ELSE 1 END")
