@@ -1044,6 +1044,463 @@
                 }
             }
 
+
+            /* Drawer de edición de bloque */
+            .schedule-editor-shell {
+                position: fixed;
+                inset: 0;
+                z-index: 60;
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .schedule-editor-backdrop {
+                position: absolute;
+                inset: 0;
+                border: 0;
+                background: rgb(2 6 23 / .64);
+                backdrop-filter: blur(3px);
+                cursor: default;
+            }
+
+            .schedule-editor-panel {
+                position: relative;
+                z-index: 1;
+                display: flex;
+                width: min(520px, 100vw);
+                height: 100%;
+                flex-direction: column;
+                border-left: 1px solid #e2e8f0;
+                background: #ffffff;
+                color: #0f172a;
+                box-shadow: -18px 0 48px rgb(15 23 42 / .18);
+            }
+
+            .schedule-editor-header {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 20px 22px 17px;
+                border-bottom: 1px solid #e2e8f0;
+                background:
+                    radial-gradient(circle at 90% 10%, rgb(59 130 246 / .10), transparent 32%),
+                    #ffffff;
+            }
+
+            .schedule-editor-kicker {
+                color: #2563eb;
+                font-size: .68rem;
+                font-weight: 900;
+                letter-spacing: .075em;
+                text-transform: uppercase;
+            }
+
+            .schedule-editor-title {
+                margin-top: 4px;
+                color: #0f172a;
+                font-size: 1.15rem;
+                line-height: 1.25;
+                font-weight: 850;
+                letter-spacing: -.02em;
+            }
+
+            .schedule-editor-close {
+                display: grid;
+                width: 34px;
+                height: 34px;
+                flex: 0 0 auto;
+                place-items: center;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                background: #f8fafc;
+                color: #64748b;
+                font-size: 1rem;
+                cursor: pointer;
+            }
+
+            .schedule-editor-body {
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px 22px 28px;
+            }
+
+            .schedule-editor-section + .schedule-editor-section {
+                margin-top: 22px;
+                padding-top: 20px;
+                border-top: 1px solid #eef2f7;
+            }
+
+            .schedule-editor-label {
+                display: block;
+                margin-bottom: 7px;
+                color: #334155;
+                font-size: .78rem;
+                font-weight: 850;
+            }
+
+            .schedule-editor-help {
+                margin-top: 5px;
+                color: #64748b;
+                font-size: .71rem;
+                line-height: 1.45;
+            }
+
+            .schedule-editor-input,
+            .schedule-editor-select,
+            .schedule-editor-textarea {
+                width: 100%;
+                border: 1px solid #dbe2ea;
+                border-radius: 12px;
+                background: #f8fafc;
+                color: #0f172a;
+                outline: 0;
+                transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+            }
+
+            .schedule-editor-input {
+                min-height: 43px;
+                padding: 10px 12px;
+                font-size: .9rem;
+                font-weight: 700;
+            }
+
+            .schedule-editor-input-name {
+                min-height: 48px;
+                font-size: 1rem;
+                font-weight: 800;
+            }
+
+            .schedule-editor-select {
+                min-height: 42px;
+                padding: 9px 11px;
+                font-size: .82rem;
+                font-weight: 700;
+            }
+
+            .schedule-editor-textarea {
+                min-height: 76px;
+                padding: 10px 12px;
+                resize: vertical;
+                font-size: .82rem;
+                line-height: 1.45;
+            }
+
+            .schedule-editor-input:focus,
+            .schedule-editor-select:focus,
+            .schedule-editor-textarea:focus {
+                border-color: #60a5fa;
+                background: #ffffff;
+                box-shadow: 0 0 0 3px rgb(59 130 246 / .10);
+            }
+
+            .schedule-editor-chip-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 7px;
+                margin-top: 10px;
+            }
+
+            .schedule-editor-chip {
+                padding: 7px 10px;
+                border: 1px solid #dbe2ea;
+                border-radius: 999px;
+                background: #ffffff;
+                color: #475569;
+                font-size: .7rem;
+                font-weight: 800;
+                cursor: pointer;
+                transition: border-color .15s ease, color .15s ease, background .15s ease;
+            }
+
+            .schedule-editor-chip:hover {
+                border-color: #93c5fd;
+                background: #eff6ff;
+                color: #1d4ed8;
+            }
+
+            .schedule-editor-time-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .schedule-editor-segmented {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            .schedule-editor-segment {
+                min-height: 40px;
+                padding: 8px 9px;
+                border: 1px solid #dbe2ea;
+                border-radius: 11px;
+                background: #ffffff;
+                color: #64748b;
+                font-size: .72rem;
+                font-weight: 850;
+                cursor: pointer;
+            }
+
+            .schedule-editor-segment-active {
+                border-color: #3b82f6;
+                background: #eff6ff;
+                color: #1d4ed8;
+                box-shadow: 0 0 0 2px rgb(59 130 246 / .08);
+            }
+
+            .schedule-editor-toggle-card {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 13px 14px;
+                border: 1px solid #e2e8f0;
+                border-radius: 13px;
+                background: #f8fafc;
+            }
+
+            .schedule-editor-toggle-title {
+                color: #334155;
+                font-size: .78rem;
+                font-weight: 850;
+            }
+
+            .schedule-editor-toggle-copy {
+                margin-top: 2px;
+                color: #64748b;
+                font-size: .68rem;
+                line-height: 1.4;
+            }
+
+            .schedule-editor-field-list {
+                display: grid;
+                gap: 7px;
+                margin-top: 10px;
+            }
+
+            .schedule-editor-field {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                padding: 9px 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                background: #ffffff;
+                color: #475569;
+                font-size: .74rem;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            .schedule-editor-more {
+                border: 0;
+                background: transparent;
+                color: #2563eb;
+                font-size: .74rem;
+                font-weight: 850;
+                cursor: pointer;
+            }
+
+            .schedule-editor-advanced {
+                margin-top: 11px;
+                padding: 13px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #f8fafc;
+            }
+
+            .schedule-editor-copy-days {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 7px;
+                margin-top: 9px;
+            }
+
+            .schedule-editor-day-button {
+                min-width: 42px;
+                padding: 7px 9px;
+                border: 1px solid #dbe2ea;
+                border-radius: 9px;
+                background: #fff;
+                color: #475569;
+                font-size: .68rem;
+                font-weight: 850;
+                cursor: pointer;
+            }
+
+            .schedule-editor-day-button:disabled {
+                opacity: .32;
+                cursor: not-allowed;
+            }
+
+            .schedule-editor-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 14px 18px;
+                border-top: 1px solid #e2e8f0;
+                background: #ffffff;
+                box-shadow: 0 -10px 24px rgb(15 23 42 / .04);
+            }
+
+            .schedule-editor-danger,
+            .schedule-editor-done {
+                min-height: 40px;
+                padding: 9px 14px;
+                border-radius: 10px;
+                font-size: .78rem;
+                font-weight: 850;
+                cursor: pointer;
+            }
+
+            .schedule-editor-danger {
+                border: 1px solid #fecaca;
+                background: #fff1f2;
+                color: #be123c;
+            }
+
+            .schedule-editor-done {
+                min-width: 110px;
+                border: 1px solid #2563eb;
+                background: linear-gradient(135deg, #2563eb, #3b82f6);
+                color: #fff;
+                box-shadow: 0 7px 18px rgb(37 99 235 / .20);
+            }
+
+            html.dark .schedule-editor-panel,
+            .dark .schedule-editor-panel {
+                border-left-color: rgb(255 255 255 / .09);
+                background: #0f172a;
+                color: #f8fafc;
+                box-shadow: -20px 0 52px rgb(0 0 0 / .38);
+            }
+
+            html.dark .schedule-editor-header,
+            .dark .schedule-editor-header {
+                border-bottom-color: rgb(255 255 255 / .08);
+                background:
+                    radial-gradient(circle at 90% 10%, rgb(59 130 246 / .14), transparent 32%),
+                    #111827;
+            }
+
+            html.dark .schedule-editor-title,
+            .dark .schedule-editor-title,
+            html.dark .schedule-editor-label,
+            .dark .schedule-editor-label,
+            html.dark .schedule-editor-toggle-title,
+            .dark .schedule-editor-toggle-title {
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-editor-help,
+            .dark .schedule-editor-help,
+            html.dark .schedule-editor-toggle-copy,
+            .dark .schedule-editor-toggle-copy {
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-editor-close,
+            .dark .schedule-editor-close {
+                border-color: rgb(255 255 255 / .10);
+                background: #0b1220;
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-editor-section + .schedule-editor-section,
+            .dark .schedule-editor-section + .schedule-editor-section {
+                border-top-color: rgb(255 255 255 / .07);
+            }
+
+            html.dark .schedule-editor-input,
+            .dark .schedule-editor-input,
+            html.dark .schedule-editor-select,
+            .dark .schedule-editor-select,
+            html.dark .schedule-editor-textarea,
+            .dark .schedule-editor-textarea {
+                border-color: rgb(255 255 255 / .10);
+                background: #0b1220;
+                color: #f8fafc;
+                color-scheme: dark;
+            }
+
+            html.dark .schedule-editor-input:focus,
+            .dark .schedule-editor-input:focus,
+            html.dark .schedule-editor-select:focus,
+            .dark .schedule-editor-select:focus,
+            html.dark .schedule-editor-textarea:focus,
+            .dark .schedule-editor-textarea:focus {
+                border-color: #3b82f6;
+                background: #111827;
+            }
+
+            html.dark .schedule-editor-chip,
+            .dark .schedule-editor-chip,
+            html.dark .schedule-editor-segment,
+            .dark .schedule-editor-segment,
+            html.dark .schedule-editor-field,
+            .dark .schedule-editor-field,
+            html.dark .schedule-editor-day-button,
+            .dark .schedule-editor-day-button {
+                border-color: rgb(255 255 255 / .10);
+                background: #111827;
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-editor-chip:hover,
+            .dark .schedule-editor-chip:hover {
+                border-color: rgb(96 165 250 / .35);
+                background: rgb(59 130 246 / .10);
+                color: #bfdbfe;
+            }
+
+            html.dark .schedule-editor-segment-active,
+            .dark .schedule-editor-segment-active {
+                border-color: #3b82f6;
+                background: rgb(59 130 246 / .12);
+                color: #bfdbfe;
+            }
+
+            html.dark .schedule-editor-toggle-card,
+            .dark .schedule-editor-toggle-card,
+            html.dark .schedule-editor-advanced,
+            .dark .schedule-editor-advanced {
+                border-color: rgb(255 255 255 / .08);
+                background: #111827;
+            }
+
+            html.dark .schedule-editor-footer,
+            .dark .schedule-editor-footer {
+                border-top-color: rgb(255 255 255 / .08);
+                background: #111827;
+                box-shadow: 0 -12px 26px rgb(0 0 0 / .16);
+            }
+
+            html.dark .schedule-editor-danger,
+            .dark .schedule-editor-danger {
+                border-color: rgb(251 113 133 / .22);
+                background: rgb(225 29 72 / .10);
+                color: #fda4af;
+            }
+
+            @media (max-width: 620px) {
+                .schedule-editor-panel {
+                    width: 100vw;
+                }
+
+                .schedule-editor-header,
+                .schedule-editor-body {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                }
+
+                .schedule-editor-segmented {
+                    grid-template-columns: 1fr;
+                }
+            }
+
         </style>
 
         <div x-show="setupOpen" x-cloak class="schedule-onboarding-wrap">
@@ -1316,147 +1773,168 @@
             </div>
         </template>
 
-        <div
-            x-show="editing"
-            x-cloak
-            class="fixed inset-0 z-50"
-            aria-modal="true"
-            role="dialog"
-        >
-            <button type="button" class="absolute inset-0 bg-gray-950/50 backdrop-blur-[1px]" x-on:click="closeEditor()"></button>
+        <div x-show="editing" x-cloak class="schedule-editor-shell" aria-modal="true" role="dialog">
+            <button type="button" class="schedule-editor-backdrop" x-on:click="closeEditor()" aria-label="Cerrar editor"></button>
 
-            <aside class="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col bg-white shadow-2xl dark:bg-gray-900">
-                <div class="flex items-start justify-between border-b border-gray-200 px-5 py-4 dark:border-white/10">
+            <aside class="schedule-editor-panel">
+                <header class="schedule-editor-header">
                     <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400">
+                        <div class="schedule-editor-kicker">
                             <span x-text="dayName(editing?.day_of_week)"></span>
                             · <span x-text="editing?.starts_at"></span>–<span x-text="editing?.ends_at"></span>
                         </div>
-                        <h3 class="mt-1 text-xl font-semibold text-gray-950 dark:text-white">¿Qué ocurre en este horario?</h3>
+                        <h3 class="schedule-editor-title">Editar bloque del horario</h3>
                     </div>
-                    <button type="button" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/10 dark:hover:text-white" x-on:click="closeEditor()">✕</button>
-                </div>
+                    <button type="button" class="schedule-editor-close" x-on:click="closeEditor()" aria-label="Cerrar">✕</button>
+                </header>
 
-                <div class="flex-1 space-y-6 overflow-y-auto p-5">
-                    <div>
-                        <label class="mb-2 block text-sm font-semibold text-gray-800 dark:text-gray-200">Nombre que usa tu escuela</label>
+                <div class="schedule-editor-body">
+                    <section class="schedule-editor-section">
+                        <label class="schedule-editor-label">¿Qué ocurre en este horario?</label>
                         <input
                             x-model="editing.label"
                             x-on:input="dirty = true"
                             type="text"
                             maxlength="120"
                             placeholder="Ej. Matemáticas, English, Robótica..."
-                            class="block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-lg font-semibold text-gray-950 shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-white/15 dark:bg-gray-950 dark:text-white"
+                            class="schedule-editor-input schedule-editor-input-name"
                         />
 
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            <template x-for="field in fieldOptions" :key="field.code">
-                                <button
-                                    type="button"
-                                    class="rounded-full bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100 dark:bg-primary-500/10 dark:text-primary-300"
-                                    x-on:click="useField(field)"
-                                    x-text="field.name"
-                                ></button>
+                        <p class="schedule-editor-help">Puedes usar el nombre que maneja tu escuela. No tiene que coincidir con la nomenclatura oficial.</p>
+
+                        <div class="schedule-editor-chip-row">
+                            <template x-for="field in fieldOptions" :key="'quick-' + field.code">
+                                <button type="button" class="schedule-editor-chip" x-on:click="useField(field)" x-text="field.name"></button>
                             </template>
-                            <button type="button" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-300" x-on:click="usePreset('English')">English</button>
-                            <button type="button" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-300" x-on:click="usePreset('Educación Física')">Educación Física</button>
-                            <button type="button" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-300" x-on:click="usePreset('Computación')">Computación</button>
-                            <button type="button" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-300" x-on:click="usePreset('Recreo')">Recreo</button>
-                            <button type="button" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-300" x-on:click="usePreset('Flexible')">Flexible</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('English')">English</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Educación Física')">Educación Física</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Computación')">Computación</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Recreo')">Recreo</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Flexible')">Flexible</button>
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <label>
-                            <span class="mb-1.5 block text-sm font-semibold text-gray-800 dark:text-gray-200">Empieza</span>
-                            <input x-model="editing.starts_at" x-on:change="dirty = true" type="time" class="block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white" />
-                        </label>
-                        <label>
-                            <span class="mb-1.5 block text-sm font-semibold text-gray-800 dark:text-gray-200">Termina</span>
-                            <input x-model="editing.ends_at" x-on:change="dirty = true" type="time" class="block w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white" />
-                        </label>
-                    </div>
-
-                    <div>
-                        <div class="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-200">¿Quién la imparte?</div>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button type="button" x-on:click="setResponsibility('main_teacher')" class="rounded-xl border px-3 py-2.5 text-sm font-semibold" :class="editing.responsibility === 'main_teacher' ? selectedButtonClass() : normalButtonClass()">Yo</button>
-                            <button type="button" x-on:click="setResponsibility('specialist')" class="rounded-xl border px-3 py-2.5 text-sm font-semibold" :class="editing.responsibility === 'specialist' ? selectedButtonClass() : normalButtonClass()">Otro profesor</button>
-                            <button type="button" x-on:click="setResponsibility('shared')" class="rounded-xl border px-3 py-2.5 text-sm font-semibold" :class="editing.responsibility === 'shared' ? selectedButtonClass() : normalButtonClass()">Compartida</button>
+                    <section class="schedule-editor-section">
+                        <label class="schedule-editor-label">Horario</label>
+                        <div class="schedule-editor-time-grid">
+                            <label>
+                                <span class="schedule-mini-label">Empieza</span>
+                                <input x-model="editing.starts_at" x-on:change="dirty = true" type="time" class="schedule-editor-input" />
+                            </label>
+                            <label>
+                                <span class="schedule-mini-label">Termina</span>
+                                <input x-model="editing.ends_at" x-on:change="dirty = true" type="time" class="schedule-editor-input" />
+                            </label>
                         </div>
-                    </div>
+                    </section>
 
-                    <label class="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-gray-200 p-4 dark:border-white/10">
-                        <span>
-                            <span class="block text-sm font-semibold text-gray-900 dark:text-white">Incluir en mis planeaciones</span>
-                            <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">Si lo desactivas, este bloque seguirá ocupando tiempo pero la IA no generará una actividad para él.</span>
-                        </span>
-                        <input x-model="editing.include_in_planning" x-on:change="dirty = true" type="checkbox" class="mt-1 rounded border-gray-300" />
-                    </label>
+                    <section class="schedule-editor-section">
+                        <label class="schedule-editor-label">¿Quién la imparte?</label>
+                        <div class="schedule-editor-segmented">
+                            <button
+                                type="button"
+                                class="schedule-editor-segment"
+                                :class="editing?.responsibility === 'main_teacher' ? 'schedule-editor-segment-active' : ''"
+                                x-on:click="setResponsibility('main_teacher')"
+                            >Yo</button>
+                            <button
+                                type="button"
+                                class="schedule-editor-segment"
+                                :class="editing?.responsibility === 'specialist' ? 'schedule-editor-segment-active' : ''"
+                                x-on:click="setResponsibility('specialist')"
+                            >Otro profesor</button>
+                            <button
+                                type="button"
+                                class="schedule-editor-segment"
+                                :class="editing?.responsibility === 'shared' ? 'schedule-editor-segment-active' : ''"
+                                x-on:click="setResponsibility('shared')"
+                            >Compartida</button>
+                        </div>
+                    </section>
 
-                    <div x-show="fieldOptions.length > 0">
-                        <div class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Relación curricular <span class="font-normal text-gray-400">(opcional)</span></div>
-                        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">Úsala sólo si quieres reservar este bloque para uno o más campos. Puedes dejarla vacía.</p>
-                        <div class="space-y-2">
-                            <template x-for="field in fieldOptions" :key="field.code">
-                                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-white/10">
-                                    <input type="checkbox" :checked="hasField(field.code)" x-on:change="toggleField(field.code)" class="rounded border-gray-300" />
-                                    <span class="text-sm text-gray-800 dark:text-gray-200" x-text="field.name"></span>
+                    <section class="schedule-editor-section">
+                        <label class="schedule-editor-toggle-card">
+                            <span>
+                                <span class="schedule-editor-toggle-title">Incluir en mis planeaciones</span>
+                                <span class="schedule-editor-toggle-copy">Si lo desactivas, conserva el espacio en tu jornada pero la IA no genera una actividad.</span>
+                            </span>
+                            <span class="schedule-switch">
+                                <input x-model="editing.include_in_planning" x-on:change="dirty = true" type="checkbox" />
+                                <span class="schedule-switch-track"></span>
+                            </span>
+                        </label>
+                    </section>
+
+                    <section x-show="fieldOptions.length > 0" class="schedule-editor-section">
+                        <label class="schedule-editor-label">Relación curricular <span style="font-weight:600;color:#94a3b8">(opcional)</span></label>
+                        <p class="schedule-editor-help">Sólo selecciónala si quieres reservar este bloque para uno o más campos formativos.</p>
+
+                        <div class="schedule-editor-field-list">
+                            <template x-for="field in fieldOptions" :key="'field-' + field.code">
+                                <label class="schedule-editor-field">
+                                    <input type="checkbox" :checked="hasField(field.code)" x-on:change="toggleField(field.code)" />
+                                    <span x-text="field.name"></span>
                                 </label>
                             </template>
                         </div>
-                    </div>
+                    </section>
 
-                    <div>
-                        <button type="button" class="text-sm font-semibold text-primary-600 hover:underline dark:text-primary-400" x-on:click="showAdvanced = !showAdvanced">
-                            <span x-text="showAdvanced ? 'Ocultar opciones' : 'Más opciones'"></span>
+                    <section class="schedule-editor-section">
+                        <button type="button" class="schedule-editor-more" x-on:click="showAdvanced = !showAdvanced">
+                            <span x-text="showAdvanced ? '− Ocultar opciones' : '+ Más opciones'"></span>
                         </button>
-                        <div x-show="showAdvanced" x-cloak class="mt-3 space-y-3 rounded-xl bg-gray-50 p-4 dark:bg-white/5">
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs font-semibold text-gray-600 dark:text-gray-400">Tipo de bloque</span>
-                                <select x-model="editing.block_type" x-on:change="dirty = true" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white">
-                                    <option value="class">Clase / espacio académico</option>
-                                    <option value="flexible">Flexible</option>
-                                    <option value="specialist">Clase con especialista</option>
-                                    <option value="activity">Actividad / taller</option>
-                                    <option value="break">Recreo / descanso</option>
-                                    <option value="unavailable">No disponible</option>
-                                </select>
+
+                        <div x-show="showAdvanced" x-cloak class="schedule-editor-advanced">
+                            <label class="schedule-editor-label">Tipo de bloque</label>
+                            <select x-model="editing.block_type" x-on:change="dirty = true" class="schedule-editor-select">
+                                <option value="class">Clase / espacio académico</option>
+                                <option value="flexible">Flexible</option>
+                                <option value="specialist">Clase con especialista</option>
+                                <option value="activity">Actividad / taller</option>
+                                <option value="break">Recreo / descanso</option>
+                                <option value="unavailable">No disponible</option>
+                            </select>
+
+                            <label class="schedule-editor-toggle-card" style="margin-top:10px">
+                                <span>
+                                    <span class="schedule-editor-toggle-title">Contenido flexible</span>
+                                    <span class="schedule-editor-toggle-copy">Permite que la IA decida qué contenido colocar aquí.</span>
+                                </span>
+                                <span class="schedule-switch">
+                                    <input x-model="editing.is_flexible" x-on:change="dirty = true" type="checkbox" />
+                                    <span class="schedule-switch-track"></span>
+                                </span>
                             </label>
-                            <label class="flex items-center gap-3">
-                                <input x-model="editing.is_flexible" x-on:change="dirty = true" type="checkbox" class="rounded border-gray-300" />
-                                <span class="text-sm text-gray-700 dark:text-gray-300">La IA puede decidir qué contenido colocar aquí</span>
-                            </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs font-semibold text-gray-600 dark:text-gray-400">Nota opcional</span>
-                                <textarea x-model="editing.notes" x-on:input="dirty = true" rows="2" class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-950 dark:border-white/15 dark:bg-gray-950 dark:text-white" placeholder="Ej. La imparte la maestra de computación"></textarea>
+
+                            <label style="display:block;margin-top:10px">
+                                <span class="schedule-editor-label">Nota opcional</span>
+                                <textarea x-model="editing.notes" x-on:input="dirty = true" rows="2" class="schedule-editor-textarea" placeholder="Ej. La imparte la maestra de computación"></textarea>
                             </label>
                         </div>
-                    </div>
+                    </section>
 
-                    <div>
-                        <div class="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-200">Copiar este bloque a otro día</div>
-                        <div class="flex flex-wrap gap-2">
-                            <template x-for="day in days" :key="day.value">
+                    <section class="schedule-editor-section">
+                        <label class="schedule-editor-label">Copiar a otro día</label>
+                        <div class="schedule-editor-copy-days">
+                            <template x-for="day in days" :key="'copy-' + day.value">
                                 <button
                                     type="button"
-                                    class="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:border-primary-300 hover:text-primary-700 disabled:opacity-30 dark:border-white/10 dark:text-gray-300"
-                                    :disabled="Number(editing.day_of_week) === Number(day.value)"
+                                    class="schedule-editor-day-button"
+                                    :disabled="Number(editing?.day_of_week) === Number(day.value)"
                                     x-on:click="copyEditingTo(day.value)"
                                     x-text="day.short"
                                 ></button>
                             </template>
                         </div>
-                    </div>
+                    </section>
                 </div>
 
-                <div class="flex items-center justify-between gap-3 border-t border-gray-200 p-4 dark:border-white/10">
-                    <x-filament::button color="danger" type="button" x-on:click="removeEditing()">Eliminar</x-filament::button>
-                    <x-filament::button type="button" x-on:click="closeEditor()">Listo</x-filament::button>
-                </div>
+                <footer class="schedule-editor-footer">
+                    <button type="button" class="schedule-editor-danger" x-on:click="removeEditing()">Eliminar</button>
+                    <button type="button" class="schedule-editor-done" x-on:click="closeEditor()">Listo</button>
+                </footer>
             </aside>
         </div>
-    </div>
 
     <script>
         function scheduleEditor(config) {
