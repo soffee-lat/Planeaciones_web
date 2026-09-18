@@ -4,10 +4,12 @@ namespace App\Actions\Schedules;
 
 use App\Models\Group;
 use App\Models\GroupSchedule;
+use App\Models\GroupSubject;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 final class SaveGroupSchedule
@@ -28,6 +30,11 @@ final class SaveGroupSchedule
             'blocks.*.starts_at' => ['required', 'date_format:H:i'],
             'blocks.*.ends_at' => ['required', 'date_format:H:i'],
             'blocks.*.label' => ['required', 'string', 'max:120'],
+            'blocks.*.group_subject_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('group_subjects', 'id')->where('group_id', $group->id),
+            ],
             'blocks.*.block_type' => ['required', 'in:class,flexible,break,specialist,activity,unavailable'],
             'blocks.*.responsibility' => ['required', 'in:main_teacher,specialist,shared,external,unassigned'],
             'blocks.*.include_in_planning' => ['required', 'boolean'],
@@ -37,7 +44,19 @@ final class SaveGroupSchedule
             'blocks.*.notes' => ['nullable', 'string', 'max:1000'],
         ])->validate();
 
-        foreach ($data['blocks'] ?? [] as $index => $block) {
+        $subjectIds = collect($data['blocks'] ?? [])
+            ->pluck('group_subject_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $subjects = GroupSubject::query()
+            ->where('group_id', $group->id)
+            ->whereIn('id', $subjectIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($data['blocks'] ?? [] as $index => &$block) {
             if ($block['ends_at'] <= $block['starts_at']) {
                 throw ValidationException::withMessages([
                     "blocks.$index.ends_at" => 'La hora final debe ser posterior a la inicial.',
@@ -48,7 +67,32 @@ final class SaveGroupSchedule
                     "blocks.$index.starts_at" => 'El bloque debe quedar dentro de la jornada.',
                 ]);
             }
+
+            $subject = ! empty($block['group_subject_id'])
+                ? $subjects->get((int) $block['group_subject_id'])
+                : null;
+
+            if ($block['block_type'] === 'break' || $block['block_type'] === 'unavailable') {
+                $block['group_subject_id'] = null;
+                $block['subject_name_snapshot'] = null;
+                $block['subject_color_snapshot'] = null;
+                continue;
+            }
+
+            if ($subject) {
+                $block['label'] = $subject->name;
+                $block['subject_name_snapshot'] = $subject->name;
+                $block['subject_color_snapshot'] = strtoupper($subject->color);
+
+                if ($subject->curriculum_field_code && empty($block['field_codes'])) {
+                    $block['field_codes'] = [$subject->curriculum_field_code];
+                }
+            } else {
+                $block['subject_name_snapshot'] = null;
+                $block['subject_color_snapshot'] = null;
+            }
         }
+        unset($block);
 
         $byDay = collect($data['blocks'] ?? [])->groupBy('day_of_week');
         foreach ($byDay as $day => $blocks) {
