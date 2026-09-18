@@ -6,6 +6,7 @@ use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
 use App\Enums\ProductEventType;
+use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
@@ -55,6 +56,13 @@ class EditPlanningRequest extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('editStructure')
+                ->label('Editar periodo y temas')
+                ->icon('heroicon-o-calendar-days')
+                ->color('gray')
+                ->visible(fn () => ($this->getRecord()?->isDraft() ?? false)
+                    && $this->getRecord()->planningWeeks()->exists())
+                ->url(fn (): string => StartPlanning::getUrl() . '?draft=' . $this->getRecord()->id),
             Action::make('confirm')
                 ->databaseTransaction(false)
                 ->label('Confirmar planeación')
