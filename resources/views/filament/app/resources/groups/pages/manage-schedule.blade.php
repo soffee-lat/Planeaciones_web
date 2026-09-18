@@ -7,6 +7,7 @@
             defaultDuration: @js($defaultBlockMinutes),
             fieldOptions: @js($fieldOptions),
             subjects: @js($subjectCatalog),
+            printMeta: @js($printMeta),
             initialBlocks: @js($blocks)
         })"
         class="space-y-5"
@@ -1796,6 +1797,313 @@
                 border-color: rgb(255 255 255 / .12);
             }
 
+
+            .schedule-view-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: rgb(16 185 129 / .10);
+                color: #34d399;
+                font-size: .7rem;
+                font-weight: 850;
+            }
+
+            .schedule-day-column-readonly {
+                cursor: default;
+            }
+
+            .schedule-day-column-readonly:hover {
+                background-color: inherit;
+            }
+
+            .schedule-print-dialog-shell {
+                position: fixed;
+                inset: 0;
+                z-index: 70;
+                display: grid;
+                place-items: center;
+                padding: 20px;
+            }
+
+            .schedule-print-dialog {
+                position: relative;
+                z-index: 1;
+                width: min(440px, 100%);
+                overflow: hidden;
+                border: 1px solid #e2e8f0;
+                border-radius: 18px;
+                background: #fff;
+                color: #0f172a;
+                box-shadow: 0 24px 70px rgb(2 6 23 / .28);
+            }
+
+            .schedule-print-dialog-head {
+                padding: 20px 22px 14px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .schedule-print-dialog-title {
+                font-size: 1.05rem;
+                font-weight: 850;
+            }
+
+            .schedule-print-dialog-copy {
+                margin-top: 4px;
+                color: #64748b;
+                font-size: .76rem;
+                line-height: 1.45;
+            }
+
+            .schedule-print-options {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                padding: 18px 22px;
+            }
+
+            .schedule-print-option {
+                padding: 14px;
+                border: 1px solid #dbe2ea;
+                border-radius: 13px;
+                background: #f8fafc;
+                color: #475569;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            .schedule-print-option-active {
+                border-color: #3b82f6;
+                background: #eff6ff;
+                color: #1d4ed8;
+                box-shadow: 0 0 0 2px rgb(59 130 246 / .08);
+            }
+
+            .schedule-print-option strong {
+                display: block;
+                font-size: .82rem;
+            }
+
+            .schedule-print-option span {
+                display: block;
+                margin-top: 3px;
+                font-size: .68rem;
+                line-height: 1.35;
+                opacity: .78;
+            }
+
+            .schedule-print-dialog-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 9px;
+                padding: 0 22px 20px;
+            }
+
+            html.dark .schedule-print-dialog,
+            .dark .schedule-print-dialog {
+                border-color: rgb(255 255 255 / .10);
+                background: #0f172a;
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-print-dialog-head,
+            .dark .schedule-print-dialog-head {
+                border-color: rgb(255 255 255 / .08);
+            }
+
+            html.dark .schedule-print-dialog-copy,
+            .dark .schedule-print-dialog-copy {
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-print-option,
+            .dark .schedule-print-option {
+                border-color: rgb(255 255 255 / .10);
+                background: #111827;
+                color: #cbd5e1;
+            }
+
+            html.dark .schedule-print-option-active,
+            .dark .schedule-print-option-active {
+                border-color: #3b82f6;
+                background: rgb(59 130 246 / .12);
+                color: #bfdbfe;
+            }
+
+            .schedule-print-sheet {
+                display: none;
+            }
+
+            @media print {
+                @page {
+                    size: A4 landscape;
+                    margin: 9mm;
+                }
+
+                body * {
+                    visibility: hidden !important;
+                }
+
+                .schedule-print-sheet,
+                .schedule-print-sheet * {
+                    visibility: visible !important;
+                }
+
+                .schedule-print-sheet {
+                    display: block !important;
+                    position: fixed;
+                    inset: 0;
+                    width: 100%;
+                    background: #fff !important;
+                    color: #000 !important;
+                    font-family: Arial, sans-serif;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
+                .schedule-print-header {
+                    display: flex;
+                    align-items: flex-end;
+                    justify-content: space-between;
+                    gap: 20px;
+                    margin-bottom: 10px;
+                    padding-bottom: 8px;
+                    border-bottom: 2px solid #111;
+                }
+
+                .schedule-print-title {
+                    margin: 0;
+                    font-size: 18pt;
+                    font-weight: 800;
+                }
+
+                .schedule-print-meta {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0,1fr));
+                    gap: 3px 24px;
+                    margin-top: 5px;
+                    font-size: 8.5pt;
+                }
+
+                .schedule-print-meta strong {
+                    font-weight: 800;
+                }
+
+                .schedule-print-jornada {
+                    font-size: 9pt;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }
+
+                .schedule-print-board {
+                    overflow: hidden;
+                    border: 1px solid #111;
+                }
+
+                .schedule-print-head,
+                .schedule-print-body {
+                    display: grid;
+                    grid-template-columns: 58px repeat(5, minmax(0,1fr));
+                }
+
+                .schedule-print-head > div {
+                    padding: 5px 4px;
+                    border-right: 1px solid #111;
+                    border-bottom: 1px solid #111;
+                    font-size: 8pt;
+                    font-weight: 800;
+                    text-align: center;
+                    background: #f3f4f6;
+                }
+
+                .schedule-print-time-column {
+                    position: relative;
+                    border-right: 1px solid #111;
+                    background: #fff;
+                }
+
+                .schedule-print-time-label {
+                    position: absolute;
+                    right: 5px;
+                    transform: translateY(-50%);
+                    font-size: 6.8pt;
+                    font-weight: 700;
+                }
+
+                .schedule-print-day-column {
+                    position: relative;
+                    border-right: 1px solid #111;
+                    background-image:
+                        repeating-linear-gradient(
+                            to bottom,
+                            transparent 0,
+                            transparent calc(var(--half-hour) - 1px),
+                            #cbd5e1 calc(var(--half-hour) - 1px),
+                            #cbd5e1 var(--half-hour)
+                        );
+                }
+
+                .schedule-print-day-column:last-child {
+                    border-right: 0;
+                }
+
+                .schedule-print-block {
+                    position: absolute;
+                    left: 3px;
+                    right: 3px;
+                    overflow: hidden;
+                    padding: 4px 5px;
+                    border: 1px solid rgb(var(--subject-rgb, 100 116 139) / .75);
+                    border-radius: 5px;
+                    background: rgb(var(--subject-rgb, 100 116 139) / .20);
+                    color: #111;
+                    font-size: 6.7pt;
+                    line-height: 1.15;
+                }
+
+                .schedule-print-block-title {
+                    font-weight: 800;
+                }
+
+                .schedule-print-block-time,
+                .schedule-print-block-badge {
+                    margin-top: 1px;
+                    font-size: 6pt;
+                    font-weight: 600;
+                }
+
+                .schedule-print-block-badge {
+                    font-weight: 800;
+                }
+
+                .schedule-print-bw .schedule-print-head > div,
+                .schedule-print-bw .schedule-print-time-column,
+                .schedule-print-bw .schedule-print-day-column,
+                .schedule-print-bw .schedule-print-block {
+                    background: #fff !important;
+                    background-image: none !important;
+                    color: #000 !important;
+                    border-color: #000 !important;
+                    box-shadow: none !important;
+                }
+
+                .schedule-print-bw .schedule-print-day-column {
+                    background-image:
+                        repeating-linear-gradient(
+                            to bottom,
+                            transparent 0,
+                            transparent calc(var(--half-hour) - 1px),
+                            #999 calc(var(--half-hour) - 1px),
+                            #999 var(--half-hour)
+                        ) !important;
+                }
+
+                .schedule-print-bw .schedule-print-block {
+                    border-radius: 0;
+                }
+            }
+
         </style>
 
         <div x-show="setupOpen" x-cloak class="schedule-onboarding-wrap">
@@ -1924,27 +2232,39 @@
                     </div>
 
                     <div class="schedule-toolbar-actions">
-                        <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showSubjectCatalog = true">
-                            <span class="schedule-subject-dot" style="--subject-rgb:59 130 246"></span>
-                            Materias
-                        </button>
-                        <button type="button" class="schedule-button schedule-button-secondary" x-on:click="setupOpen = true">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 8v4l2.5 1.5M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Ajustar jornada
-                        </button>
-                        <button type="button" class="schedule-button schedule-button-primary" x-on:click="save($wire)">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M5 4h12l2 2v14H5V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                                <path d="M8 4v5h7V4M8 20v-6h8v6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                            </svg>
-                            Guardar horario
-                        </button>
+                        <template x-if="!editMode && hasSavedSchedule">
+                            <div style="display:flex;gap:10px;align-items:center">
+                                <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showPrintDialog = true">
+                                    <span aria-hidden="true">🖨</span>
+                                    Imprimir
+                                </button>
+                                <button type="button" class="schedule-button schedule-button-primary" x-on:click="beginEdit()">
+                                    <span aria-hidden="true">✎</span>
+                                    Editar horario
+                                </button>
+                            </div>
+                        </template>
+
+                        <template x-if="editMode">
+                            <div style="display:flex;gap:10px;align-items:center">
+                                <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showSubjectCatalog = true">
+                                    <span class="schedule-subject-dot" style="--subject-rgb:59 130 246"></span>
+                                    Materias
+                                </button>
+                                <button type="button" class="schedule-button schedule-button-secondary" x-on:click="setupOpen = true">
+                                    <span aria-hidden="true">◷</span>
+                                    Ajustar jornada
+                                </button>
+                                <button type="button" class="schedule-button schedule-button-primary" x-on:click="save($wire)">
+                                    <span aria-hidden="true">💾</span>
+                                    <span x-text="hasSavedSchedule ? 'Guardar cambios' : 'Guardar horario'"></span>
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </section>
 
-                <div class="schedule-tip">
+                <div x-show="editMode" x-cloak class="schedule-tip">
                     <span class="schedule-tip-icon">＋</span>
                     <div>
                         <strong>Toca cualquier espacio para agregar una clase.</strong>
@@ -1960,7 +2280,7 @@
                                 <template x-for="day in days" :key="'head-' + day.value">
                                     <div class="schedule-day-head">
                                         <div class="schedule-day-name" x-text="day.label"></div>
-                                        <button type="button" class="schedule-day-add" x-on:click="addBlock(day.value)">
+                                        <button x-show="editMode" x-cloak type="button" class="schedule-day-add" x-on:click="addBlock(day.value)">
                                             <span>＋</span> Agregar
                                         </button>
                                     </div>
@@ -1981,8 +2301,9 @@
                                 <template x-for="day in days" :key="'column-' + day.value">
                                     <div
                                         class="schedule-day-column"
+                                        :class="!editMode ? 'schedule-day-column-readonly' : ''"
                                         :style="'--half-hour:' + halfHourPixels() + 'px'"
-                                        x-on:click="addBlockAt(day.value, $event)"
+                                        x-on:click="editMode && addBlockAt(day.value, $event)"
                                     >
                                         <div x-show="blocksFor(day.value).length === 0" class="schedule-empty-hint">
                                             <span class="schedule-empty-plus">＋</span>
@@ -1992,7 +2313,7 @@
                                         <template x-for="block in blocksFor(day.value)" :key="block._key">
                                             <button
                                                 type="button"
-                                                x-on:click.stop="editBlock(block)"
+                                                x-on:click.stop="editMode && editBlock(block)"
                                                 class="schedule-block"
                                                 :class="blockClasses(block)"
                                                 :style="blockStyle(block)"
@@ -2038,8 +2359,9 @@
                             </div>
                             <div
                                 class="schedule-day-column"
+                                :class="!editMode ? 'schedule-day-column-readonly' : ''"
                                 :style="'--half-hour:' + halfHourPixels() + 'px'"
-                                x-on:click="addBlockAt(activeDay, $event)"
+                                x-on:click="editMode && addBlockAt(activeDay, $event)"
                             >
                                 <div x-show="blocksFor(activeDay).length === 0" class="schedule-empty-hint">
                                     <span class="schedule-empty-plus">＋</span>
@@ -2049,7 +2371,7 @@
                                 <template x-for="block in blocksFor(activeDay)" :key="'mobile-' + block._key">
                                     <button
                                         type="button"
-                                        x-on:click.stop="editBlock(block)"
+                                        x-on:click.stop="editMode && editBlock(block)"
                                         class="schedule-block"
                                         :class="blockClasses(block)"
                                         :style="blockStyle(block)"
@@ -2264,6 +2586,76 @@
             </aside>
         </div>
 
+        <div x-show="showPrintDialog" x-cloak class="schedule-print-dialog-shell" aria-modal="true" role="dialog">
+            <button type="button" class="schedule-editor-backdrop" x-on:click="showPrintDialog = false" aria-label="Cerrar impresión"></button>
+            <section class="schedule-print-dialog">
+                <div class="schedule-print-dialog-head">
+                    <div class="schedule-print-dialog-title">Imprimir horario</div>
+                    <div class="schedule-print-dialog-copy">Elige cómo quieres imprimirlo. La versión en blanco y negro elimina todos los colores y deja únicamente la tabla.</div>
+                </div>
+                <div class="schedule-print-options">
+                    <button type="button" class="schedule-print-option" :class="printMode === 'color' ? 'schedule-print-option-active' : ''" x-on:click="printMode = 'color'">
+                        <strong>● A color</strong>
+                        <span>Conserva los colores de cada materia y los distintivos.</span>
+                    </button>
+                    <button type="button" class="schedule-print-option" :class="printMode === 'bw' ? 'schedule-print-option-active' : ''" x-on:click="printMode = 'bw'">
+                        <strong>Blanco y negro</strong>
+                        <span>Sin rellenos ni colores; sólo estructura, textos y tabla.</span>
+                    </button>
+                </div>
+                <div class="schedule-print-dialog-actions">
+                    <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showPrintDialog = false">Cancelar</button>
+                    <button type="button" class="schedule-button schedule-button-primary" x-on:click="printSchedule()">Imprimir</button>
+                </div>
+            </section>
+        </div>
+
+        <section
+            class="schedule-print-sheet"
+            :class="printMode === 'bw' ? 'schedule-print-bw' : 'schedule-print-color'"
+        >
+            <header class="schedule-print-header">
+                <div>
+                    <h1 class="schedule-print-title">Horario semanal</h1>
+                    <div class="schedule-print-meta">
+                        <div><strong>Escuela:</strong> <span x-text="printMeta.school || '—'"></span></div>
+                        <div><strong>Maestro(a):</strong> <span x-text="printMeta.teacher || '—'"></span></div>
+                        <div><strong>Grado:</strong> <span x-text="printMeta.grade || '—'"></span></div>
+                        <div><strong>Grupo:</strong> <span x-text="printMeta.group || '—'"></span></div>
+                        <div><strong>Ciclo escolar:</strong> <span x-text="printMeta.school_year || '—'"></span></div>
+                    </div>
+                </div>
+                <div class="schedule-print-jornada">Jornada: <span x-text="dayStart"></span>–<span x-text="dayEnd"></span></div>
+            </header>
+
+            <div class="schedule-print-board">
+                <div class="schedule-print-head">
+                    <div>Hora</div>
+                    <template x-for="day in days" :key="'print-head-' + day.value">
+                        <div x-text="day.label"></div>
+                    </template>
+                </div>
+                <div class="schedule-print-body" :style="'height:' + printGridHeight() + 'px'">
+                    <div class="schedule-print-time-column">
+                        <template x-for="mark in printTimeMarks()" :key="'print-time-' + mark.minutes">
+                            <span class="schedule-print-time-label" :style="'top:' + mark.top + 'px'" x-text="mark.label"></span>
+                        </template>
+                    </div>
+                    <template x-for="day in days" :key="'print-day-' + day.value">
+                        <div class="schedule-print-day-column" :style="'--half-hour:' + printHalfHourPixels() + 'px'">
+                            <template x-for="block in blocksFor(day.value)" :key="'print-block-' + block._key">
+                                <div class="schedule-print-block" :style="printBlockStyle(block)">
+                                    <div class="schedule-print-block-title" x-text="block.subject_name_snapshot || block.label"></div>
+                                    <div x-show="blockBadge(block)" class="schedule-print-block-badge" x-text="blockBadge(block)"></div>
+                                    <div class="schedule-print-block-time"><span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span></div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </section>
+
         <div x-show="showSubjectCatalog" x-cloak class="schedule-catalog-shell" aria-modal="true" role="dialog">
             <button type="button" class="schedule-editor-backdrop" x-on:click="showSubjectCatalog = false" aria-label="Cerrar catálogo"></button>
 
@@ -2324,12 +2716,15 @@
                 ],
                 fieldOptions: config.fieldOptions || [],
                 subjects: config.subjects || [],
+                printMeta: config.printMeta || {},
                 activeDay: 1,
                 dayStart: config.dayStart || '08:00',
                 dayEnd: config.dayEnd || '12:30',
                 defaultDuration: Number(config.defaultDuration || 50),
                 blocks: (config.initialBlocks || []).map((b, i) => ({ ...b, _key: 'saved-' + i + '-' + Date.now() })),
                 started: Boolean(config.hasSchedule),
+                hasSavedSchedule: Boolean(config.hasSchedule),
+                editMode: !config.hasSchedule,
                 firstSetup: !config.hasSchedule,
                 setupOpen: !config.hasSchedule,
                 setupError: '',
@@ -2340,11 +2735,55 @@
                 showAdvanced: false,
                 showSubjectCatalog: false,
                 showSubjectCreator: false,
+                showPrintDialog: false,
+                printMode: 'color',
                 subjectCatalogNotice: '',
                 subjectForm: { name: '', color: '#0EA5E9' },
                 editorNotice: '',
                 dirty: false,
                 pxPerMinute: 1.45,
+
+                beginEdit() {
+                    this.editMode = true;
+                },
+
+                printSchedule() {
+                    this.showPrintDialog = false;
+                    setTimeout(() => window.print(), 50);
+                },
+
+                printGridHeight() {
+                    return Math.max(360, (this.toMinutes(this.dayEnd) - this.toMinutes(this.dayStart)) * 1.18);
+                },
+
+                printHalfHourPixels() {
+                    return 30 * 1.18;
+                },
+
+                printTimeMarks() {
+                    const start = this.toMinutes(this.dayStart);
+                    const end = this.toMinutes(this.dayEnd);
+                    const marks = [];
+                    for (let m = start; m <= end; m += 30) {
+                        marks.push({
+                            minutes: m,
+                            label: this.fromMinutes(m),
+                            top: (m - start) * 1.18,
+                        });
+                    }
+                    return marks;
+                },
+
+                printBlockStyle(block) {
+                    const start = this.toMinutes(this.dayStart);
+                    const top = Math.max(0, (this.toMinutes(block.starts_at) - start) * 1.18);
+                    const height = Math.max(22, this.duration(block.starts_at, block.ends_at) * 1.18);
+                    const subject = this.findSubject(block.group_subject_id);
+                    const color = block.subject_color_snapshot || subject?.color || '#64748B';
+                    const rgb = this.hexToRgb(color) || { r: 100, g: 116, b: 139 };
+
+                    return 'top:' + top + 'px;height:' + height + 'px;--subject-rgb:' + rgb.r + ' ' + rgb.g + ' ' + rgb.b;
+                },
 
                 applySetup() {
                     this.setupError = '';
@@ -2374,6 +2813,7 @@
                     }
 
                     this.started = true;
+                    this.editMode = true;
                     this.firstSetup = false;
                     this.setupOpen = false;
                     this.dirty = true;
@@ -2906,6 +3346,8 @@
                     wire.set('blocks', clean).then(() => wire.saveSchedule()).then(() => {
                         this.dirty = false;
                         this.firstSetup = false;
+                        this.hasSavedSchedule = true;
+                        this.editMode = false;
                     });
                 },
             };
