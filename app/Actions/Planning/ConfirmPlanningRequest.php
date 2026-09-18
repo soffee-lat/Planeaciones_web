@@ -8,6 +8,7 @@ use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
 use App\Models\User;
+use App\Services\Planning\PlanningCalendarBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use RuntimeException;
@@ -31,9 +32,13 @@ use RuntimeException;
  *  - PLANNING_REQUEST_NO_PDA_SELECTED
  *  - PLANNING_REQUEST_CONTENT_WITHOUT_PDA:<code>
  *  - PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT
+ *  - PLANNING_REQUEST_GROUP_SCHEDULE_MISSING
+ *  - PLANNING_REQUEST_GROUP_SCHEDULE_NO_CAPACITY
  */
 class ConfirmPlanningRequest
 {
+    public function __construct(private PlanningCalendarBuilder $calendarBuilder) {}
+
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
     {
         Gate::forUser($actor)->authorize('confirm', $request);
@@ -90,10 +95,18 @@ class ConfirmPlanningRequest
             throw new RuntimeException('PLANNING_REQUEST_MISSING_TOPIC');
         }
 
-        $group = $r->group()->with('profile')->firstOrFail();
+        $group = $r->group()->with(['profile', 'schedule.blocks'])->firstOrFail();
         $profile = $group->profile;
         if (! $profile || ! $profile->isSufficient()) {
             throw new RuntimeException('PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT');
+        }
+        $schedule = $group->schedule;
+        if (! $schedule || ! $schedule->isUsable()) {
+            throw new RuntimeException('PLANNING_REQUEST_GROUP_SCHEDULE_MISSING');
+        }
+        $calendar = $this->calendarBuilder->build($schedule, $r->starts_on, $r->ends_on);
+        if (! collect($calendar['days'] ?? [])->contains(fn (array $day) => (bool) ($day['requires_planning'] ?? false))) {
+            throw new RuntimeException('PLANNING_REQUEST_GROUP_SCHEDULE_NO_CAPACITY');
         }
 
         $contents = $r->contents()->get(['curricular_contents.id', 'code']);
@@ -117,8 +130,14 @@ class ConfirmPlanningRequest
      */
     private function buildSnapshot(PlanningRequest $r): array
     {
-        $group = $r->group()->with(['school', 'profile'])->firstOrFail();
+        $group = $r->group()->with(['school', 'profile', 'schedule.blocks'])->firstOrFail();
         $profile = $group->profile;
+        $schedule = $group->schedule;
+        if (! $schedule) {
+            throw new RuntimeException('PLANNING_REQUEST_GROUP_SCHEDULE_MISSING');
+        }
+        $scheduleSnapshot = $this->calendarBuilder->scheduleSnapshot($schedule);
+        $planningCalendar = $this->calendarBuilder->build($schedule, $r->starts_on, $r->ends_on);
 
         $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
         $grade = $r->grade()->with('educationalPhase')->firstOrFail();
@@ -183,7 +202,9 @@ class ConfirmPlanningRequest
                     'municipality' => $group->school->municipality,
                 ] : null,
                 'profile' => $profileFields,
+                'schedule' => $scheduleSnapshot,
             ],
+            'planning_calendar' => $planningCalendar,
             'curriculum' => [
                 'curriculum' => [
                     'id' => $version->curriculum?->id,
