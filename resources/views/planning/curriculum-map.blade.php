@@ -14,6 +14,9 @@
 <header class="top">
     <div><h1>Mapa curricular</h1><small>{{ $request->group?->name ?? 'Grupo' }} · {{ $request->project }}</small></div>
     <div class="top-actions">
+        @if($request->planningWeeks->isNotEmpty())
+            <a class="btn outline" href="{{ \App\Filament\App\Pages\StartPlanning::getUrl() }}?draft={{ $request->id }}">Editar periodo y temas</a>
+        @endif
         <a class="btn outline" href="{{ \App\Filament\App\Pages\StartPlanning::getUrl() }}">Nueva planeación</a>
         <a class="btn secondary" href="{{ \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl() }}">Mis planeaciones</a>
     </div>
