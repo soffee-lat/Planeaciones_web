@@ -6,6 +6,7 @@
             dayEnd: @js($dayEndsAt),
             defaultDuration: @js($defaultBlockMinutes),
             fieldOptions: @js($fieldOptions),
+            subjects: @js($subjectCatalog),
             initialBlocks: @js($blocks)
         })"
         class="space-y-5"
@@ -1542,6 +1543,259 @@
                 }
             }
 
+
+            /* Catálogo de materias y color por bloque */
+            .schedule-subject-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                padding: 7px 10px;
+                border: 1px solid rgb(var(--subject-rgb) / .36);
+                border-radius: 999px;
+                background: rgb(var(--subject-rgb) / .10);
+                color: inherit;
+                font-size: .7rem;
+                font-weight: 850;
+                cursor: pointer;
+                transition: background .15s ease, border-color .15s ease, transform .15s ease;
+            }
+
+            .schedule-subject-chip:hover {
+                transform: translateY(-1px);
+                background: rgb(var(--subject-rgb) / .16);
+                border-color: rgb(var(--subject-rgb) / .60);
+            }
+
+            .schedule-subject-chip-selected {
+                background: rgb(var(--subject-rgb) / .24);
+                border-color: rgb(var(--subject-rgb) / .78);
+                box-shadow: 0 0 0 2px rgb(var(--subject-rgb) / .12);
+            }
+
+            .schedule-subject-dot {
+                width: 9px;
+                height: 9px;
+                flex: 0 0 auto;
+                border-radius: 999px;
+                background: rgb(var(--subject-rgb));
+                box-shadow: 0 0 0 3px rgb(var(--subject-rgb) / .12);
+            }
+
+            .schedule-subject-origin {
+                margin-left: 3px;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: rgb(148 163 184 / .12);
+                color: #94a3b8;
+                font-size: .56rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: .04em;
+            }
+
+            .schedule-block-colored {
+                background: linear-gradient(
+                    135deg,
+                    rgb(var(--subject-rgb) / .22),
+                    rgb(var(--subject-rgb) / .11)
+                );
+                border-color: rgb(var(--subject-rgb) / .55);
+                color: #172033;
+            }
+
+            .schedule-block-specialist {
+                box-shadow:
+                    inset 4px 0 0 #f59e0b,
+                    0 4px 12px rgb(15 23 42 / .08);
+            }
+
+            .schedule-block-flexible-mark {
+                box-shadow:
+                    inset 0 -3px 0 #a78bfa,
+                    0 4px 12px rgb(15 23 42 / .08);
+            }
+
+            .schedule-block-unplanned {
+                opacity: .70;
+                border-style: dashed;
+            }
+
+            .schedule-block-special-badge {
+                display: inline-flex;
+                align-items: center;
+                width: fit-content;
+                margin-top: 4px;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: rgb(255 255 255 / .72);
+                color: inherit;
+                font-size: .56rem;
+                font-weight: 900;
+                letter-spacing: .02em;
+            }
+
+            html.dark .schedule-block-colored,
+            .dark .schedule-block-colored {
+                background: linear-gradient(
+                    135deg,
+                    rgb(var(--subject-rgb) / .30),
+                    rgb(var(--subject-rgb) / .15)
+                );
+                border-color: rgb(var(--subject-rgb) / .64);
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-block-special-badge,
+            .dark .schedule-block-special-badge {
+                background: rgb(2 6 23 / .48);
+                color: #f8fafc;
+            }
+
+            .schedule-catalog-shell {
+                position: fixed;
+                inset: 0;
+                z-index: 65;
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .schedule-catalog-panel {
+                position: relative;
+                z-index: 1;
+                display: flex;
+                width: min(460px, 100vw);
+                height: 100%;
+                flex-direction: column;
+                border-left: 1px solid #e2e8f0;
+                background: #fff;
+                color: #0f172a;
+                box-shadow: -20px 0 52px rgb(15 23 42 / .18);
+            }
+
+            .schedule-catalog-header {
+                padding: 20px 22px 17px;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .schedule-catalog-title {
+                color: #0f172a;
+                font-size: 1.1rem;
+                font-weight: 850;
+            }
+
+            .schedule-catalog-copy {
+                margin-top: 4px;
+                color: #64748b;
+                font-size: .73rem;
+                line-height: 1.45;
+            }
+
+            .schedule-catalog-body {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px 20px 24px;
+            }
+
+            .schedule-catalog-list {
+                display: grid;
+                gap: 9px;
+            }
+
+            .schedule-catalog-row {
+                display: grid;
+                grid-template-columns: 18px minmax(0,1fr) auto;
+                align-items: center;
+                gap: 10px;
+                padding: 11px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #f8fafc;
+            }
+
+            .schedule-catalog-swatch {
+                width: 14px;
+                height: 14px;
+                border-radius: 5px;
+                background: var(--subject-color);
+                box-shadow: 0 0 0 3px color-mix(in srgb, var(--subject-color) 18%, transparent);
+            }
+
+            .schedule-catalog-name {
+                color: #334155;
+                font-size: .78rem;
+                font-weight: 850;
+            }
+
+            .schedule-catalog-meta {
+                margin-top: 2px;
+                color: #94a3b8;
+                font-size: .62rem;
+                font-weight: 700;
+            }
+
+            .schedule-catalog-color {
+                width: 38px;
+                height: 30px;
+                padding: 2px;
+                border: 1px solid #dbe2ea;
+                border-radius: 8px;
+                background: transparent;
+                cursor: pointer;
+            }
+
+            .schedule-catalog-create {
+                padding: 16px 20px 20px;
+                border-top: 1px solid #e2e8f0;
+                background: #fff;
+            }
+
+            .schedule-catalog-create-grid {
+                display: grid;
+                grid-template-columns: minmax(0,1fr) 54px;
+                gap: 9px;
+            }
+
+            html.dark .schedule-catalog-panel,
+            .dark .schedule-catalog-panel,
+            html.dark .schedule-catalog-create,
+            .dark .schedule-catalog-create {
+                border-color: rgb(255 255 255 / .09);
+                background: #0f172a;
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-catalog-header,
+            .dark .schedule-catalog-header,
+            html.dark .schedule-catalog-create,
+            .dark .schedule-catalog-create {
+                border-color: rgb(255 255 255 / .08);
+            }
+
+            html.dark .schedule-catalog-title,
+            .dark .schedule-catalog-title,
+            html.dark .schedule-catalog-name,
+            .dark .schedule-catalog-name {
+                color: #f8fafc;
+            }
+
+            html.dark .schedule-catalog-copy,
+            .dark .schedule-catalog-copy,
+            html.dark .schedule-catalog-meta,
+            .dark .schedule-catalog-meta {
+                color: #94a3b8;
+            }
+
+            html.dark .schedule-catalog-row,
+            .dark .schedule-catalog-row {
+                border-color: rgb(255 255 255 / .08);
+                background: #111827;
+            }
+
+            html.dark .schedule-catalog-color,
+            .dark .schedule-catalog-color {
+                border-color: rgb(255 255 255 / .12);
+            }
+
         </style>
 
         <div x-show="setupOpen" x-cloak class="schedule-onboarding-wrap">
@@ -1670,6 +1924,10 @@
                     </div>
 
                     <div class="schedule-toolbar-actions">
+                        <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showSubjectCatalog = true">
+                            <span class="schedule-subject-dot" style="--subject-rgb:59 130 246"></span>
+                            Materias
+                        </button>
                         <button type="button" class="schedule-button schedule-button-secondary" x-on:click="setupOpen = true">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <path d="M12 8v4l2.5 1.5M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1739,10 +1997,10 @@
                                                 :class="blockClasses(block)"
                                                 :style="blockStyle(block)"
                                             >
-                                                <div class="schedule-block-title" x-text="block.label"></div>
+                                                <div class="schedule-block-title" x-text="block.subject_name_snapshot || block.label"></div>
+                                                <div x-show="blockBadge(block)" class="schedule-block-special-badge" x-text="blockBadge(block)"></div>
                                                 <div class="schedule-block-time">
                                                     <span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span>
-                                                    <span x-show="block.responsibility === 'specialist'"> · Otro docente</span>
                                                 </div>
                                             </button>
                                         </template>
@@ -1796,7 +2054,8 @@
                                         :class="blockClasses(block)"
                                         :style="blockStyle(block)"
                                     >
-                                        <div class="schedule-block-title" x-text="block.label"></div>
+                                        <div class="schedule-block-title" x-text="block.subject_name_snapshot || block.label"></div>
+                                        <div x-show="blockBadge(block)" class="schedule-block-special-badge" x-text="blockBadge(block)"></div>
                                         <div class="schedule-block-time"><span x-text="block.starts_at"></span>–<span x-text="block.ends_at"></span></div>
                                     </button>
                                 </template>
@@ -1831,27 +2090,42 @@
 
                 <div class="schedule-editor-body">
                     <section class="schedule-editor-section">
-                        <label class="schedule-editor-label">¿Qué ocurre en este horario?</label>
-                        <input
-                            x-model="editing.label"
-                            x-on:input="dirty = true"
-                            type="text"
-                            maxlength="120"
-                            placeholder="Ej. Matemáticas, English, Robótica..."
-                            class="schedule-editor-input schedule-editor-input-name"
-                        />
-
-                        <p class="schedule-editor-help">Puedes usar el nombre que maneja tu escuela. No tiene que coincidir con la nomenclatura oficial.</p>
+                        <label class="schedule-editor-label">Materia</label>
+                        <p class="schedule-editor-help">Las materias oficiales vienen del currículo del grupo. También puedes crear materias propias para tu escuela.</p>
 
                         <div class="schedule-editor-chip-row">
-                            <template x-for="field in fieldOptions" :key="'quick-' + field.code">
-                                <button type="button" class="schedule-editor-chip" x-on:click="useField(field)" x-text="field.name"></button>
+                            <template x-for="subject in subjects" :key="'subject-' + subject.id">
+                                <button
+                                    type="button"
+                                    class="schedule-subject-chip"
+                                    :class="Number(editing?.group_subject_id) === Number(subject.id) ? 'schedule-subject-chip-selected' : ''"
+                                    :style="subjectChipStyle(subject)"
+                                    x-on:click="applySubject(subject)"
+                                >
+                                    <span class="schedule-subject-dot"></span>
+                                    <span x-text="subject.name"></span>
+                                    <span x-show="subject.origin === 'official'" class="schedule-subject-origin">Oficial</span>
+                                </button>
                             </template>
-                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('English')">English</button>
-                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Educación Física')">Educación Física</button>
-                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Computación')">Computación</button>
-                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Recreo')">Recreo</button>
-                            <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Flexible')">Flexible</button>
+
+                            <button type="button" class="schedule-editor-chip" x-on:click="showSubjectCreator = !showSubjectCreator">＋ Nueva materia</button>
+                        </div>
+
+                        <div x-show="showSubjectCreator" x-cloak class="schedule-editor-advanced">
+                            <label class="schedule-editor-label">Nombre de la nueva materia</label>
+                            <input x-model="subjectForm.name" type="text" class="schedule-editor-input" placeholder="Ej. Robótica" />
+                            <div style="display:grid;grid-template-columns:1fr 54px;gap:9px;margin-top:9px">
+                                <button type="button" class="schedule-editor-done" x-on:click="createCatalogSubject($wire, true)">Agregar materia</button>
+                                <input x-model="subjectForm.color" type="color" class="schedule-catalog-color" style="width:54px;height:40px" />
+                            </div>
+                        </div>
+
+                        <div style="margin-top:14px">
+                            <label class="schedule-editor-label">Espacios especiales</label>
+                            <div class="schedule-editor-chip-row">
+                                <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Recreo')">Recreo</button>
+                                <button type="button" class="schedule-editor-chip" x-on:click="usePreset('Flexible')">Flexible</button>
+                            </div>
                         </div>
                     </section>
 
@@ -1990,6 +2264,54 @@
             </aside>
         </div>
 
+        <div x-show="showSubjectCatalog" x-cloak class="schedule-catalog-shell" aria-modal="true" role="dialog">
+            <button type="button" class="schedule-editor-backdrop" x-on:click="showSubjectCatalog = false" aria-label="Cerrar catálogo"></button>
+
+            <aside class="schedule-catalog-panel">
+                <header class="schedule-catalog-header">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
+                        <div>
+                            <div class="schedule-editor-kicker">Colores del horario</div>
+                            <div class="schedule-catalog-title">Catálogo de materias</div>
+                            <div class="schedule-catalog-copy">Las oficiales vienen del currículo del grupo. Puedes cambiar sus colores y agregar materias propias.</div>
+                        </div>
+                        <button type="button" class="schedule-editor-close" x-on:click="showSubjectCatalog = false">✕</button>
+                    </div>
+                </header>
+
+                <div class="schedule-catalog-body">
+                    <div class="schedule-catalog-list">
+                        <template x-for="subject in subjects" :key="'catalog-' + subject.id">
+                            <div class="schedule-catalog-row">
+                                <span class="schedule-catalog-swatch" :style="'--subject-color:' + subject.color"></span>
+                                <div>
+                                    <div class="schedule-catalog-name" x-text="subject.name"></div>
+                                    <div class="schedule-catalog-meta" x-text="subject.origin === 'official' ? 'Materia oficial del currículo' : 'Materia personalizada'"></div>
+                                </div>
+                                <input
+                                    type="color"
+                                    class="schedule-catalog-color"
+                                    :value="subject.color"
+                                    x-on:change="updateCatalogColor(subject, $event.target.value, $wire)"
+                                    :aria-label="'Color de ' + subject.name"
+                                />
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <footer class="schedule-catalog-create">
+                    <label class="schedule-editor-label">Agregar materia</label>
+                    <div class="schedule-catalog-create-grid">
+                        <input x-model="subjectForm.name" type="text" class="schedule-editor-input" placeholder="Ej. Robótica, Música, Religión..." />
+                        <input x-model="subjectForm.color" type="color" class="schedule-catalog-color" style="width:54px;height:43px" />
+                    </div>
+                    <button type="button" class="schedule-editor-done" style="width:100%;margin-top:10px" x-on:click="createCatalogSubject($wire, false)">Agregar al catálogo</button>
+                    <div x-show="subjectCatalogNotice" x-cloak class="schedule-editor-notice" x-text="subjectCatalogNotice"></div>
+                </footer>
+            </aside>
+        </div>
+
     <script>
         function scheduleEditor(config) {
             return {
@@ -2001,6 +2323,7 @@
                     { value: 5, label: 'Viernes', short: 'Vie' },
                 ],
                 fieldOptions: config.fieldOptions || [],
+                subjects: config.subjects || [],
                 activeDay: 1,
                 dayStart: config.dayStart || '08:00',
                 dayEnd: config.dayEnd || '12:30',
@@ -2015,6 +2338,10 @@
                 recessEnd: '10:30',
                 editing: null,
                 showAdvanced: false,
+                showSubjectCatalog: false,
+                showSubjectCreator: false,
+                subjectCatalogNotice: '',
+                subjectForm: { name: '', color: '#0EA5E9' },
                 editorNotice: '',
                 dirty: false,
                 pxPerMinute: 1.45,
@@ -2093,20 +2420,47 @@
                     const start = this.toMinutes(this.dayStart);
                     const top = Math.max(0, (this.toMinutes(block.starts_at) - start) * this.pxPerMinute);
                     const height = Math.max(28, this.duration(block.starts_at, block.ends_at) * this.pxPerMinute);
-                    return 'top:' + top + 'px;height:' + height + 'px';
+                    const subject = this.findSubject(block.group_subject_id);
+                    const color = block.subject_color_snapshot || subject?.color || null;
+                    const rgb = this.hexToRgb(color);
+
+                    return 'top:' + top + 'px;height:' + height + 'px'
+                        + (rgb ? ';--subject-rgb:' + rgb.r + ' ' + rgb.g + ' ' + rgb.b : '');
                 },
 
                 blockClasses(block) {
                     if (block.block_type === 'break') {
                         return 'schedule-block-break';
                     }
-                    if (!block.include_in_planning || block.responsibility === 'specialist' || block.responsibility === 'external') {
-                        return 'schedule-block-external';
-                    }
-                    if (block.is_flexible || block.block_type === 'flexible') {
-                        return 'schedule-block-flexible';
-                    }
-                    return 'schedule-block-class';
+
+                    const hasColor = Boolean(block.subject_color_snapshot || this.findSubject(block.group_subject_id)?.color);
+                    const classes = ['schedule-block-class'];
+                    if (hasColor) classes.push('schedule-block-colored');
+                    if (block.responsibility === 'specialist' || block.responsibility === 'external') classes.push('schedule-block-specialist');
+                    if (block.is_flexible || block.block_type === 'flexible') classes.push('schedule-block-flexible-mark');
+                    if (!block.include_in_planning) classes.push('schedule-block-unplanned');
+
+                    return classes.join(' ');
+                },
+
+                blockBadge(block) {
+                    if (block.block_type === 'break') return 'Recreo';
+                    if (block.responsibility === 'specialist' || block.responsibility === 'external') return 'Otro profesor';
+                    if (block.responsibility === 'shared') return 'Compartida';
+                    if (!block.include_in_planning) return 'Fuera de planeación';
+                    if (block.is_flexible || block.block_type === 'flexible') return 'Flexible';
+                    return '';
+                },
+
+                hexToRgb(hex) {
+                    const normalized = String(hex || '').replace('#', '').trim();
+                    if (!/^[0-9A-Fa-f]{6}$/.test(normalized)) return null;
+                    const value = parseInt(normalized, 16);
+                    return {
+                        r: (value >> 16) & 255,
+                        g: (value >> 8) & 255,
+                        b: value & 255,
+                    };
                 },
 
                 addBlock(day) {
@@ -2229,6 +2583,9 @@
                         starts_at: start,
                         ends_at: end,
                         label: 'Nueva clase',
+                        group_subject_id: null,
+                        subject_name_snapshot: null,
+                        subject_color_snapshot: null,
                         block_type: 'class',
                         responsibility: 'main_teacher',
                         include_in_planning: true,
@@ -2267,6 +2624,9 @@
                 usePreset(label) {
                     if (!this.editing) return;
                     this.editing.label = label;
+                    this.editing.group_subject_id = null;
+                    this.editing.subject_name_snapshot = null;
+                    this.editing.subject_color_snapshot = null;
                     this.editing.field_codes = [];
 
                     if (label === 'Recreo') {
@@ -2284,6 +2644,90 @@
                     }
 
                     this.dirty = true;
+                },
+
+                findSubject(subjectId) {
+                    return this.subjects.find(subject => Number(subject.id) === Number(subjectId)) || null;
+                },
+
+                applySubject(subject) {
+                    if (!this.editing || !subject) return;
+
+                    this.editing.group_subject_id = Number(subject.id);
+                    this.editing.subject_name_snapshot = subject.name;
+                    this.editing.subject_color_snapshot = subject.color;
+                    this.editing.label = subject.name;
+                    this.editing.block_type = 'class';
+                    this.editing.include_in_planning = true;
+
+                    if (subject.curriculum_field_code) {
+                        this.editing.field_codes = [subject.curriculum_field_code];
+                    } else {
+                        this.editing.field_codes = [];
+                    }
+
+                    this.dirty = true;
+                    this.editorNotice = '';
+                },
+
+                subjectChipStyle(subject) {
+                    const rgb = this.hexToRgb(subject?.color);
+                    return rgb ? '--subject-rgb:' + rgb.r + ' ' + rgb.g + ' ' + rgb.b : '--subject-rgb:59 130 246';
+                },
+
+                async createCatalogSubject(wire, applyToEditing = false) {
+                    this.subjectCatalogNotice = '';
+                    const name = String(this.subjectForm.name || '').trim();
+                    if (!name) {
+                        this.subjectCatalogNotice = 'Escribe un nombre para la materia.';
+                        return;
+                    }
+
+                    try {
+                        const subject = await wire.createSubject({
+                            name,
+                            color: this.subjectForm.color || '#0EA5E9',
+                        });
+
+                        this.subjects = this.subjects
+                            .filter(item => Number(item.id) !== Number(subject.id))
+                            .concat([subject])
+                            .sort((a, b) => {
+                                if (a.origin !== b.origin) return a.origin === 'official' ? -1 : 1;
+                                return a.name.localeCompare(b.name);
+                            });
+
+                        if (applyToEditing && this.editing) {
+                            this.applySubject(subject);
+                            this.showSubjectCreator = false;
+                        }
+
+                        this.subjectForm = { name: '', color: '#0EA5E9' };
+                        this.subjectCatalogNotice = 'Materia agregada al catálogo.';
+                    } catch (error) {
+                        this.subjectCatalogNotice = 'No se pudo agregar la materia. Revisa que el nombre no esté repetido.';
+                    }
+                },
+
+                async updateCatalogColor(subject, color, wire) {
+                    try {
+                        const updated = await wire.updateSubjectColor(Number(subject.id), color);
+                        const index = this.subjects.findIndex(item => Number(item.id) === Number(updated.id));
+                        if (index >= 0) this.subjects[index] = updated;
+
+                        this.blocks.forEach(block => {
+                            if (Number(block.group_subject_id) === Number(updated.id)) {
+                                block.subject_name_snapshot = updated.name;
+                                block.subject_color_snapshot = updated.color;
+                                block.label = updated.name;
+                            }
+                        });
+
+                        this.dirty = true;
+                        this.subjectCatalogNotice = 'Color actualizado. Guarda el horario para congelar el cambio.';
+                    } catch (error) {
+                        this.subjectCatalogNotice = 'No se pudo actualizar el color.';
+                    }
                 },
 
                 setResponsibility(value) {
