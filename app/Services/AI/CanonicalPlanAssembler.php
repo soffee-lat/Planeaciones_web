@@ -261,10 +261,18 @@ class CanonicalPlanAssembler
             $capacityByDate[$date] = [
                 'planeable_minutes' => max(0, (int) ($day['planeable_minutes'] ?? 0)),
                 'requires_planning' => (bool) ($day['requires_planning'] ?? false),
+                'blocks' => array_values(array_filter(
+                    is_array($day['blocks'] ?? null) ? $day['blocks'] : [],
+                    fn ($block) => is_array($block)
+                        && (bool) ($block['include_in_planning'] ?? false)
+                        && (int) ($block['duration_minutes'] ?? 0) > 0,
+                )),
             ];
         }
 
         $usedMinutes = [];
+        $sessionsByDate = [];
+
         foreach ($sessions as $index => $session) {
             $rawDate = $session['date'] ?? null;
             if (! is_string($rawDate) || trim($rawDate) === '') {
@@ -282,15 +290,68 @@ class CanonicalPlanAssembler
                 throw new AiContractException('GENERATED_SESSION_DATE_OUTSIDE_SCHEDULE', '$.sessions[' . $index . '].date', $key);
             }
 
-            $usedMinutes[$key] = ($usedMinutes[$key] ?? 0) + (int) ($session['estimated_minutes'] ?? 0);
+            $minutes = (int) ($session['estimated_minutes'] ?? 0);
+            $usedMinutes[$key] = ($usedMinutes[$key] ?? 0) + $minutes;
+            $sessionsByDate[$key][] = ['index' => $index, 'session' => $session];
+
             if ($usedMinutes[$key] > $capacity['planeable_minutes']) {
                 throw new AiContractException('GENERATED_DAILY_MINUTES_EXCEED_SCHEDULE', '$.sessions[' . $index . '].estimated_minutes', $key);
             }
         }
 
         foreach ($capacityByDate as $date => $capacity) {
-            if ($capacity['requires_planning'] && $capacity['planeable_minutes'] > 0 && ! array_key_exists($date, $usedMinutes)) {
+            if (! $capacity['requires_planning'] || $capacity['planeable_minutes'] < 1) {
+                continue;
+            }
+
+            if (! array_key_exists($date, $sessionsByDate)) {
                 throw new AiContractException('GENERATED_SCHEDULE_DATE_NOT_COVERED', '$.sessions', $date);
+            }
+
+            if (($usedMinutes[$date] ?? 0) < $capacity['planeable_minutes']) {
+                throw new AiContractException('GENERATED_DAILY_MINUTES_UNDER_SCHEDULE', '$.sessions', $date);
+            }
+
+            $segments = $capacity['blocks'];
+            $segmentIndex = 0;
+            $remaining = isset($segments[0]) ? (int) $segments[0]['duration_minutes'] : 0;
+
+            foreach ($sessionsByDate[$date] as $entry) {
+                $session = $entry['session'];
+                $index = (int) $entry['index'];
+                $minutes = (int) ($session['estimated_minutes'] ?? 0);
+
+                while ($segmentIndex < count($segments) && $remaining === 0) {
+                    $segmentIndex++;
+                    $remaining = isset($segments[$segmentIndex])
+                        ? (int) $segments[$segmentIndex]['duration_minutes']
+                        : 0;
+                }
+
+                if (! isset($segments[$segmentIndex]) || $minutes > $remaining) {
+                    throw new AiContractException('GENERATED_SESSION_CROSSES_SCHEDULE_BLOCK', '$.sessions[' . $index . '].estimated_minutes', $date);
+                }
+
+                $allowedFields = array_values(array_filter(array_map(
+                    'strval',
+                    is_array($segments[$segmentIndex]['field_codes'] ?? null)
+                        ? $segments[$segmentIndex]['field_codes']
+                        : [],
+                )));
+
+                if ($allowedFields !== []) {
+                    foreach (($session['field_codes'] ?? []) as $fieldCode) {
+                        if (! in_array((string) $fieldCode, $allowedFields, true)) {
+                            throw new AiContractException('GENERATED_SESSION_FIELD_OUTSIDE_SCHEDULE_BLOCK', '$.sessions[' . $index . '].field_codes', (string) $fieldCode);
+                        }
+                    }
+                }
+
+                $remaining -= $minutes;
+            }
+
+            if ($remaining !== 0 || $segmentIndex < count($segments) - 1) {
+                throw new AiContractException('GENERATED_SCHEDULE_BLOCK_NOT_FILLED', '$.sessions', $date);
             }
         }
     }
