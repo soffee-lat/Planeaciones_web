@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class CreateGroupSubject
 {
@@ -27,10 +28,19 @@ final class CreateGroupSubject
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ])->validate();
 
+        $name = trim($data['name']);
+        $slug = Str::slug($name);
+
+        if (GroupSubject::query()->where('group_id', $group->id)->where('slug', $slug)->exists()) {
+            throw ValidationException::withMessages([
+                'name' => 'Ya existe una materia con ese nombre en el grupo.',
+            ]);
+        }
+
         return GroupSubject::query()->create([
             'group_id' => $group->id,
-            'name' => trim($data['name']),
-            'slug' => Str::slug(trim($data['name'])),
+            'name' => $name,
+            'slug' => $slug,
             'color' => strtoupper($data['color']),
             'origin' => 'custom',
             'curriculum_field_code' => null,
