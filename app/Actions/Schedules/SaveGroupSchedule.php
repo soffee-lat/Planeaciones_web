@@ -23,7 +23,7 @@ final class SaveGroupSchedule
             'day_starts_at' => ['required', 'date_format:H:i'],
             'day_ends_at' => ['required', 'date_format:H:i', 'after:day_starts_at'],
             'blocks' => ['array', 'max:100'],
-            'blocks.*.day_of_week' => ['required', 'integer', 'between:1,5'],
+            'blocks.*.day_of_week' => ['required', 'integer', 'between:1,7'],
             'blocks.*.sequence' => ['required', 'integer', 'min:1', 'max:50'],
             'blocks.*.starts_at' => ['required', 'date_format:H:i'],
             'blocks.*.ends_at' => ['required', 'date_format:H:i'],
