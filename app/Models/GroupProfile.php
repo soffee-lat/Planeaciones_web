@@ -43,7 +43,6 @@ class GroupProfile extends Model
     public const REQUIRED_FOR_COMPLETENESS = [
         'student_count',
         'general_level',
-        'session_minutes',
         'characteristics',
     ];
 
