@@ -22,6 +22,7 @@ class StartPlanning extends Page
     protected static ?int $navigationSort = 25;
     protected string $view = 'filament.app.pages.start-planning';
 
+    public ?int $draft_id = null;
     public ?int $group_id = null;
     public string $period_type = 'week';
     public string $period_key = '';
@@ -31,6 +32,52 @@ class StartPlanning extends Page
 
     /** @var array<int,array<string,mixed>> */
     public array $weeks = [];
+
+    public function mount(): void
+    {
+        $draftId = request()->integer('draft');
+        if ($draftId < 1) {
+            return;
+        }
+
+        $draft = PlanningRequest::query()
+            ->where('owner_id', auth()->id())
+            ->where('status', PlanningRequestStatus::BORRADOR->value)
+            ->with('planningWeeks.topics')
+            ->findOrFail($draftId);
+
+        if (! in_array($draft->period_type, ['week', 'month'], true) || $draft->planningWeeks->isEmpty()) {
+            abort(409, 'Esta planeación no usa la estructura semanal editable.');
+        }
+
+        $this->draft_id = (int) $draft->id;
+        $this->group_id = (int) $draft->group_id;
+        $this->period_type = (string) $draft->period_type;
+        $this->period_key = (string) $draft->period_key;
+        $this->integrative_project = (string) ($draft->integrative_project ?? '');
+        $this->integrative_project_purpose = (string) ($draft->integrative_project_purpose ?? '');
+        $this->context_note = (string) ($draft->comments ?? '');
+
+        app(EnsureDefaultGroupSubjects::class)->execute($draft->group);
+
+        $this->weeks = $draft->planningWeeks->map(fn ($week) => [
+            'sequence' => (int) $week->sequence,
+            'starts_on' => $week->starts_on?->toDateString(),
+            'ends_on' => $week->ends_on?->toDateString(),
+            'label' => (string) $week->label,
+            'occupied' => false,
+            'topics' => $week->topics->map(fn ($topic) => [
+                'topic' => (string) $topic->topic,
+                'group_subject_id' => $topic->group_subject_id ? (int) $topic->group_subject_id : null,
+                'notes' => (string) ($topic->notes ?? ''),
+            ])->values()->all(),
+        ])->values()->all();
+    }
+
+    public function getTitle(): string
+    {
+        return $this->draft_id ? 'Editar periodo y temas' : 'Nueva planeación';
+    }
 
     public static function canAccess(): bool
     {
@@ -214,23 +261,44 @@ class StartPlanning extends Page
             $workFocus = (string) ($topicNames->first() ?? 'Planeación');
         }
 
+        $structure = [
+            'period_type' => $data['period_type'],
+            'period_key' => $data['period_key'],
+            'integrative_project' => $data['integrative_project'] ?? null,
+            'integrative_project_purpose' => $data['integrative_project_purpose'] ?? null,
+            'context_note' => $data['context_note'] ?? null,
+            'weeks' => $data['weeks'],
+        ];
+
         try {
-            $request = app(StartPlanningExperiment::class)->execute(
-                auth()->user(),
-                (int) $data['group_id'],
-                $period['starts_on'],
-                $period['ends_on'],
-                $workFocus,
-                $data['context_note'] ?? null,
-                [
-                    'period_type' => $data['period_type'],
-                    'period_key' => $data['period_key'],
-                    'integrative_project' => $data['integrative_project'] ?? null,
-                    'integrative_project_purpose' => $data['integrative_project_purpose'] ?? null,
-                    'context_note' => $data['context_note'] ?? null,
-                    'weeks' => $data['weeks'],
-                ],
-            );
+            if ($this->draft_id) {
+                $request = PlanningRequest::query()
+                    ->where('owner_id', auth()->id())
+                    ->where('status', PlanningRequestStatus::BORRADOR->value)
+                    ->findOrFail($this->draft_id);
+
+                if ((int) $request->group_id !== (int) $data['group_id']) {
+                    throw ValidationException::withMessages([
+                        'group_id' => 'No puedes cambiar el grupo de una planeación ya iniciada.',
+                    ]);
+                }
+
+                $request = app(\App\Actions\Planning\SyncPlanningPedagogicalStructure::class)->execute(
+                    auth()->user(),
+                    $request,
+                    $structure,
+                );
+            } else {
+                $request = app(StartPlanningExperiment::class)->execute(
+                    auth()->user(),
+                    (int) $data['group_id'],
+                    $period['starts_on'],
+                    $period['ends_on'],
+                    $workFocus,
+                    $data['context_note'] ?? null,
+                    $structure,
+                );
+            }
         } catch (\RuntimeException $e) {
             if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
                 throw ValidationException::withMessages([
@@ -295,6 +363,7 @@ class StartPlanning extends Page
             ->where('status', '!=', PlanningRequestStatus::CANCELADA->value)
             ->whereDate('starts_on', '<=', $to)
             ->whereDate('ends_on', '>=', $from)
+            ->when($this->draft_id, fn ($query) => $query->whereKeyNot($this->draft_id))
             ->get(['id', 'starts_on', 'ends_on', 'status', 'period_type']);
     }
 }
