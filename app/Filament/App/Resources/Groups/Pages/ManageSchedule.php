@@ -11,6 +11,7 @@ use App\Models\Group;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Collection;
+use Livewire\Attributes\Renderless;
 
 class ManageSchedule extends Page
 {
@@ -75,6 +76,7 @@ class ManageSchedule extends Page
     }
 
     /** @param array{name:mixed,color:mixed} $data */
+    #[Renderless]
     public function createSubject(array $data): array
     {
         $subject = app(CreateGroupSubject::class)->execute(
@@ -83,11 +85,10 @@ class ManageSchedule extends Page
             $data,
         );
 
-        $this->refreshSubjectCatalog();
-
         return $this->serializeSubject($subject);
     }
 
+    #[Renderless]
     public function updateSubjectColor(int $subjectId, string $color): array
     {
         $subject = $this->record->subjects()->findOrFail($subjectId);
@@ -98,8 +99,6 @@ class ManageSchedule extends Page
             $subject,
             $color,
         );
-
-        $this->refreshSubjectCatalog();
 
         return $this->serializeSubject($subject);
     }
