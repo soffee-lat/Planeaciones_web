@@ -24,6 +24,7 @@ final class StartPlanningExperiment
         string $endsOn,
         string $workFocus,
         ?string $contextNote = null,
+        ?array $pedagogicalStructure = null,
     ): PlanningRequest {
         $this->assertActor($actor);
 
@@ -62,7 +63,7 @@ final class StartPlanningExperiment
             throw new \RuntimeException('PLANNING_EXPERIMENT_CONTEXT_TOO_LONG');
         }
 
-        return DB::transaction(function () use ($actor, $group, $start, $end, $workFocus, $contextNote): PlanningRequest {
+        return DB::transaction(function () use ($actor, $group, $start, $end, $workFocus, $contextNote, $pedagogicalStructure): PlanningRequest {
             $request = PlanningRequest::query()->create([
                 'owner_id' => $actor->id,
                 'group_id' => $group->id,
@@ -76,6 +77,14 @@ final class StartPlanningExperiment
                 'status' => PlanningRequestStatus::BORRADOR->value,
             ]);
 
+            if ($pedagogicalStructure !== null) {
+                $request = app(SyncPlanningPedagogicalStructure::class)->execute(
+                    $actor,
+                    $request,
+                    $pedagogicalStructure,
+                );
+            }
+
             $this->events->record(
                 $actor,
                 ProductEventType::PlanningStarted,
@@ -84,10 +93,12 @@ final class StartPlanningExperiment
                     'entry_surface' => 'curricular_validation_v1',
                     'profile_reused' => true,
                     'session_minutes_known' => $group->profile?->session_minutes !== null,
+                    'period_type' => $request->period_type,
+                    'structured_topics' => $pedagogicalStructure !== null,
                 ],
             );
 
-            return $request->fresh(['group.profile', 'grade', 'curriculumVersion']) ?? $request;
+            return $request->fresh(['group.profile', 'grade', 'curriculumVersion', 'planningWeeks.topics.subject']) ?? $request;
         }, attempts: 3);
     }
 
