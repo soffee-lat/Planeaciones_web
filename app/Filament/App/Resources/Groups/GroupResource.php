@@ -13,9 +13,7 @@ use App\Models\Group;
 use App\Models\School;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -220,13 +218,10 @@ class GroupResource extends Resource
                     ->icon(Heroicon::OutlinedArrowUturnLeft)
                     ->visible(fn (Group $record) => $record->isArchived() && auth()->user()->can('archive', $record))
                     ->action(fn (Group $record) => $record->forceFill(['archived_at' => null])->save()),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->visible(fn (Group $record) => auth()->user()->can('delete', $record)),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->toolbarActions([]);
     }
 
     public static function getPages(): array
