@@ -10,7 +10,7 @@ class MyPlan extends Page
 {
     protected static ?string $title = 'Mi plan';
     protected static ?string $slug = 'mi-plan';
-    protected static ?int $navigationSort = 40;
+    protected static ?int $navigationSort = 60;
     protected string $view = 'filament.app.pages.my-plan';
 
     public static function canAccess(): bool
