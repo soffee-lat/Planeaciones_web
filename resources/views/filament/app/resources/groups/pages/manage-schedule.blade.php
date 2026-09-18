@@ -1318,6 +1318,33 @@
                 margin-top: 9px;
             }
 
+            .schedule-editor-notice {
+                margin-top: 10px;
+                padding: 9px 10px;
+                border: 1px solid #fed7aa;
+                border-radius: 10px;
+                background: #fff7ed;
+                color: #9a3412;
+                font-size: .7rem;
+                font-weight: 750;
+                line-height: 1.4;
+            }
+
+            .schedule-editor-day-button-conflict {
+                border-color: #e2e8f0;
+                background: #f8fafc;
+                color: #94a3b8;
+                opacity: .55;
+                cursor: not-allowed;
+            }
+
+            html.dark .schedule-editor-notice,
+            .dark .schedule-editor-notice {
+                border-color: rgb(251 146 60 / .25);
+                background: rgb(249 115 22 / .10);
+                color: #fdba74;
+            }
+
             .schedule-editor-day-button {
                 min-width: 42px;
                 padding: 7px 9px;
@@ -1920,12 +1947,16 @@
                                 <button
                                     type="button"
                                     class="schedule-editor-day-button"
-                                    :disabled="Number(editing?.day_of_week) === Number(day.value)"
+                                    :class="copyTargetBlocked(day.value) ? 'schedule-editor-day-button-conflict' : ''"
+                                    :disabled="Number(editing?.day_of_week) === Number(day.value) || copyTargetBlocked(day.value)"
                                     x-on:click="copyEditingTo(day.value)"
-                                    x-text="day.short"
-                                ></button>
+                                    :title="copyTargetBlocked(day.value) ? 'Ya hay un bloque ocupando este horario' : 'Copiar a ' + day.label"
+                                >
+                                    <span x-text="copyTargetBlocked(day.value) ? '✓ ' + day.short : day.short"></span>
+                                </button>
                             </template>
                         </div>
+                        <div x-show="editorNotice" x-cloak class="schedule-editor-notice" x-text="editorNotice"></div>
                     </section>
                 </div>
 
@@ -1961,6 +1992,7 @@
                 recessEnd: '10:30',
                 editing: null,
                 showAdvanced: false,
+                editorNotice: '',
                 dirty: false,
                 pxPerMinute: 1.45,
 
@@ -2072,10 +2104,40 @@
                 },
 
                 openNewBlock(day, start) {
-                    let end = this.addMinutes(start, this.defaultDuration);
-                    if (this.toMinutes(end) > this.toMinutes(this.dayEnd)) {
-                        end = this.dayEnd;
+                    const startMinutes = this.toMinutes(start);
+                    const dayEndMinutes = this.toMinutes(this.dayEnd);
+                    const existing = this.blocksFor(day);
+
+                    // Si el punto seleccionado ya está dentro de otro bloque,
+                    // abrimos ese bloque en vez de crear uno superpuesto.
+                    const occupied = existing.find(block => {
+                        const blockStart = this.toMinutes(block.starts_at);
+                        const blockEnd = this.toMinutes(block.ends_at);
+                        return startMinutes >= blockStart && startMinutes < blockEnd;
+                    });
+                    if (occupied) {
+                        this.editBlock(occupied);
+                        return;
                     }
+
+                    let desiredEnd = Math.min(startMinutes + this.defaultDuration, dayEndMinutes);
+                    const nextBlock = existing
+                        .filter(block => this.toMinutes(block.starts_at) > startMinutes)
+                        .sort((a, b) => this.toMinutes(a.starts_at) - this.toMinutes(b.starts_at))[0];
+
+                    if (nextBlock) {
+                        desiredEnd = Math.min(desiredEnd, this.toMinutes(nextBlock.starts_at));
+                    }
+
+                    if ((desiredEnd - startMinutes) < 15) {
+                        return;
+                    }
+
+                    const end = this.fromMinutes(desiredEnd);
+                    if (this.hasOverlap(day, start, end)) {
+                        return;
+                    }
+
                     const block = this.newBlock(day, start, end);
                     this.blocks.push(block);
                     this.editBlock(block);
@@ -2104,6 +2166,7 @@
                 editBlock(block) {
                     this.editing = block;
                     this.showAdvanced = false;
+                    this.editorNotice = '';
                 },
 
                 closeEditor() {
@@ -2112,6 +2175,7 @@
                     }
                     this.editing = null;
                     this.showAdvanced = false;
+                    this.editorNotice = '';
                     this.normalize();
                 },
 
@@ -2174,13 +2238,46 @@
                     this.dirty = true;
                 },
 
+                hasOverlap(day, start, end, ignoreKey = null) {
+                    const startMinutes = this.toMinutes(start);
+                    const endMinutes = this.toMinutes(end);
+
+                    return this.blocksFor(day).some(block => {
+                        if (ignoreKey && block._key === ignoreKey) return false;
+
+                        const blockStart = this.toMinutes(block.starts_at);
+                        const blockEnd = this.toMinutes(block.ends_at);
+
+                        return startMinutes < blockEnd && endMinutes > blockStart;
+                    });
+                },
+
+                copyTargetBlocked(day) {
+                    if (!this.editing || Number(day) === Number(this.editing.day_of_week)) {
+                        return false;
+                    }
+
+                    return this.hasOverlap(
+                        day,
+                        this.editing.starts_at,
+                        this.editing.ends_at,
+                    );
+                },
+
                 copyEditingTo(day) {
                     if (!this.editing || Number(day) === Number(this.editing.day_of_week)) return;
+
+                    if (this.copyTargetBlocked(day)) {
+                        this.editorNotice = 'Ese día ya tiene un bloque ocupando ' + this.editing.starts_at + '–' + this.editing.ends_at + '. No se creó otra copia.';
+                        return;
+                    }
+
                     const copy = JSON.parse(JSON.stringify(this.editing));
                     copy._key = 'copy-' + Date.now() + '-' + Math.random().toString(16).slice(2);
                     copy.day_of_week = Number(day);
                     copy.sequence = this.blocksFor(day).length + 1;
                     this.blocks.push(copy);
+                    this.editorNotice = 'Bloque copiado a ' + this.dayName(day) + '.';
                     this.dirty = true;
                     this.normalize();
                 },
@@ -2220,6 +2317,21 @@
                 },
 
                 save(wire) {
+                    for (const day of this.days) {
+                        const blocks = this.blocksFor(day.value);
+                        for (let i = 0; i < blocks.length; i++) {
+                            for (let j = i + 1; j < blocks.length; j++) {
+                                if (this.hasOverlap(day.value, blocks[i].starts_at, blocks[i].ends_at, blocks[i]._key)
+                                    && this.toMinutes(blocks[j].starts_at) < this.toMinutes(blocks[i].ends_at)
+                                    && this.toMinutes(blocks[j].ends_at) > this.toMinutes(blocks[i].starts_at)) {
+                                    this.editBlock(blocks[i]);
+                                    this.editorNotice = 'Hay dos bloques superpuestos en ' + day.label + '. Ajusta sus horarios antes de guardar.';
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
                     this.normalize();
                     const clean = this.blocks.map(({ _key, ...block }) => block);
                     wire.set('dayStartsAt', this.dayStart);
