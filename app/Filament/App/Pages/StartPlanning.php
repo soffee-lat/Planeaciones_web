@@ -3,9 +3,13 @@
 namespace App\Filament\App\Pages;
 
 use App\Actions\Planning\StartPlanningExperiment;
+use App\Actions\Schedules\EnsureDefaultGroupSubjects;
+use App\Enums\PlanningRequestStatus;
 use App\Enums\RoleCode;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\Group;
+use App\Models\PlanningRequest;
+use App\Services\Planning\PlanningPeriodService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Validation\ValidationException;
@@ -19,10 +23,14 @@ class StartPlanning extends Page
     protected string $view = 'filament.app.pages.start-planning';
 
     public ?int $group_id = null;
-    public string $starts_on = '';
-    public string $ends_on = '';
-    public string $work_focus = '';
+    public string $period_type = 'week';
+    public string $period_key = '';
+    public string $integrative_project = '';
+    public string $integrative_project_purpose = '';
     public string $context_note = '';
+
+    /** @var array<int,array<string,mixed>> */
+    public array $weeks = [];
 
     public static function canAccess(): bool
     {
@@ -39,6 +47,111 @@ class StartPlanning extends Page
         return [
             'groups' => PlanningRequestResource::eligibleGroupOptions(),
         ];
+    }
+
+    public function updatedGroupId(): void
+    {
+        $this->period_key = '';
+        $this->weeks = [];
+
+        if ($group = $this->selectedGroup()) {
+            app(EnsureDefaultGroupSubjects::class)->execute($group);
+        }
+    }
+
+    public function updatedPeriodType(): void
+    {
+        $this->period_key = '';
+        $this->weeks = [];
+        $this->integrative_project = '';
+        $this->integrative_project_purpose = '';
+    }
+
+    public function updatedPeriodKey(): void
+    {
+        $this->rebuildWeeks();
+    }
+
+    public function addTopic(int $weekIndex): void
+    {
+        if (! isset($this->weeks[$weekIndex])) {
+            return;
+        }
+
+        $this->weeks[$weekIndex]['topics'][] = [
+            'topic' => '',
+            'group_subject_id' => null,
+            'notes' => '',
+        ];
+    }
+
+    public function removeTopic(int $weekIndex, int $topicIndex): void
+    {
+        if (! isset($this->weeks[$weekIndex]['topics'][$topicIndex])) {
+            return;
+        }
+
+        unset($this->weeks[$weekIndex]['topics'][$topicIndex]);
+        $this->weeks[$weekIndex]['topics'] = array_values($this->weeks[$weekIndex]['topics']);
+
+        if ($this->weeks[$weekIndex]['topics'] === []) {
+            $this->addTopic($weekIndex);
+        }
+    }
+
+    /** @return array<string,string> */
+    public function periodOptions(): array
+    {
+        $group = $this->selectedGroup();
+        if (! $group) {
+            return [];
+        }
+
+        $periods = app(PlanningPeriodService::class);
+        $options = $this->period_type === 'month'
+            ? $periods->cycleMonths((string) $group->school_year)
+            : $periods->cycleWeeks((string) $group->school_year);
+
+        if ($options === []) {
+            return [];
+        }
+
+        $from = $options[0]['starts_on'];
+        $to = $options[count($options) - 1]['ends_on'];
+        $existing = $this->existingRanges($group->id, $from, $to);
+
+        $result = [];
+        foreach ($options as $option) {
+            $occupied = $existing->contains(fn (PlanningRequest $request) =>
+                $request->starts_on?->toDateString() <= $option['ends_on']
+                && $request->ends_on?->toDateString() >= $option['starts_on']
+            );
+
+            $result[$option['key']] = $option['label']
+                . ($occupied
+                    ? ($this->period_type === 'week' ? '  ·  ⚠ Ya tiene planeación' : '  ·  ⚠ Contiene periodos planeados')
+                    : '');
+        }
+
+        return $result;
+    }
+
+    /** @return array<int,string> */
+    public function subjectOptions(): array
+    {
+        $group = $this->selectedGroup();
+        if (! $group) {
+            return [];
+        }
+
+        app(EnsureDefaultGroupSubjects::class)->execute($group);
+
+        return $group->subjects()
+            ->where('is_active', true)
+            ->orderByRaw("CASE WHEN origin = 'official' THEN 0 ELSE 1 END")
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
     }
 
     public function selectedGroup(): ?Group
@@ -58,26 +171,67 @@ class StartPlanning extends Page
     {
         $data = $this->validate([
             'group_id' => ['required', 'integer'],
-            'starts_on' => ['required', 'date'],
-            'ends_on' => ['required', 'date', 'after_or_equal:starts_on'],
-            'work_focus' => ['required', 'string', 'min:3', 'max:255'],
+            'period_type' => ['required', 'string', 'in:week,month'],
+            'period_key' => ['required', 'string', 'max:32'],
+            'integrative_project' => ['nullable', 'string', 'max:255'],
+            'integrative_project_purpose' => ['nullable', 'string', 'max:8000'],
             'context_note' => ['nullable', 'string', 'max:8000'],
+            'weeks' => ['required', 'array', 'min:1'],
+            'weeks.*.sequence' => ['required', 'integer', 'min:1'],
+            'weeks.*.topics' => ['required', 'array', 'min:1'],
+            'weeks.*.topics.*.topic' => ['required', 'string', 'min:2', 'max:255'],
+            'weeks.*.topics.*.group_subject_id' => ['required', 'integer', 'min:1'],
+            'weeks.*.topics.*.notes' => ['nullable', 'string', 'max:4000'],
         ], [
             'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
-            'starts_on.required' => 'Indica la fecha de inicio.',
-            'ends_on.required' => 'Indica la fecha final.',
-            'ends_on.after_or_equal' => 'La fecha final no puede ser anterior a la inicial.',
-            'work_focus.required' => 'Cuéntanos qué necesitas trabajar.',
+            'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
+            'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
+            'weeks.*.topics.*.group_subject_id.required' => 'Selecciona la materia principal del tema.',
         ]);
+
+        $group = $this->selectedGroup();
+        if (! $group) {
+            throw ValidationException::withMessages([
+                'group_id' => 'Ese grupo ya no está disponible o está archivado.',
+            ]);
+        }
+
+        try {
+            $period = app(PlanningPeriodService::class)->resolve($data['period_type'], $data['period_key']);
+        } catch (\InvalidArgumentException) {
+            throw ValidationException::withMessages([
+                'period_key' => 'El periodo seleccionado ya no es válido.',
+            ]);
+        }
+
+        $topicNames = collect($data['weeks'])
+            ->flatMap(fn (array $week) => collect($week['topics'] ?? [])->pluck('topic'))
+            ->map(fn ($topic) => trim((string) $topic))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $workFocus = trim((string) ($data['integrative_project'] ?? ''));
+        if ($workFocus === '') {
+            $workFocus = (string) ($topicNames->first() ?? 'Planeación');
+        }
 
         try {
             $request = app(StartPlanningExperiment::class)->execute(
                 auth()->user(),
                 (int) $data['group_id'],
-                $data['starts_on'],
-                $data['ends_on'],
-                $data['work_focus'],
+                $period['starts_on'],
+                $period['ends_on'],
+                $workFocus,
                 $data['context_note'] ?? null,
+                [
+                    'period_type' => $data['period_type'],
+                    'period_key' => $data['period_key'],
+                    'integrative_project' => $data['integrative_project'] ?? null,
+                    'integrative_project_purpose' => $data['integrative_project_purpose'] ?? null,
+                    'context_note' => $data['context_note'] ?? null,
+                    'weeks' => $data['weeks'],
+                ],
             );
         } catch (\RuntimeException $e) {
             if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
@@ -90,10 +244,59 @@ class StartPlanning extends Page
 
         Notification::make()
             ->success()
-            ->title('Ya tenemos el punto de partida')
-            ->body('Ahora revisa las conexiones curriculares antes de generar la planeación.')
+            ->title('Estructura de la planeación lista')
+            ->body('Ahora revisa las conexiones curriculares que corresponden a los temas que definiste.')
             ->send();
 
         $this->redirect(route('planning.curriculum-map', $request));
+    }
+
+    private function rebuildWeeks(): void
+    {
+        if ($this->period_key === '' || ! $this->selectedGroup()) {
+            $this->weeks = [];
+            return;
+        }
+
+        try {
+            $period = app(PlanningPeriodService::class)->resolve($this->period_type, $this->period_key);
+        } catch (\InvalidArgumentException) {
+            $this->weeks = [];
+            return;
+        }
+
+        $existing = $this->existingRanges(
+            (int) $this->group_id,
+            $period['starts_on'],
+            $period['ends_on'],
+        );
+
+        $this->weeks = array_map(function (array $week) use ($existing): array {
+            $occupied = $existing->contains(fn (PlanningRequest $request) =>
+                $request->starts_on?->toDateString() <= $week['ends_on']
+                && $request->ends_on?->toDateString() >= $week['starts_on']
+            );
+
+            return [
+                ...$week,
+                'occupied' => $occupied,
+                'topics' => [[
+                    'topic' => '',
+                    'group_subject_id' => null,
+                    'notes' => '',
+                ]],
+            ];
+        }, $period['weeks']);
+    }
+
+    private function existingRanges(int $groupId, string $from, string $to): \Illuminate\Support\Collection
+    {
+        return PlanningRequest::query()
+            ->where('owner_id', auth()->id())
+            ->where('group_id', $groupId)
+            ->where('status', '!=', PlanningRequestStatus::CANCELADA->value)
+            ->whereDate('starts_on', '<=', $to)
+            ->whereDate('ends_on', '>=', $from)
+            ->get(['id', 'starts_on', 'ends_on', 'status', 'period_type']);
     }
 }
