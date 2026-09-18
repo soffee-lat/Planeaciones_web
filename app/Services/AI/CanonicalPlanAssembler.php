@@ -46,6 +46,10 @@ class CanonicalPlanAssembler
 
         $alignment = $this->buildCurricularAlignment($curriculum, $generated['sessions']);
         $this->validateSessionDates($snapshot['request'] ?? [], $generated['sessions']);
+        $this->validateSessionsAgainstSchedule(
+            is_array($snapshot['group']['planning_calendar'] ?? null) ? $snapshot['group']['planning_calendar'] : [],
+            $generated['sessions'],
+        );
 
         $profile = is_array($snapshot['group']['profile'] ?? null) ? $snapshot['group']['profile'] : [];
         $sessionMinutes = (int) ($profile['session_minutes'] ?? 0);
@@ -77,7 +81,11 @@ class CanonicalPlanAssembler
                 'session_minutes' => $sessionMinutes,
                 'session_count' => count($generated['sessions']),
             ],
-            'context' => $this->buildContext($snapshot),
+            'context' => [
+                ...$this->buildContext($snapshot),
+                'schedule_revision' => $snapshot['group']['schedule']['revision'] ?? null,
+                'planning_calendar' => $snapshot['group']['planning_calendar'] ?? [],
+            ],
             'curricular_alignment' => $alignment,
             'pedagogical_design' => [
                 'purpose' => $generated['purpose'],
@@ -250,6 +258,83 @@ class CanonicalPlanAssembler
             $date = CarbonImmutable::parse($session['date']);
             if ($date->lt($startsOn) || $date->gt($endsOn)) {
                 throw new AiContractException('GENERATED_SESSION_DATE_OUTSIDE_REQUEST', '$.sessions[' . $index . '].date');
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $calendar
+     * @param list<array<string,mixed>> $sessions
+     */
+    private function validateSessionsAgainstSchedule(array $calendar, array $sessions): void
+    {
+        // Compatibilidad con solicitudes antiguas confirmadas antes de existir
+        // el módulo de horario.
+        if ($calendar === []) {
+            return;
+        }
+
+        $availableByDate = [];
+        foreach ($calendar as $day) {
+            $date = (string) ($day['date'] ?? '');
+            if ($date === '') {
+                continue;
+            }
+
+            $availableByDate[$date] = array_values(array_filter(
+                is_array($day['blocks'] ?? null) ? $day['blocks'] : [],
+                fn (array $block): bool => (bool) ($block['include_in_planning'] ?? false),
+            ));
+        }
+
+        $sessionsByDate = [];
+        foreach ($sessions as $index => $session) {
+            $date = (string) ($session['date'] ?? '');
+            if ($date === '' || ! array_key_exists($date, $availableByDate)) {
+                throw new AiContractException(
+                    'GENERATED_SESSION_DATE_NOT_IN_SCHEDULE',
+                    '$.sessions[' . $index . '].date',
+                    $date === '' ? 'null' : $date,
+                );
+            }
+            $sessionsByDate[$date][] = ['index' => $index, 'session' => $session];
+        }
+
+        foreach ($availableByDate as $date => $blocks) {
+            $daySessions = $sessionsByDate[$date] ?? [];
+            if (count($daySessions) !== count($blocks)) {
+                throw new AiContractException(
+                    'GENERATED_SCHEDULE_BLOCK_COUNT_MISMATCH',
+                    '$.sessions',
+                    $date . ':expected=' . count($blocks) . ':actual=' . count($daySessions),
+                );
+            }
+
+            foreach ($daySessions as $position => $entry) {
+                $session = $entry['session'];
+                $block = $blocks[$position];
+                $path = '$.sessions[' . $entry['index'] . ']';
+
+                $expectedMinutes = (int) ($block['minutes'] ?? 0);
+                if ($expectedMinutes < 1 || (int) ($session['estimated_minutes'] ?? 0) !== $expectedMinutes) {
+                    throw new AiContractException(
+                        'GENERATED_SESSION_DURATION_NOT_IN_SCHEDULE',
+                        $path . '.estimated_minutes',
+                        (string) $expectedMinutes,
+                    );
+                }
+
+                $blockFields = array_values(array_filter((array) ($block['field_codes'] ?? []), 'is_string'));
+                if ($blockFields !== [] && ! (bool) ($block['is_flexible'] ?? false)) {
+                    $sessionFields = array_values(array_filter((array) ($session['field_codes'] ?? []), 'is_string'));
+                    if (array_intersect($blockFields, $sessionFields) === []) {
+                        throw new AiContractException(
+                            'GENERATED_SESSION_FIELD_NOT_ALLOWED_BY_SCHEDULE',
+                            $path . '.field_codes',
+                            implode(',', $blockFields),
+                        );
+                    }
+                }
             }
         }
     }
