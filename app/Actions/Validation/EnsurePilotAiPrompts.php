@@ -14,6 +14,7 @@ use App\Services\AI\CorrectionPromptPolicy;
 use App\Services\AI\CorrectionResultValidator;
 use App\Services\AI\GeneratedPlanDraftValidator;
 use App\Services\AI\GenerationPromptPolicy;
+use App\Support\AI\CanonicalJson;
 use Illuminate\Support\Facades\DB;
 use JsonException;
 use RuntimeException;
@@ -152,10 +153,15 @@ final class EnsurePilotAiPrompts
      */
     private function matchesDefinition(PromptVersion $version, array $definition, array $schema): bool
     {
+        $storedVariables = array_values($version->allowed_variables ?? []);
+        $expectedVariables = array_values($definition['allowed_variables']);
+        sort($storedVariables, SORT_STRING);
+        sort($expectedVariables, SORT_STRING);
+
         return $version->body === $definition['body']
-            && array_values($version->allowed_variables ?? []) === $definition['allowed_variables']
+            && $storedVariables === $expectedVariables
             && $version->schema_version === $definition['schema_version']
-            && $version->output_schema === $schema;
+            && CanonicalJson::hash($version->output_schema ?? []) === CanonicalJson::hash($schema);
     }
 
     /** @return array<string,mixed> */
