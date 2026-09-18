@@ -3,6 +3,7 @@
 namespace Tests\Feature\AI;
 
 use App\Actions\Curriculum\PublishCurriculumVersion;
+use App\Actions\Schedules\SaveGroupSchedule;
 use App\Data\Planning\GeneratedPlanDraft;
 use App\Exceptions\AiContractException;
 use App\Models\ArticulatingAxis;
@@ -33,6 +34,88 @@ class CanonicalPlanAssemblerTest extends PedagogyTestCase
     private function validatedDraft(PlanningRequest $request, ?array $payload = null): GeneratedPlanDraft
     {
         return app(GeneratedPlanDraftValidator::class)->validate($payload ?? $this->generatedDraftFor($request));
+    }
+
+    private function scheduledReadyRequest(): PlanningRequest
+    {
+        $request = $this->draft(3);
+
+        app(SaveGroupSchedule::class)->execute($request->owner, $request->group, [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '12:30',
+            'blocks' => [
+                [
+                    'day_of_week' => 4,
+                    'sequence' => 1,
+                    'starts_at' => '08:00',
+                    'ends_at' => '08:50',
+                    'label' => 'Lenguajes',
+                    'block_type' => 'class',
+                    'responsibility' => 'main_teacher',
+                    'include_in_planning' => true,
+                    'is_flexible' => false,
+                    'field_codes' => [],
+                    'notes' => null,
+                ],
+                [
+                    'day_of_week' => 4,
+                    'sequence' => 2,
+                    'starts_at' => '08:50',
+                    'ends_at' => '09:40',
+                    'label' => 'Matemáticas',
+                    'block_type' => 'class',
+                    'responsibility' => 'main_teacher',
+                    'include_in_planning' => true,
+                    'is_flexible' => true,
+                    'field_codes' => [],
+                    'notes' => null,
+                ],
+                [
+                    'day_of_week' => 4,
+                    'sequence' => 3,
+                    'starts_at' => '09:40',
+                    'ends_at' => '10:10',
+                    'label' => 'Recreo',
+                    'block_type' => 'break',
+                    'responsibility' => 'external',
+                    'include_in_planning' => false,
+                    'is_flexible' => false,
+                    'field_codes' => [],
+                    'notes' => null,
+                ],
+                [
+                    'day_of_week' => 5,
+                    'sequence' => 1,
+                    'starts_at' => '08:00',
+                    'ends_at' => '09:10',
+                    'label' => 'Proyecto',
+                    'block_type' => 'flexible',
+                    'responsibility' => 'main_teacher',
+                    'include_in_planning' => true,
+                    'is_flexible' => true,
+                    'field_codes' => [],
+                    'notes' => null,
+                ],
+            ],
+        ]);
+
+        $this->period($request);
+        $request = $this->confirm($request);
+
+        return $this->authorize($request)->fresh(['currentInputVersion', 'usageReservations']);
+    }
+
+    /** @return array<string,mixed> */
+    private function validScheduledPayload(PlanningRequest $request): array
+    {
+        $payload = $this->generatedDraftFor($request, 3);
+        $payload['sessions'][0]['date'] = '2026-10-01';
+        $payload['sessions'][1]['date'] = '2026-10-01';
+        $payload['sessions'][2]['date'] = '2026-10-02';
+        $payload['sessions'][2]['estimated_minutes'] = 70;
+        $payload['sessions'][2]['moments'][1]['minutes'] = 50;
+
+        return $payload;
     }
 
     public function test_no_ensambla_request_sin_autorizacion_comercial(): void
@@ -164,6 +247,57 @@ class CanonicalPlanAssemblerTest extends PedagogyTestCase
         $payload['sessions'][0]['date'] = '2026-12-31';
 
         $this->expectExceptionMessage('GENERATED_SESSION_DATE_OUTSIDE_REQUEST');
+        app(CanonicalPlanAssembler::class)->assemble($request, $this->validatedDraft($request, $payload));
+    }
+
+    public function test_horario_congelado_define_fechas_bloques_y_duracion_de_la_generacion(): void
+    {
+        $request = $this->scheduledReadyRequest();
+        $canonical = app(CanonicalPlanAssembler::class)->assemble(
+            $request,
+            $this->validatedDraft($request, $this->validScheduledPayload($request)),
+        )->toArray();
+
+        $this->assertSame(3, $canonical['planning']['session_count']);
+        $this->assertSame(1, $canonical['context']['schedule_revision']);
+        $this->assertSame(['2026-10-01', '2026-10-02'], array_column($canonical['context']['planning_calendar'], 'date'));
+        $this->assertSame(70, $canonical['sessions'][2]['estimated_minutes']);
+        $this->assertFalse($canonical['context']['planning_calendar'][0]['blocks'][2]['include_in_planning']);
+    }
+
+    public function test_horario_rechaza_omitir_un_bloque_planeable(): void
+    {
+        $request = $this->scheduledReadyRequest();
+        $payload = $this->generatedDraftFor($request, 2);
+        $payload['sessions'][0]['date'] = '2026-10-01';
+        $payload['sessions'][1]['date'] = '2026-10-02';
+        $payload['sessions'][1]['estimated_minutes'] = 70;
+        $payload['sessions'][1]['moments'][1]['minutes'] = 50;
+
+        $this->expectExceptionMessage('GENERATED_SCHEDULE_BLOCK_COUNT_MISMATCH');
+        app(CanonicalPlanAssembler::class)->assemble($request, $this->validatedDraft($request, $payload));
+    }
+
+    public function test_horario_rechaza_duracion_inventada_aunque_momentos_sumen(): void
+    {
+        $request = $this->scheduledReadyRequest();
+        $payload = $this->validScheduledPayload($request);
+        $payload['sessions'][2]['estimated_minutes'] = 60;
+        $payload['sessions'][2]['moments'][1]['minutes'] = 40;
+
+        $this->expectExceptionMessage('GENERATED_SESSION_DURATION_NOT_IN_SCHEDULE');
+        app(CanonicalPlanAssembler::class)->assemble($request, $this->validatedDraft($request, $payload));
+    }
+
+    public function test_horario_rechaza_fecha_del_periodo_sin_bloques_planeables(): void
+    {
+        $request = $this->scheduledReadyRequest();
+        $payload = $this->validScheduledPayload($request);
+        $payload['sessions'][2]['date'] = '2026-10-03';
+        $payload['sessions'][2]['estimated_minutes'] = 50;
+        $payload['sessions'][2]['moments'][1]['minutes'] = 30;
+
+        $this->expectExceptionMessage('GENERATED_SESSION_DATE_NOT_IN_SCHEDULE');
         app(CanonicalPlanAssembler::class)->assemble($request, $this->validatedDraft($request, $payload));
     }
 
