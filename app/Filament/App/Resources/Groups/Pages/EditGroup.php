@@ -6,6 +6,7 @@ use App\Actions\Pedagogy\UpdateGroupProfile;
 use App\Enums\InstitutionalFormatKind;
 use App\Enums\InstitutionalFormatStatus;
 use App\Filament\App\Resources\Groups\GroupResource;
+use App\Filament\App\Pages\ManageGroupSchedule;
 use App\Models\Group;
 use App\Models\InstitutionalFormat;
 use App\Models\School;
@@ -23,6 +24,10 @@ class EditGroup extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('schedule')
+                ->label('Horario')
+                ->icon('heroicon-o-calendar-days')
+                ->url(fn () => ManageGroupSchedule::getUrl(['group' => $this->getRecord()->id])),
             Action::make('preferredFormat')
                 ->label('Formato de planeación')
                 ->icon('heroicon-o-document-text')
