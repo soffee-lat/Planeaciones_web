@@ -29,7 +29,11 @@
     <section class="hero">
         <h2>Estas son las conexiones que encontramos</h2>
         <p>Revísalas antes de generar. Aquí decides qué sí representa lo que quieres trabajar con tu grupo.</p>
-        <p><strong>{{ $request->project }}</strong>@if($request->topic) · {{ $request->topic }}@endif</p>
+        @if($request->planningWeeks->isNotEmpty())
+            <p><strong>{{ $request->period_label }}</strong> · {{ $request->planningWeeks->count() }} semana(s)</p>
+        @else
+            <p><strong>{{ $request->project }}</strong>@if($request->topic) · {{ $request->topic }}@endif</p>
+        @endif
 
         @if($request->planningWeeks->isNotEmpty())
             <div class="plan-structure">
