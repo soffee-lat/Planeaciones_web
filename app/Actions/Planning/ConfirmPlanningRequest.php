@@ -5,6 +5,7 @@ namespace App\Actions\Planning;
 use App\Enums\PlanningRequestStatus;
 use App\Models\GroupProfile;
 use App\Services\Planning\PlanningCalendarBuilder;
+use App\Services\Planning\PlanningFocusResolver;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
@@ -35,7 +36,10 @@ use RuntimeException;
  */
 class ConfirmPlanningRequest
 {
-    public function __construct(private PlanningCalendarBuilder $calendarBuilder) {}
+    public function __construct(
+        private PlanningCalendarBuilder $calendarBuilder,
+        private PlanningFocusResolver $focusResolver,
+    ) {}
 
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
     {
@@ -120,6 +124,7 @@ class ConfirmPlanningRequest
      */
     private function buildSnapshot(PlanningRequest $r): array
     {
+        $r->loadMissing('planningWeeks.topics.subject');
         $group = $r->group()->with(['school', 'profile', 'activeSchedule.blocks'])->firstOrFail();
         $profile = $group->profile;
         $schedule = $group->activeSchedule;
@@ -159,6 +164,7 @@ class ConfirmPlanningRequest
                 $r->starts_on->format('Y-m-d'),
                 $r->ends_on->format('Y-m-d'),
             );
+            $planningCalendar = $this->focusResolver->enrich($planningCalendar, $r->planningWeeks);
         }
 
         $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
@@ -188,12 +194,36 @@ class ConfirmPlanningRequest
             }
         }
 
+        $pedagogicalStructure = $r->planningWeeks->isEmpty() ? null : [
+            'period_type' => $r->period_type,
+            'period_key' => $r->period_key,
+            'period_label' => $r->period_label,
+            'integrative_project' => $r->integrative_project ? [
+                'name' => $r->integrative_project,
+                'purpose' => $r->integrative_project_purpose,
+            ] : null,
+            'weeks' => $r->planningWeeks->map(fn ($week) => [
+                'sequence' => (int) $week->sequence,
+                'starts_on' => $week->starts_on?->toDateString(),
+                'ends_on' => $week->ends_on?->toDateString(),
+                'label' => $week->label,
+                'topics' => $week->topics->map(fn ($topic) => [
+                    'topic' => $topic->topic,
+                    'notes' => $topic->notes,
+                    'group_subject_id' => $topic->group_subject_id ? (int) $topic->group_subject_id : null,
+                    'subject_name' => $topic->subject?->name,
+                    'subject_color' => $topic->subject?->color,
+                ])->values()->all(),
+            ])->values()->all(),
+        ];
+
         return [
             'schema_version' => 1,
             'confirmed_at' => now()->toIso8601String(),
             'confirmed_by' => request()->user()?->id,
             'input_revision' => (int) $r->input_revision + 1,
             'selection_revision' => (int) $r->selection_revision,
+            'pedagogical_structure' => $pedagogicalStructure,
             'request' => [
                 'id' => $r->id,
                 'starts_on' => $r->starts_on?->format('Y-m-d'),
