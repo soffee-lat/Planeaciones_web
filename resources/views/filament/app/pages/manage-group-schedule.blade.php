@@ -27,6 +27,9 @@
                 name: initial.name || 'Horario habitual',
                 revision: Number(initial.revision || 0),
                 activeDays: Array.isArray(initial.active_days) && initial.active_days.length ? initial.active_days.map(Number) : [1,2,3,4,5],
+                exceptions: Array.isArray(initial.exceptions) ? initial.exceptions.map((item) => ({ date: String(item.date || ''), label: String(item.label || 'Sin clases') })) : [],
+                exceptionDate: '',
+                exceptionLabel: 'Sin clases',
                 dayStart: normalizeTime(initial.day_starts_at || '08:00'),
                 dayEnd: normalizeTime(initial.day_ends_at || '12:30'),
                 blocks: (initial.blocks || []).map((b) => ({
@@ -254,6 +257,27 @@
                     this.savedMessage = '';
                 },
 
+                addException() {
+                    const date = String(this.exceptionDate || '').trim();
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                        this.savedMessage = 'Selecciona una fecha válida.';
+                        return;
+                    }
+                    const label = String(this.exceptionLabel || '').trim() || 'Sin clases';
+                    this.exceptions = [
+                        ...this.exceptions.filter((item) => item.date !== date),
+                        { date, label }
+                    ].sort((a, b) => a.date.localeCompare(b.date));
+                    this.exceptionDate = '';
+                    this.exceptionLabel = 'Sin clases';
+                    this.savedMessage = '';
+                },
+
+                removeException(date) {
+                    this.exceptions = this.exceptions.filter((item) => item.date !== date);
+                    this.savedMessage = '';
+                },
+
                 addBreakToActiveDays() {
                     const start = toMinutes(this.breakStart);
                     const end = toMinutes(this.breakEnd);
@@ -292,6 +316,7 @@
                         const snapshot = await this.$wire.saveSchedule({
                             name: this.name,
                             active_days: this.activeDays,
+                            exceptions: this.exceptions,
                             day_starts_at: this.dayStart,
                             day_ends_at: this.dayEnd,
                             blocks: this.blocks.map((block, index) => ({
@@ -301,6 +326,7 @@
                         });
                         if (snapshot) {
                             this.revision = Number(snapshot.revision || this.revision + 1);
+                            this.exceptions = Array.isArray(snapshot.exceptions) ? snapshot.exceptions : this.exceptions;
                             this.blocks = (snapshot.blocks || []).map((b) => ({
                                 ...b,
                                 starts_at: normalizeTime(b.starts_at),
@@ -390,6 +416,36 @@
             </div>
 
             <p x-show="savedMessage" x-text="savedMessage" class="mt-3 text-sm text-gray-600 dark:text-gray-300"></p>
+        </x-filament::section>
+
+        <x-filament::section>
+            <x-slot name="heading">Días sin clase</x-slot>
+            <x-slot name="description">Agrega sólo excepciones al horario habitual: festivos, suspensiones o actividades que dejan al grupo sin jornada.</x-slot>
+
+            <div class="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end">
+                <div>
+                    <label class="mb-1 block text-sm font-medium">Fecha</label>
+                    <input type="date" x-model="exceptionDate" class="block w-full rounded-lg border-gray-300 bg-white text-base shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium">Motivo</label>
+                    <input type="text" x-model="exceptionLabel" maxlength="160" placeholder="Ej. Suspensión de clases" class="block w-full rounded-lg border-gray-300 bg-white text-base shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                </div>
+                <x-filament::button color="gray" x-on:click="addException()" icon="heroicon-o-plus">
+                    Agregar
+                </x-filament::button>
+            </div>
+
+            <div x-show="exceptions.length" class="mt-4 flex flex-wrap gap-2">
+                <template x-for="item in exceptions" :key="item.date">
+                    <span class="inline-flex min-h-10 items-center gap-2 rounded-full border border-gray-300 px-3 text-sm dark:border-gray-700">
+                        <strong x-text="item.date"></strong>
+                        <span class="max-w-56 truncate text-gray-600 dark:text-gray-300" x-text="item.label"></span>
+                        <button type="button" x-on:click="removeException(item.date)" class="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Quitar excepción">×</button>
+                    </span>
+                </template>
+            </div>
+            <p x-show="!exceptions.length" class="mt-3 text-sm text-gray-500">No hay excepciones guardadas. El sistema usará los días activos de la semana.</p>
         </x-filament::section>
 
         <div class="flex items-center justify-between gap-4">
