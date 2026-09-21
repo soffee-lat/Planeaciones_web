@@ -14,7 +14,7 @@ class CurriculumMapController
 {
     public function show(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): View
     {
-        $request = $this->ownedDraft($httpRequest, $planningRequest);
+        $request = $this->ownedEditable($httpRequest, $planningRequest);
         $state = $maps->state($httpRequest->user(), $request, true);
 
         return view('planning.curriculum-map', $state);
@@ -22,7 +22,7 @@ class CurriculumMapController
 
     public function decision(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
     {
-        $request = $this->ownedDraft($httpRequest, $planningRequest);
+        $request = $this->ownedEditable($httpRequest, $planningRequest);
         $data = $httpRequest->validate([
             'entity_type' => ['required', 'string', 'in:content,pda,axis'],
             'entity_id' => ['required', 'integer', 'min:1'],
@@ -46,7 +46,7 @@ class CurriculumMapController
 
     public function acceptAll(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
     {
-        $request = $this->ownedDraft($httpRequest, $planningRequest);
+        $request = $this->ownedEditable($httpRequest, $planningRequest);
         $maps->acceptAllSuggested($httpRequest->user(), $request);
 
         return back()->with('curriculum_map_status', 'Aceptamos las sugerencias pendientes. Puedes quitar o agregar lo que necesites antes de confirmar.');
@@ -54,7 +54,7 @@ class CurriculumMapController
 
     public function add(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
     {
-        $request = $this->ownedDraft($httpRequest, $planningRequest);
+        $request = $this->ownedEditable($httpRequest, $planningRequest);
         $data = $httpRequest->validate([
             'entity_type' => ['required', 'string', 'in:content,pda,axis'],
             'entity_id' => ['required', 'integer', 'min:1'],
@@ -71,7 +71,7 @@ class CurriculumMapController
 
     public function confirm(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
     {
-        $request = $this->ownedDraft($httpRequest, $planningRequest);
+        $request = $this->ownedEditable($httpRequest, $planningRequest);
 
         try {
             $confirmed = $maps->confirm($httpRequest->user(), $request);
@@ -87,12 +87,12 @@ class CurriculumMapController
         );
     }
 
-    private function ownedDraft(Request $httpRequest, PlanningRequest $planningRequest): PlanningRequest
+    private function ownedEditable(Request $httpRequest, PlanningRequest $planningRequest): PlanningRequest
     {
         $user = $httpRequest->user();
         abort_unless($user && $user->hasVerifiedEmail() && $user->hasRole(RoleCode::Customer), 403);
         abort_unless((int) $planningRequest->owner_id === (int) $user->id, 404);
-        abort_unless($planningRequest->isDraft(), 409, 'El mapa curricular sólo puede editarse mientras la planeación está en borrador.');
+        abort_unless($planningRequest->canEditInputs(), 409, 'Esta planeación no está disponible para revisar sus insumos curriculares.');
 
         return $planningRequest;
     }
