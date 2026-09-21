@@ -491,7 +491,7 @@ class PlanningRequestResource extends Resource
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->visible(fn (PlanningRequest $r) => $r->canEditInputs())
                     ->url(function (PlanningRequest $r): string {
-                        if ($r->planningWeeks()->exists()) {
+                        if ($r->usesCurricularValidationFlow()) {
                             return $r->hasConfirmedCurriculumMap()
                                 ? route('planning.review', $r)
                                 : route('planning.curriculum-map', $r);
