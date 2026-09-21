@@ -3,6 +3,8 @@
 namespace App\Filament\App\Resources\PlanningRequests;
 
 use App\Enums\PlanningRequestStatus;
+use App\Enums\InstitutionalFormatStatus;
+use App\Enums\InstitutionalFormatKind;
 use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\Pages\EditPlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\Pages\ListPlanningRequests;
@@ -10,6 +12,7 @@ use App\Filament\App\Resources\PlanningRequests\Pages\ViewPlanningRequest;
 use App\Models\ArticulatingAxis;
 use App\Models\CurricularContent;
 use App\Models\Group;
+use App\Models\InstitutionalFormat;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
 use App\Services\Planning\CurriculumSuggestionService;
@@ -308,6 +311,34 @@ class PlanningRequestResource extends Resource
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
+    }
+
+    /** @return array<int,string> */
+    public static function formatVersionOptions(): array
+    {
+        $formats = InstitutionalFormat::query()
+            ->where('status', InstitutionalFormatStatus::Ready->value)
+            ->where(function ($query): void {
+                $query->whereNull('owner_id')->orWhere('owner_id', auth()->id());
+            })
+            ->with('publishedVersions')
+            ->orderBy('name')
+            ->get();
+
+        $options = [];
+        foreach ($formats as $format) {
+            $version = $format->publishedVersions->first();
+            if (! $version) {
+                continue;
+            }
+
+            $suffix = $format->kind === InstitutionalFormatKind::Standard
+                ? ' · estándar'
+                : ' · institucional';
+            $options[(int) $version->id] = $format->name . $suffix;
+        }
+
+        return $options;
     }
 
     /** @return array<int,string> */
