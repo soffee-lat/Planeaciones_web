@@ -40,6 +40,21 @@ class ViewPlanningRequest extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema->components([
+            View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
+                'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
+            ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
+
+            View::make('filament.app.planning-requests.pilot-feedback')
+                ->viewData(fn (): array => [
+                    'request' => $this->getRecord(),
+                    'feedback' => $this->getRecord()->feedback()->first(),
+                    'savedTimeOptions' => SubmitPilotFeedback::SAVED_TIME_OPTIONS,
+                    'helpfulOptions' => SubmitPilotFeedback::MOST_HELPFUL_OPTIONS,
+                    'nextPlanningOptions' => SubmitPilotFeedback::NEXT_PLANNING_OPTIONS,
+                ])
+                ->visible(fn (): bool => $this->getRecord()->creation_mode === 'quick' && $this->getRecord()->deliveries()->exists())
+                ->columnSpanFull(),
+
             Section::make('Seguimiento')->schema([
                 TextEntry::make('project')->label('Tema o proyecto'),
                 TextEntry::make('status')->label('Estado')->state(fn () => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->status($this->getRecord())),
@@ -88,20 +103,6 @@ class ViewPlanningRequest extends ViewRecord
                 ->visible(fn () => $this->currentVersion() !== null)
                 ->columnSpanFull(),
 
-            View::make('filament.app.planning-requests.deliveries')->viewData(fn () => [
-                'deliveries' => $this->getRecord()->deliveries()->with(['files', 'version'])->get(),
-            ])->visible(fn () => $this->getRecord()->deliveries()->exists())->columnSpanFull(),
-
-            View::make('filament.app.planning-requests.pilot-feedback')
-                ->viewData(fn (): array => [
-                    'request' => $this->getRecord(),
-                    'feedback' => $this->getRecord()->feedback()->first(),
-                    'savedTimeOptions' => SubmitPilotFeedback::SAVED_TIME_OPTIONS,
-                    'helpfulOptions' => SubmitPilotFeedback::MOST_HELPFUL_OPTIONS,
-                    'nextPlanningOptions' => SubmitPilotFeedback::NEXT_PLANNING_OPTIONS,
-                ])
-                ->visible(fn (): bool => $this->getRecord()->creation_mode === 'quick' && $this->getRecord()->deliveries()->exists())
-                ->columnSpanFull(),
         ]);
     }
 
@@ -152,7 +153,7 @@ class ViewPlanningRequest extends ViewRecord
                         app(DispatchPlanningGeneration::class)->execute($this->getRecord());
                         $this->record = $this->getRecord()->fresh();
                         Notification::make()->success()->title('Generación iniciada')
-                            ->body('La planeación se está procesando con el canal de IA configurado. Puedes volver a esta pantalla para ver la versión generada.')->send();
+                            ->body('Generaremos primero el contenido pedagógico. El formato de salida se elige después de la aprobación.')->send();
                     } catch (\Throwable $error) {
                         report($error);
                         Notification::make()->danger()->title('No se pudo iniciar la generación')
@@ -161,20 +162,42 @@ class ViewPlanningRequest extends ViewRecord
                 }),
 
             Action::make('renderDocument')
-                ->label('Generar DOCX / PDF')
+                ->label('Exportar planeación')
                 ->color('primary')
                 ->databaseTransaction(false)
+                ->modalHeading('Exportar planeación')
+                ->modalDescription('El contenido pedagógico ya está aprobado. Elegir un formato sólo cambia la presentación del documento; no vuelve a generar la planeación ni consume otra generación de IA.')
+                ->schema([
+                    Select::make('format_version_id')
+                        ->label('Formato de salida')
+                        ->options(fn () => PlanningRequestResource::formatVersionOptions())
+                        ->default(fn () => $this->defaultExportFormatVersionId())
+                        ->required()
+                        ->searchable()
+                        ->native(false)
+                        ->helperText('Recomendado: Formato estándar. Los formatos institucionales son una opción de exportación avanzada.'),
+                ])
                 ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::APROBADA)
-                ->action(function (): void {
+                ->action(function (array $data): void {
                     try {
-                        app(DispatchDocumentRendering::class)->execute($this->getRecord());
-                        $this->record = $this->getRecord()->fresh();
+                        $formatId = (int) ($data['format_version_id'] ?? 0);
+                        $options = PlanningRequestResource::formatVersionOptions();
+                        if ($formatId < 1 || ! array_key_exists($formatId, $options)) {
+                            Notification::make()->warning()->title('Formato no disponible')->body('Selecciona un formato válido para tu cuenta.')->send();
+                            return;
+                        }
+
+                        $record = $this->getRecord();
+                        $record->forceFill(['format_version_id' => $formatId])->save();
+
+                        app(DispatchDocumentRendering::class)->execute($record->fresh());
+                        $this->record = $record->fresh();
                         Notification::make()->success()->title('Documentos en preparación')
-                            ->body('Usaremos el formato preferido del grupo cuando esté disponible; en caso contrario, el formato estándar.')->send();
+                            ->body('Estamos aplicando el formato elegido sobre la planeación ya aprobada.')->send();
                     } catch (\Throwable $error) {
                         report($error);
                         Notification::make()->danger()->title('No se pudieron preparar los documentos')
-                            ->body('La versión generada se conserva. Revisa el formato y vuelve a intentarlo.')->send();
+                            ->body('La planeación aprobada se conserva. Revisa el formato y vuelve a intentarlo.')->send();
                     }
                 }),
 
@@ -260,6 +283,20 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
         ];
+    }
+
+    private function defaultExportFormatVersionId(): ?int
+    {
+        $options = PlanningRequestResource::formatVersionOptions();
+        foreach ($options as $id => $label) {
+            if (str_contains(mb_strtolower((string) $label), 'estándar')) {
+                return (int) $id;
+            }
+        }
+
+        $first = array_key_first($options);
+
+        return $first === null ? null : (int) $first;
     }
 
     private function currentVersion(): ?DocumentVersion
