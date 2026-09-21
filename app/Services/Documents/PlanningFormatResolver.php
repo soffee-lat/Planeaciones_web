@@ -17,15 +17,31 @@ final class PlanningFormatResolver
         // Nunca debe condicionar la generación pedagógica de la planeación.
         if ($request->format_version_id !== null) {
             $version = FormatVersion::query()->with('format')->find($request->format_version_id);
-            if (! $version || ! $this->isUsableFor($version, $request->owner_id)) {
+            if (! $version) {
+                throw new DocumentFormatException('PLANNING_FORMAT_VERSION_NOT_USABLE');
+            }
+
+            // Algunos formatos institucionales globales se cargaron únicamente
+            // como ejemplos para analizar estructuras reales. Nunca deben
+            // convertirse en la salida de una planeación del docente.
+            if ($this->isGlobalInstitutionalExample($version)) {
+                return $this->standard();
+            }
+
+            if (! $this->isUsableFor($version, $request->owner_id)) {
                 throw new DocumentFormatException('PLANNING_FORMAT_VERSION_NOT_USABLE');
             }
 
             return $version;
         }
 
-        // Sin elección explícita siempre usamos el estándar global. La antigua
-        // preferencia del grupo no debe volver a acoplar formato y generación.
+        // Sin elección explícita siempre usamos el formato general estándar.
+        // La antigua preferencia del grupo no debe volver a acoplar formato y generación.
+        return $this->standard();
+    }
+
+    private function standard(): FormatVersion
+    {
         $standard = InstitutionalFormat::query()
             ->whereNull('owner_id')
             ->where('kind', InstitutionalFormatKind::Standard->value)
@@ -47,13 +63,28 @@ final class PlanningFormatResolver
         return $version->setRelation('format', $standard);
     }
 
-    private function isUsableFor(FormatVersion $version, int $ownerId): bool
+    private function isGlobalInstitutionalExample(FormatVersion $version): bool
     {
         $format = $version->format;
 
-        return $version->published_at !== null
-            && $format !== null
-            && $format->status === InstitutionalFormatStatus::Ready
-            && ($format->owner_id === null || $format->owner_id === $ownerId);
+        return $format !== null
+            && $format->owner_id === null
+            && $format->kind === InstitutionalFormatKind::Institutional;
+    }
+
+    private function isUsableFor(FormatVersion $version, int $ownerId): bool
+    {
+        $format = $version->format;
+        if ($version->published_at === null
+            || $format === null
+            || $format->status !== InstitutionalFormatStatus::Ready) {
+            return false;
+        }
+
+        return match ($format->kind) {
+            InstitutionalFormatKind::Standard => $format->owner_id === null,
+            InstitutionalFormatKind::Institutional => $format->owner_id !== null
+                && (int) $format->owner_id === $ownerId,
+        };
     }
 }
