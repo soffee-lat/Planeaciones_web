@@ -337,7 +337,13 @@ class PlanningRequestResource extends Resource
 
         $options = [];
         foreach ($formats as $format) {
-            $version = $format->publishedVersions->first();
+            $version = $format->publishedVersions->first(function ($candidate) use ($format): bool {
+                if ($format->kind !== InstitutionalFormatKind::Institutional) {
+                    return true;
+                }
+
+                return data_get($candidate->validation_report, 'analysis.source_content_mode') !== 'filled_example';
+            });
             if (! $version) {
                 continue;
             }
