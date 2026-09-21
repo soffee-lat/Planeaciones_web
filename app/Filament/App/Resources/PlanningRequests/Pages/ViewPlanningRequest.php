@@ -6,6 +6,7 @@ use App\Actions\AI\DispatchPlanningGeneration;
 use App\Actions\Documents\DispatchDocumentRendering;
 use App\Actions\Documents\PublishPlanningDelivery;
 use App\Actions\Planning\AuthorizePlanningRequestForProcessing;
+use App\Actions\Planning\StartPlanningInputRevision;
 use App\Actions\Planning\RequestClientCorrection;
 use App\Actions\Planning\WithdrawClientCorrection;
 use App\Actions\Validation\SubmitPilotFeedback;
@@ -14,6 +15,7 @@ use App\Enums\PlanningRequestStatus;
 use App\Exceptions\ClientCorrectionException;
 use App\Exceptions\PlanningCommercialException;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Filament\App\Pages\StartPlanning;
 use App\Models\CorrectionRequest;
 use App\Models\DocumentRenderRun;
 use App\Models\DocumentVersion;
@@ -106,6 +108,25 @@ class ViewPlanningRequest extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('reviseCurriculumInputs')
+                ->label('Revisar temas y currículo')
+                ->icon('heroicon-o-pencil-square')
+                ->color('warning')
+                ->visible(fn (): bool => app(\App\Services\Commerce\PlanningCommercialPresentation::class)
+                    ->requiresCurriculumInputRevision($this->getRecord()))
+                ->action(function (): void {
+                    try {
+                        app(StartPlanningInputRevision::class)->execute(auth()->user(), $this->getRecord());
+                        $this->redirect(StartPlanning::getUrl() . '?draft=' . $this->getRecord()->id);
+                    } catch (\Throwable $error) {
+                        report($error);
+                        Notification::make()->danger()
+                            ->title('No se pudo abrir la revisión')
+                            ->body('La planeación se conserva sin cambios. Recarga e inténtalo nuevamente.')
+                            ->send();
+                    }
+                }),
+
             Action::make('activateProcessing')->label('Activar procesamiento')->databaseTransaction(false)
                 ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO)
                 ->action(function (): void {
