@@ -4,9 +4,11 @@ namespace Tests\Feature\Commerce;
 
 use App\Actions\Commerce\OpenSubscriptionPeriod;
 use App\Actions\Commerce\ReservePlanningUnits;
+use App\Actions\Planning\StartPlanningInputRevision;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\UsageResource;
 use App\Models\PlanningRequest;
+use App\Models\RequestBlock;
 use App\Models\SubscriptionPeriod;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
@@ -185,6 +187,46 @@ class PlanningCommercialIntegrityTest extends PedagogyTestCase
         }
 
         $this->assertSame((array) $reservation, (array) DB::table('usage_reservations')->first());
+    }
+
+    public function test_authorized_request_can_enter_guarded_input_revision_without_releasing_commerce(): void
+    {
+        $request = $this->confirm($this->draft(14));
+        $this->period($request);
+        $request = $this->authorize($request);
+
+        RequestBlock::query()->create([
+            'request_id' => $request->id,
+            'code' => 'ai_quality_attention',
+            'stage' => 'audit',
+            'details' => [
+                'reason' => 'AI_CORRECTION_INPUT_REVISION_REQUIRED',
+                'source_version_id' => 1,
+                'audit_execution_id' => 1,
+            ],
+            'opened_at' => now(),
+        ]);
+
+        DB::transaction(function () use ($request): void {
+            DB::table('planning_requests')
+                ->where('id', $request->id)
+                ->update(['status' => PlanningRequestStatus::AUDITORIA_IA->value]);
+        });
+
+        $editing = app(StartPlanningInputRevision::class)->execute(
+            $request->owner,
+            $request->fresh(),
+        );
+
+        $this->assertSame(PlanningRequestStatus::ESPERANDO_INFORMACION, $editing->status);
+        $this->assertNull($editing->curriculum_confirmed_at);
+        $this->assertNull($editing->curriculum_selection_fingerprint);
+        $this->assertNotNull($editing->commercial_authorized_at);
+        $this->assertSame(2, $editing->planning_units);
+        $this->assertDatabaseHas('usage_reservations', [
+            'planning_request_id' => $editing->id,
+            'resource' => 'planning',
+        ]);
     }
 
     public function test_consumed_reservations_remain_commercially_valid_before_pipeline_transition(): void
