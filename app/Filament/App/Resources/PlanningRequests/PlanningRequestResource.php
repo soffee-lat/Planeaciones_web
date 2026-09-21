@@ -319,7 +319,17 @@ class PlanningRequestResource extends Resource
         $formats = InstitutionalFormat::query()
             ->where('status', InstitutionalFormatStatus::Ready->value)
             ->where(function ($query): void {
-                $query->whereNull('owner_id')->orWhere('owner_id', auth()->id());
+                $query
+                    ->where(function ($standard): void {
+                        $standard
+                            ->whereNull('owner_id')
+                            ->where('kind', InstitutionalFormatKind::Standard->value);
+                    })
+                    ->orWhere(function ($institutional): void {
+                        $institutional
+                            ->where('owner_id', auth()->id())
+                            ->where('kind', InstitutionalFormatKind::Institutional->value);
+                    });
             })
             ->with('publishedVersions')
             ->orderBy('name')
