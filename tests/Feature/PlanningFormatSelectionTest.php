@@ -2,14 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Documents\AnalyzeInstitutionalFormatVersion;
 use App\Actions\Documents\EnsureStandardFormat;
+use App\Actions\Documents\PublishFormatVersion;
+use App\Actions\Documents\RenderInstitutionalFormatSample;
+use App\Actions\Documents\ReviewInstitutionalFormatSample;
 use App\Actions\Pedagogy\UpdateGroupProfile;
 use App\Enums\InstitutionalFormatKind;
-use App\Enums\InstitutionalFormatStatus;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
-use App\Models\FormatVersion;
-use App\Models\InstitutionalFormat;
 use App\Services\Documents\PlanningFormatResolver;
 use Tests\Concerns\CreatesInstitutionalFormatScenario;
 
@@ -35,22 +36,34 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         $this->assertStringContainsString('estándar', $options[$standard->id]);
     }
 
-    public function test_global_institutional_analysis_example_is_hidden_and_falls_back_to_standard(): void
+    public function test_filled_planning_example_is_analysis_only_and_falls_back_to_standard(): void
     {
         $scene = $this->seedFullTeacher();
         $this->actingAs($scene['user']);
 
-        $example = InstitutionalFormat::factory()->create([
-            'owner_id' => null,
-            'kind' => InstitutionalFormatKind::Institutional->value,
-            'status' => InstitutionalFormatStatus::Ready->value,
-            'name' => 'Ejemplo de análisis',
-        ]);
-        $exampleVersion = FormatVersion::factory()->create([
-            'format_id' => $example->id,
-            'renderer' => 'institutional-v1',
-            'published_at' => now(),
-        ]);
+        $draft = $this->institutionalDraftFromBytes(
+            $scene['user']->id,
+            $this->institutionalFilledTemplateBytes(),
+        );
+        $exampleVersion = app(AnalyzeInstitutionalFormatVersion::class)->execute(
+            $draft['version'],
+            $scene['user'],
+        );
+        $this->assertSame(
+            'filled_example',
+            data_get($exampleVersion->validation_report, 'analysis.source_content_mode'),
+        );
+
+        $sample = app(RenderInstitutionalFormatSample::class)->execute($exampleVersion, $scene['user']);
+        app(ReviewInstitutionalFormatSample::class)->approve(
+            $sample,
+            $scene['user'],
+            'El archivo se conserva únicamente como ejemplo de análisis.',
+        );
+        $exampleVersion = app(PublishFormatVersion::class)->execute(
+            $exampleVersion->fresh(),
+            $scene['user'],
+        );
 
         $options = PlanningRequestResource::formatVersionOptions();
         $this->assertArrayNotHasKey($exampleVersion->id, $options);
