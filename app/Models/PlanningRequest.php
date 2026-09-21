@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PlanningRequestStatus;
+use App\Enums\ProductEventType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -300,6 +301,14 @@ class PlanningRequest extends Model
         return $this->curriculum_confirmed_at !== null
             && is_string($this->curriculum_selection_fingerprint)
             && preg_match('/^[0-9a-f]{64}$/', $this->curriculum_selection_fingerprint) === 1;
+    }
+
+    public function usesCurricularValidationFlow(): bool
+    {
+        return $this->productEvents()
+            ->where('event_type', ProductEventType::PlanningStarted->value)
+            ->where('metadata->entry_surface', 'curricular_validation_v1')
+            ->exists();
     }
 
     public function scopeOwnedBy(Builder $query, int $userId): Builder
