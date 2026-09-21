@@ -10,6 +10,8 @@ use App\Enums\PlanningRequestStatus;
 use App\Enums\ProductEventType;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
+use App\Filament\App\Resources\PlanningRequests\Pages\EditPlanningRequest;
+use Livewire\Livewire;
 use App\Services\Planning\CurriculumMapService;
 
 class CurriculumMapValidationTest extends PedagogyTestCase
@@ -159,6 +161,21 @@ class CurriculumMapValidationTest extends PedagogyTestCase
             ->assertSee('Confirmar planeación')
             ->assertDontSee('Grupo y modalidad')
             ->assertDontSee('Rápido · Te sugerimos alineación curricular');
+    }
+
+    public function test_legacy_edit_route_redirects_structured_request_to_current_stage(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $request = $this->startRequest($ctx);
+        $service = app(CurriculumMapService::class);
+        $service->state($ctx['user'], $request);
+        $service->acceptAllSuggested($ctx['user'], $request);
+        $service->confirm($ctx['user'], $request);
+
+        $this->actingAs($ctx['user']);
+
+        Livewire::test(EditPlanningRequest::class, ['record' => $request->id])
+            ->assertRedirect(route('planning.review', $request));
     }
 
     public function test_final_review_confirmation_freezes_snapshot_and_goes_to_tracking(): void
