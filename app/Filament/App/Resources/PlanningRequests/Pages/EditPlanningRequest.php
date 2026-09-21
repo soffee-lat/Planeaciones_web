@@ -5,11 +5,9 @@ namespace App\Filament\App\Resources\PlanningRequests\Pages;
 use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
-use App\Enums\ProductEventType;
 use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
-use App\Models\ProductEvent;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -27,15 +25,13 @@ class EditPlanningRequest extends EditRecord
         /** @var PlanningRequest $planning */
         $planning = $this->getRecord();
 
-        if (! $planning->planningWeeks()->exists()) {
-            return;
+        if ($planning->usesCurricularValidationFlow()) {
+            $this->redirect(
+                $planning->hasConfirmedCurriculumMap()
+                    ? route('planning.review', $planning)
+                    : route('planning.curriculum-map', $planning),
+            );
         }
-
-        $this->redirect(
-            $planning->hasConfirmedCurriculumMap()
-                ? route('planning.review', $planning)
-                : route('planning.curriculum-map', $planning),
-        );
     }
 
     protected function resolveRecord(int|string $key): Model
@@ -129,11 +125,7 @@ class EditPlanningRequest extends EditRecord
 
     private function isValidationFlow(PlanningRequest $request): bool
     {
-        return ProductEvent::query()
-            ->where('planning_request_id', $request->id)
-            ->where('event_type', ProductEventType::PlanningStarted->value)
-            ->where('metadata->entry_surface', 'curricular_validation_v1')
-            ->exists();
+        return $request->usesCurricularValidationFlow();
     }
 
     private function attemptCommercialAuthorization(): void
