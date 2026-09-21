@@ -74,6 +74,25 @@ final class RouteAuditResult
                     return $request->fresh();
                 }
                 if (! $result->passed && $request->status === PlanningRequestStatus::CORRECCION_IA) {
+                    try {
+                        $this->correctionPolicy->sectionKeys(
+                            $result,
+                            (string) ($version->content['schema_version'] ?? ''),
+                        );
+                    } catch (AiPipelineException $e) {
+                        if ($e->errorCode === 'AI_CORRECTION_INPUT_REVISION_REQUIRED') {
+                            return $this->retractPendingCorrectionForInputRevision(
+                                $request,
+                                $audit,
+                                $sourceVersionId,
+                                $actor,
+                                $correlationId,
+                            );
+                        }
+
+                        throw $e;
+                    }
+
                     return $request->fresh();
                 }
                 throw new AiPipelineException('AI_AUDIT_ROUTING_REQUEST_STATE_INVALID');
@@ -129,6 +148,7 @@ final class RouteAuditResult
             } catch (AiPipelineException $e) {
                 if (! in_array($e->errorCode, [
                     'AI_CORRECTION_SCOPE_UNSAFE',
+                    'AI_CORRECTION_INPUT_REVISION_REQUIRED',
                     'AI_INTERNAL_CORRECTION_ROUND_LIMIT_REACHED',
                     'AI_INTERNAL_CORRECTION_COST_LIMIT_REACHED',
                     'AI_INTERNAL_CORRECTION_COST_CURRENCY_MISMATCH',
@@ -238,6 +258,73 @@ final class RouteAuditResult
 
             return $request->fresh();
         }, attempts: 3);
+    }
+
+    private function retractPendingCorrectionForInputRevision(
+        PlanningRequest $request,
+        AiExecution $audit,
+        int $sourceVersionId,
+        ?User $actor,
+        string $correlationId,
+    ): PlanningRequest {
+        $correction = AiExecution::query()
+            ->where('request_id', $request->id)
+            ->where('stage', AiExecutionStage::Correction->value)
+            ->where('input_manifest->source_audit_execution_id', (int) $audit->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($correction) {
+            if (! in_array($correction->status, [AiExecutionStatus::Pending, AiExecutionStatus::WaitingManual], true)
+                || $correction->resulting_version_id !== null) {
+                throw new AiPipelineException('AI_CORRECTION_INPUT_REVISION_RETRACTION_UNSAFE');
+            }
+
+            $correction->forceFill([
+                'status' => AiExecutionStatus::Failed->value,
+                'finished_at' => now(),
+                'error_code' => 'AI_CORRECTION_INPUT_REVISION_REQUIRED',
+                'sanitized_error' => 'correction_retracted_input_revision_required',
+            ])->save();
+
+            OutboxEvent::query()
+                ->where('type', OutboxEventType::PlanningCorrectionRequested->value)
+                ->where('payload->ai_execution_id', $correction->id)
+                ->whereNull('published_at')
+                ->lockForUpdate()
+                ->get()
+                ->each(function (OutboxEvent $event): void {
+                    $event->forceFill([
+                        'published_at' => now(),
+                        'claimed_at' => null,
+                        'lease_expires_at' => null,
+                        'last_error_code' => 'AI_CORRECTION_INPUT_REVISION_REQUIRED',
+                    ])->save();
+                });
+        }
+
+        $this->transition(
+            $request,
+            PlanningRequestStatus::AUDITORIA_IA,
+            $actor,
+            $correlationId,
+            'audit_failed_input_revision_required',
+        );
+
+        $fresh = $request->fresh();
+        $this->blocks->open(
+            $fresh,
+            'ai_quality_attention',
+            AiExecutionStage::Audit->value,
+            [
+                'reason' => 'AI_CORRECTION_INPUT_REVISION_REQUIRED',
+                'source_version_id' => $sourceVersionId,
+                'audit_execution_id' => (int) $audit->id,
+            ],
+            $correlationId,
+        );
+
+        return $fresh->fresh();
     }
 
     private function transition(
