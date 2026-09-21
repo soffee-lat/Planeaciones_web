@@ -66,11 +66,13 @@ Incluye:
 
 El identificador técnico `standard-v1.0.0` se conserva temporalmente por compatibilidad con historiales y pruebas existentes, aunque la presentación corresponde a Standard v2.
 
-## Formatos institucionales llenos
+## Formatos institucionales y ejemplos de análisis
 
 Una planeación anterior llena no debe considerarse una plantilla limpia. El análisis institucional puede utilizarse para reconocer estructura y estilo, pero cualquier adaptación que vuelva a usar los bytes originales debe tratarse como una capacidad avanzada hasta disponer de una sanitización completa de contenido histórico.
 
-El camino garantizado del producto es el Standard v2.
+Los formatos institucionales globales cargados como ejemplos de análisis **no son formatos de salida** y no deben aparecer en las opciones del docente. Sólo pueden exportarse formatos institucionales que pertenezcan explícitamente a la cuenta del usuario.
+
+El camino garantizado y predeterminado del producto es el Standard v2 (formato general).
 
 ## Fuera de alcance de esta primera entrega
 
