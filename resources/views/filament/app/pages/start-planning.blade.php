@@ -357,9 +357,223 @@
             justify-content: space-between;
             gap: .5rem;
         }
+
+        .planning-calendar {
+            overflow: hidden;
+            border: 1px solid var(--pf-border);
+            border-radius: 16px;
+            background: var(--pf-surface);
+            box-shadow: var(--pf-shadow);
+        }
+
+        .planning-calendar-header {
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr) 44px;
+            align-items: center;
+            gap: .5rem;
+            padding: .9rem 1rem;
+            border-bottom: 1px solid var(--pf-border);
+            background: var(--pf-surface-soft);
+        }
+
+        .planning-calendar-title {
+            text-align: center;
+            color: var(--pf-text);
+            font-size: .95rem;
+            font-weight: 800;
+        }
+
+        .planning-calendar-nav {
+            display: inline-grid;
+            width: 40px;
+            height: 40px;
+            place-items: center;
+            border: 1px solid var(--pf-border);
+            border-radius: 10px;
+            background: var(--pf-surface);
+            color: var(--pf-text);
+            font-size: 1.2rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .planning-calendar-nav:hover:not(:disabled) {
+            border-color: var(--pf-accent-border);
+            background: var(--pf-accent-soft);
+            color: var(--pf-accent);
+        }
+
+        .planning-calendar-nav:disabled {
+            opacity: .3;
+            cursor: default;
+        }
+
+        .planning-calendar-weekdays,
+        .planning-calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+
+        .planning-calendar-weekday {
+            padding: .55rem .25rem;
+            border-bottom: 1px solid var(--pf-border);
+            color: var(--pf-text-muted);
+            text-align: center;
+            font-size: .68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .planning-calendar-day {
+            position: relative;
+            min-height: 58px;
+            border: 0;
+            border-right: 1px solid var(--pf-border);
+            border-bottom: 1px solid var(--pf-border);
+            background: var(--pf-surface);
+            color: var(--pf-text);
+            font-size: .82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .12s ease, color .12s ease, box-shadow .12s ease;
+        }
+
+        .planning-calendar-day:nth-child(7n) {
+            border-right: 0;
+        }
+
+        .planning-calendar-day:hover:not(:disabled) {
+            z-index: 1;
+            background: var(--pf-accent-soft);
+            box-shadow: inset 0 0 0 2px var(--pf-accent-border);
+        }
+
+        .planning-calendar-day.is-outside {
+            color: var(--pf-text-muted);
+            background: var(--pf-surface-soft);
+        }
+
+        .planning-calendar-day.is-weekend,
+        .planning-calendar-day:disabled {
+            color: var(--pf-text-muted);
+            background: color-mix(in srgb, var(--pf-surface-soft) 72%, transparent);
+            cursor: default;
+            opacity: .58;
+        }
+
+        .planning-calendar-day.is-occupied:not(.is-selected) {
+            background: var(--pf-warning-bg);
+            color: var(--pf-warning);
+        }
+
+        .planning-calendar-day.is-selected {
+            z-index: 2;
+            background: var(--pf-accent);
+            color: #fff;
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pf-accent) 82%, #000);
+        }
+
+        .planning-calendar-day-number {
+            display: inline-grid;
+            min-width: 28px;
+            min-height: 28px;
+            place-items: center;
+            border-radius: 999px;
+        }
+
+        .planning-calendar-dot {
+            position: absolute;
+            right: 7px;
+            top: 7px;
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--pf-warning);
+        }
+
+        .planning-calendar-day.is-selected .planning-calendar-dot {
+            background: #fff;
+        }
+
+        .planning-calendar-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem 1rem;
+            padding: .75rem 1rem;
+            border-top: 1px solid var(--pf-border);
+            color: var(--pf-text-muted);
+            font-size: .72rem;
+        }
+
+        .planning-calendar-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+        }
+
+        .planning-legend-swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            border: 1px solid var(--pf-border);
+            background: var(--pf-surface);
+        }
+
+        .planning-legend-swatch.selected {
+            border-color: var(--pf-accent);
+            background: var(--pf-accent);
+        }
+
+        .planning-legend-swatch.occupied {
+            border-color: var(--pf-warning-border);
+            background: var(--pf-warning-bg);
+        }
+
+        .planning-calendar-selection {
+            margin-top: .8rem;
+            padding: .85rem 1rem;
+            border: 1px solid var(--pf-accent-border);
+            border-radius: 12px;
+            background: var(--pf-accent-soft);
+            color: var(--pf-text-soft);
+            font-size: .82rem;
+            line-height: 1.35rem;
+        }
+
+        .planning-calendar-selection strong {
+            color: var(--pf-text);
+        }
+
+        .planning-calendar-selection.is-occupied {
+            border-color: var(--pf-warning-border);
+            background: var(--pf-warning-bg);
+        }
+
+        .planning-calendar-empty {
+            padding: 1.25rem;
+            border: 1px dashed var(--pf-border-strong);
+            border-radius: 14px;
+            background: var(--pf-surface-soft);
+            color: var(--pf-text-muted);
+            text-align: center;
+            font-size: .82rem;
+        }
+
+        @media (max-width: 640px) {
+            .planning-calendar-day {
+                min-height: 48px;
+                font-size: .76rem;
+            }
+
+            .planning-calendar-dot {
+                right: 4px;
+                top: 5px;
+            }
+        }
     </style>
 
-    @php($periodOptions = $this->periodOptions())
+    @php($periodOptions = $period_type === 'month' ? $this->periodOptions() : [])
+    @php($weekCalendar = $period_type === 'week' ? $this->weekCalendar() : null)
     @php($subjects = $this->subjectOptions())
     @php($selectedGroup = $this->selectedGroup())
 
@@ -367,7 +581,7 @@
         <div class="space-y-6">
             <x-filament::section>
                 <x-slot name="heading">¿Qué periodo vas a planear?</x-slot>
-                <x-slot name="description">Elige el grupo y después selecciona una semana o un mes ya delimitado. Las fechas se calculan automáticamente.</x-slot>
+                <x-slot name="description">Elige el grupo y después marca la semana en el calendario o selecciona un mes. Las fechas se calculan automáticamente.</x-slot>
 
                 <form wire:submit="start" class="planning-form space-y-6">
                     <div>
@@ -392,7 +606,7 @@
                                 <input type="radio" value="week" wire:model.live="period_type">
                                 <span>
                                     <strong class="planning-radio-title">Por semana</strong>
-                                    <span class="planning-radio-copy">Selecciona una semana escolar ya delimitada de lunes a viernes.</span>
+                                    <span class="planning-radio-copy">Marca cualquier día de la semana escolar; seleccionaremos automáticamente de lunes a viernes.</span>
                                 </span>
                             </label>
 
@@ -407,29 +621,111 @@
                     </div>
 
                     <div>
-                        <label class="planning-label">
-                            {{ $period_type === 'month' ? 'Mes a planear' : 'Semana a planear' }}
-                        </label>
-                        <select
-                            wire:model.live="period_key"
-                            @disabled(!$group_id)
-                            class="planning-control"
-                        >
-                            <option value="">
-                                {{ $group_id ? 'Selecciona un periodo…' : 'Primero selecciona un grupo' }}
-                            </option>
-                            @foreach ($periodOptions as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
+                        @if ($period_type === 'week')
+                            <label class="planning-label">Semana a planear</label>
+
+                            @if(!$group_id)
+                                <div class="planning-calendar-empty">
+                                    Selecciona primero un grupo para ver su calendario escolar.
+                                </div>
+                            @elseif($weekCalendar && $weekCalendar['days'] !== [])
+                                <div class="planning-calendar">
+                                    <div class="planning-calendar-header">
+                                        <button
+                                            type="button"
+                                            wire:click="previousCalendarMonth"
+                                            class="planning-calendar-nav"
+                                            aria-label="Mes anterior"
+                                            @disabled(!$weekCalendar['can_previous'])
+                                        >‹</button>
+
+                                        <div class="planning-calendar-title">{{ $weekCalendar['label'] }}</div>
+
+                                        <button
+                                            type="button"
+                                            wire:click="nextCalendarMonth"
+                                            class="planning-calendar-nav"
+                                            aria-label="Mes siguiente"
+                                            @disabled(!$weekCalendar['can_next'])
+                                        >›</button>
+                                    </div>
+
+                                    <div class="planning-calendar-weekdays" aria-hidden="true">
+                                        @foreach (['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as $weekday)
+                                            <div class="planning-calendar-weekday">{{ $weekday }}</div>
+                                        @endforeach
+                                    </div>
+
+                                    <div class="planning-calendar-grid">
+                                        @foreach ($weekCalendar['days'] as $day)
+                                            <button
+                                                type="button"
+                                                wire:key="planning-calendar-{{ $day['date'] }}"
+                                                @if($day['available']) wire:click="selectCalendarDay('{{ $day['date'] }}')" @endif
+                                                @disabled(!$day['available'])
+                                                title="{{ $day['occupied'] ? 'Esta semana ya tiene una planeación' : ($day['available'] ? 'Seleccionar esta semana' : '') }}"
+                                                class="planning-calendar-day
+                                                    {{ !$day['in_month'] ? 'is-outside' : '' }}
+                                                    {{ $day['weekend'] ? 'is-weekend' : '' }}
+                                                    {{ $day['occupied'] ? 'is-occupied' : '' }}
+                                                    {{ $day['selected'] ? 'is-selected' : '' }}"
+                                            >
+                                                <span class="planning-calendar-day-number">{{ $day['day'] }}</span>
+                                                @if($day['occupied'])
+                                                    <span class="planning-calendar-dot" aria-hidden="true"></span>
+                                                @endif
+                                            </button>
+                                        @endforeach
+                                    </div>
+
+                                    <div class="planning-calendar-legend">
+                                        <span><i class="planning-legend-swatch selected"></i> Semana seleccionada</span>
+                                        <span><i class="planning-legend-swatch occupied"></i> Ya tiene planeación</span>
+                                    </div>
+                                </div>
+
+                                @if($weekCalendar['selected_week_label'])
+                                    <div class="planning-calendar-selection {{ $weekCalendar['selected_week_occupied'] ? 'is-occupied' : '' }}">
+                                        <strong>Semana seleccionada: {{ $weekCalendar['selected_week_label'] }}</strong>
+                                        @if($weekCalendar['selected_week_occupied'])
+                                            <div>⚠ Esta semana se cruza con una planeación existente del mismo grupo.</div>
+                                        @else
+                                            <div>Disponible para crear la planeación semanal.</div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="planning-help">
+                                        Da clic en cualquier día de lunes a viernes. Resaltaremos automáticamente toda la semana escolar.
+                                    </p>
+                                @endif
+                            @else
+                                <div class="planning-calendar-empty">
+                                    No encontramos semanas disponibles para el ciclo escolar de este grupo.
+                                </div>
+                            @endif
+                        @else
+                            <label class="planning-label">Mes a planear</label>
+                            <select
+                                wire:model.live="period_key"
+                                @disabled(!$group_id)
+                                class="planning-control"
+                            >
+                                <option value="">
+                                    {{ $group_id ? 'Selecciona un mes…' : 'Primero selecciona un grupo' }}
+                                </option>
+                                @foreach ($periodOptions as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+
+                            @if($group_id)
+                                <p class="planning-help">
+                                    Los meses marcados con ⚠ contienen periodos que ya tienen una planeación del mismo grupo.
+                                </p>
+                            @endif
+                        @endif
 
                         @error('period_key') <p class="planning-error">{{ $message }}</p> @enderror
-
-                        @if($group_id)
-                            <p class="planning-help">
-                                Los periodos marcados con ⚠ se cruzan con una planeación existente del mismo grupo.
-                            </p>
-                        @endif
                     </div>
 
                     @if ($period_type === 'month' && $period_key)
