@@ -153,7 +153,7 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertStringContainsString('/app/planning-requests/', $response->headers->get('Location'));
     }
 
-    public function test_schedule_coverage_explains_exact_missing_field_and_filters_catalog(): void
+    public function test_schedule_coverage_explains_exact_missing_field_and_surfaces_actionable_options(): void
     {
         $ctx = $this->seedFullTeacher();
 
@@ -183,25 +183,31 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertCount(1, $state['schedule_field_coverage']['missing']);
         $this->assertSame('FF-1', $state['schedule_field_coverage']['missing'][0]['code']);
         $this->assertSame('content_and_pda', $state['schedule_field_coverage']['missing'][0]['missing_requirement']);
+        $this->assertArrayHasKey('FF-1', $state['schedule_field_options']);
+        $this->assertNotEmpty($state['schedule_field_options']['FF-1']);
+
+        $option = $state['schedule_field_options']['FF-1'][0];
+        $this->assertSame('FF-1', $option['field_code']);
+        $this->assertGreaterThan(0, $option['content_id']);
+        $this->assertGreaterThan(0, $option['pda_id']);
 
         $this->actingAs($ctx['user']);
         $this->get(route('planning.curriculum-map', $request))
             ->assertOk()
             ->assertSee('Faltantes para completar tu horario')
-            ->assertSee('Ver opciones de FF-1')
-            ->assertSee('data-field-code="FF-1"', false);
+            ->assertSee('Opciones para cubrir FF-1')
+            ->assertSee('Usar este PDA')
+            ->assertSee((string) $option['pda_code']);
 
-        $contentId = (int) $state['suggestion']['content_ids'][0];
-        $pdaId = (int) $state['suggestion']['pda_ids'][0];
+        $this->post(route('planning.curriculum-map.add', $request), [
+            'pda_ids' => [$option['pda_id']],
+        ])->assertRedirect();
 
-        $service->decide($ctx['user'], $request, 'content', $contentId, true);
-        $afterContent = $service->state($ctx['user'], $request, false);
-        $this->assertSame('pda', $afterContent['schedule_field_coverage']['missing'][0]['missing_requirement']);
-
-        $service->decide($ctx['user'], $request, 'pda', $pdaId, true);
-        $afterPda = $service->state($ctx['user'], $request, false);
-        $this->assertSame([], $afterPda['schedule_field_coverage']['missing']);
-        $this->assertTrue($afterPda['schedule_field_coverage']['required'][0]['covered']);
+        $after = $service->state($ctx['user'], $request, false);
+        $this->assertSame([], $after['schedule_field_coverage']['missing']);
+        $this->assertTrue($after['schedule_field_coverage']['required'][0]['covered']);
+        $this->assertContains((int) $option['content_id'], $after['selected']['contents']);
+        $this->assertContains((int) $option['pda_id'], $after['selected']['pdas']);
     }
 
     /** @param array<string,mixed> $ctx */
