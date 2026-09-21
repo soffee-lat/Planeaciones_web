@@ -138,7 +138,7 @@ class PrivateDeliveryTest extends PedagogyTestCase
         $this->assertSame(1, PlanningDelivery::query()->whereKey($delivery->id)->count());
     }
 
-    public function test_vista_del_docente_muestra_historial_y_enlaces_privados(): void
+    public function test_vista_del_docente_muestra_entrega_y_enlaces_privados(): void
     {
         $scene = $this->renderedPlanningScene('documents/delivery-ui');
         app(PublishPlanningDelivery::class)->execute($scene['request']);
@@ -146,8 +146,9 @@ class PrivateDeliveryTest extends PedagogyTestCase
         $this->actingAs($scene['request']->owner)
             ->get('/app/planning-requests/' . $scene['request']->id)
             ->assertOk()
-            ->assertSee('Archivos de tu planeación')
+            ->assertSee('Planeación lista')
             ->assertSee('Descargar DOCX')
-            ->assertSee('Descargar PDF');
+            ->assertSee('Descargar PDF')
+            ->assertSee('/app/deliveries/', false);
     }
 }
