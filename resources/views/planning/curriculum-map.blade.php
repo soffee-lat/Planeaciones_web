@@ -67,9 +67,9 @@
 
 <main class="wrap">
     <div class="progress" aria-label="Progreso de la planeación">
-        <div class="step done"><span class="num">✓</span><div><strong>Datos</strong><br><span>Grupo, periodo, temas y horario</span></div></div>
-        <div class="step active"><span class="num">2</span><div><strong>Conexiones curriculares</strong><br><span>Revisa lo que sí corresponde</span></div></div>
-        <div class="step"><span class="num">3</span><div><strong>Generar</strong><br><span>Confirmamos y continuamos</span></div></div>
+        <div class="step done"><span class="num">✓</span><div><strong>Periodo y temas</strong><br><span>Grupo, semanas, materias y horario</span></div></div>
+        <div class="step active"><span class="num">2</span><div><strong>Conexiones curriculares</strong><br><span>Revisa contenidos, PDA y ejes</span></div></div>
+        <div class="step"><span class="num">3</span><div><strong>Confirmación</strong><br><span>Revisa el resumen antes de generar</span></div></div>
     </div>
 
     <section class="hero">
@@ -339,8 +339,8 @@
                         Confirmar y continuar
                     </button>
                 </form>
-                <div class="muted" style="margin-top:8px">Al confirmar ya no volverás al formulario completo: guardaremos estas conexiones y pasaremos al seguimiento de la planeación.</div>
-                <a class="advanced-link" href="{{ $editUrl }}?paso=2">Editar periodo y temas antes de confirmar</a>
+                <div class="muted" style="margin-top:8px">Guardaremos estas conexiones y te mostraremos el resumen final antes de iniciar la generación.</div>
+                <a class="advanced-link" href="{{ $editUrl }}">Editar periodo y temas antes de confirmar</a>
             </section>
         </aside>
     </div>
