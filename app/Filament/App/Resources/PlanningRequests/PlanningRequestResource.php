@@ -439,7 +439,7 @@ class PlanningRequestResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()->visible(fn (PlanningRequest $r) => $r->isDraft()),
+                EditAction::make()->visible(fn (PlanningRequest $r) => $r->canEditInputs()),
                 DeleteAction::make()->visible(fn (PlanningRequest $r) => $r->isDraft()),
             ])
             ->defaultSort('updated_at', 'desc');
