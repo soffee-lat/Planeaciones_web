@@ -270,6 +270,31 @@ class PlanningRequest extends Model
             && $this->status !== PlanningRequestStatus::CANCELADA;
     }
 
+    public function requiresCurriculumInputRevision(): bool
+    {
+        if ($this->status !== PlanningRequestStatus::ESPERANDO_INFORMACION
+            && $this->status !== PlanningRequestStatus::AUDITORIA_IA) {
+            return false;
+        }
+
+        return $this->blocks()
+            ->where('code', 'ai_quality_attention')
+            ->where('stage', 'audit')
+            ->whereNull('resolved_at')
+            ->get()
+            ->contains(fn ($block) =>
+                (string) ($block->details['reason'] ?? '') === 'AI_CORRECTION_INPUT_REVISION_REQUIRED'
+            );
+    }
+
+    public function canEditInputs(): bool
+    {
+        return $this->isDraft() || (
+            $this->status === PlanningRequestStatus::ESPERANDO_INFORMACION
+            && $this->requiresCurriculumInputRevision()
+        );
+    }
+
     public function hasConfirmedCurriculumMap(): bool
     {
         return $this->curriculum_confirmed_at !== null
