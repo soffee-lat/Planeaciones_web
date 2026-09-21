@@ -391,7 +391,7 @@ final class CurriculumMapService
     /** @return array<string,mixed> */
     private function suggest(PlanningRequest $request): array
     {
-        return $this->suggestions->suggest(
+        $base = $this->suggestions->suggest(
             (int) $request->curriculum_version_id,
             (int) $request->grade_id,
             [
@@ -403,6 +403,57 @@ final class CurriculumMapService
                 'comments' => $request->comments,
             ],
         );
+
+        $request->loadMissing('planningWeeks.topics.subject');
+        if ($request->planningWeeks->isEmpty()) {
+            return $base;
+        }
+
+        $merged = $base;
+        $merged['strategy_version'] = 'deterministic_v2_structured_topics';
+
+        $seen = [];
+        foreach ($request->planningWeeks as $week) {
+            foreach ($week->topics as $topic) {
+                $text = trim((string) $topic->topic);
+                if ($text === '') {
+                    continue;
+                }
+
+                $fieldCode = trim((string) ($topic->subject?->curriculum_field_code ?? ''));
+                $key = mb_strtolower($text) . '|' . $fieldCode;
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+
+                $piece = $this->suggestions->suggest(
+                    (int) $request->curriculum_version_id,
+                    (int) $request->grade_id,
+                    ['topic' => $text],
+                    maxContents: 1,
+                    maxPdasPerContent: 2,
+                    maxAxes: 0,
+                    fieldCode: $fieldCode !== '' ? $fieldCode : null,
+                );
+
+                foreach (['tokens', 'content_ids', 'pda_ids', 'axis_ids', 'formative_field_ids'] as $listKey) {
+                    $merged[$listKey] = array_values(array_unique(array_merge(
+                        $merged[$listKey] ?? [],
+                        $piece[$listKey] ?? [],
+                    )));
+                }
+
+                foreach (($piece['reasons'] ?? []) as $contentId => $reason) {
+                    $merged['reasons'][$contentId] = 'Tema “' . $text . '”: ' . $reason;
+                }
+
+                $merged['has_strong_match'] = (bool) ($merged['has_strong_match'] ?? false)
+                    || (bool) ($piece['has_strong_match'] ?? false);
+            }
+        }
+
+        return $merged;
     }
 
     /** @param array<string,mixed> $suggestion */
