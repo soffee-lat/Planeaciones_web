@@ -63,7 +63,7 @@ return new class extends Migration
                     OR snapshot#>'{plan,id}' IS DISTINCT FROM to_jsonb(version.plan_id)
                     OR snapshot#>'{plan_version,id}' IS DISTINCT FROM to_jsonb(parent.plan_version_id)
                     OR snapshot#>'{plan_version,number}' IS DISTINCT FROM to_jsonb(version.number)
-                    OR snapshot#>'{plan_version,checksum}' IS DISTINCT FROM to_jsonb(parent.plan_version_id::text::jsonb)
+                    OR snapshot#>'{plan_version,checksum}' IS DISTINCT FROM to_jsonb(version.checksum)
                     OR snapshot->'planning_days' IS DISTINCT FROM to_jsonb(parent.planning_days)
                     OR snapshot->'planning_units' IS DISTINCT FROM to_jsonb(parent.planning_units)
                     OR snapshot->'strategy' IS DISTINCT FROM to_jsonb(parent.calculation_strategy)
