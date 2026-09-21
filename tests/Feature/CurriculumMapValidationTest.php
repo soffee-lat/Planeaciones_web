@@ -6,6 +6,7 @@ use App\Actions\Planning\StartPlanningExperiment;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
 use App\Actions\Schedules\SaveGroupSchedule;
+use App\Enums\PlanningRequestStatus;
 use App\Enums\ProductEventType;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
@@ -137,7 +138,7 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertFalse($confirmed->hasConfirmedCurriculumMap());
     }
 
-    public function test_http_accept_all_and_confirm_route_reaches_existing_summary_flow(): void
+    public function test_http_accept_all_and_confirm_route_reaches_dedicated_review_flow(): void
     {
         $ctx = $this->seedFullTeacher();
         $request = $this->startRequest($ctx);
@@ -147,10 +148,46 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->post(route('planning.curriculum-map.accept-all', $request))->assertRedirect();
         $response = $this->post(route('planning.curriculum-map.confirm', $request));
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('planning.review', $request));
         $request->refresh();
         $this->assertTrue($request->hasConfirmedCurriculumMap());
-        $this->assertStringContainsString('/app/planning-requests/', $response->headers->get('Location'));
+
+        $this->get(route('planning.review', $request))
+            ->assertOk()
+            ->assertSee('Resumen y confirmación')
+            ->assertSee('Revisa tu planeación antes de confirmarla')
+            ->assertSee('Confirmar planeación')
+            ->assertDontSee('Grupo y modalidad')
+            ->assertDontSee('Rápido · Te sugerimos alineación curricular');
+    }
+
+    public function test_final_review_confirmation_freezes_snapshot_and_goes_to_tracking(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $ctx['profile']->fill([
+            'student_count' => 25,
+            'general_level' => 'medio',
+            'session_minutes' => 50,
+            'characteristics' => 'Grupo listo para planeación.',
+        ])->save();
+
+        $request = $this->startRequest($ctx);
+        $service = app(CurriculumMapService::class);
+        $service->state($ctx['user'], $request);
+        $service->acceptAllSuggested($ctx['user'], $request);
+        $service->confirm($ctx['user'], $request);
+
+        $this->actingAs($ctx['user']);
+        $response = $this->post(route('planning.review.confirm', $request));
+
+        $request->refresh();
+        $response->assertRedirect(
+            \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl('view', ['record' => $request->id])
+        );
+        $this->assertSame(PlanningRequestStatus::ESPERANDO_PAGO, $request->status);
+        $this->assertNotNull($request->input_snapshot);
+        $this->assertNotNull($request->current_version_id);
+        $this->assertTrue($request->hasConfirmedCurriculumMap());
     }
 
     public function test_schedule_coverage_explains_exact_missing_field_and_surfaces_actionable_options(): void
