@@ -40,6 +40,12 @@ class UpdateGroupProfile
         return DB::transaction(function () use ($profile, $data) {
             $fresh = GroupProfile::query()->lockForUpdate()->findOrFail($profile->id);
 
+            foreach (GroupProfile::EXPORT_FIELDS as $field) {
+                if (array_key_exists($field, $data) && $fresh->getAttribute($field) !== $data[$field]) {
+                    $fresh->setAttribute($field, $data[$field]);
+                }
+            }
+
             $changed = false;
             foreach (GroupProfile::PEDAGOGICAL_FIELDS as $field) {
                 if (! array_key_exists($field, $data)) {
