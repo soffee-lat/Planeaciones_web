@@ -7,12 +7,10 @@ use App\Exceptions\AiPipelineException;
 use App\Models\AiExecution;
 use App\Models\PlanningRequest;
 use App\Models\PromptVersion;
-use App\Services\Documents\PlanningFormatGenerationContext;
 use App\Support\AI\CanonicalJson;
 
 final class GenerationInputBuilder
 {
-    public function __construct(private PlanningFormatGenerationContext $formatContext) {}
 
     public function build(
         PlanningRequest $request,
@@ -47,12 +45,17 @@ final class GenerationInputBuilder
             'units' => (int) $segment->units,
         ])->values()->all();
 
-        $formatContext = $this->formatContext->build($request);
-        $promptSchemaVersion = (string) $promptVersion->schema_version;
-        $effectiveOutputSchemaVersion = trim((string) ($formatContext['generation_contract'] ?? ''));
-        if ($effectiveOutputSchemaVersion === '') {
-            $effectiveOutputSchemaVersion = $promptSchemaVersion;
-        }
+        // La generación pedagógica es canónica y no depende del DOCX elegido.
+        // Los formatos institucionales/estándar intervienen únicamente al exportar.
+        $formatContext = [
+            'schema_version' => 0,
+            'generation_scope' => 'canonical',
+            'format_version_id' => null,
+            'renderer' => null,
+            'custom_fields' => [],
+            'template_contract' => null,
+        ];
+        $effectiveOutputSchemaVersion = (string) $promptVersion->schema_version;
 
         $inputManifest = [
             'schema_version' => 1,
@@ -61,16 +64,13 @@ final class GenerationInputBuilder
             'input_snapshot_sha256' => CanonicalJson::hash($inputVersion->snapshot),
             'commercial_snapshot_sha256' => CanonicalJson::hash($request->calculation_snapshot),
             'segments_sha256' => CanonicalJson::hash($segments),
-            'format_version_id' => $formatContext['format_version_id'] ?? null,
+            'format_version_id' => null,
             'format_context_sha256' => CanonicalJson::hash($formatContext),
             'prompt_version_id' => (int) $promptVersion->id,
             'prompt_checksum' => (string) $promptVersion->checksum,
             'output_schema_version' => $effectiveOutputSchemaVersion,
             'correlation_id' => $correlationId,
         ];
-        if ($effectiveOutputSchemaVersion !== $promptSchemaVersion) {
-            $inputManifest['prompt_schema_version'] = $promptSchemaVersion;
-        }
 
         return new GenerationInput(
             requestId: (int) $request->id,
