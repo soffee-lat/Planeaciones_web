@@ -13,6 +13,8 @@ final class PlanningFormatResolver
 {
     public function resolve(PlanningRequest $request): FormatVersion
     {
+        // Un formato explícito sólo representa una elección de EXPORTACIÓN.
+        // Nunca debe condicionar la generación pedagógica de la planeación.
         if ($request->format_version_id !== null) {
             $version = FormatVersion::query()->with('format')->find($request->format_version_id);
             if (! $version || ! $this->isUsableFor($version, $request->owner_id)) {
@@ -22,29 +24,8 @@ final class PlanningFormatResolver
             return $version;
         }
 
-        $request->loadMissing('group.profile');
-        $preferredId = $request->group?->profile?->preferred_format_id;
-        if ($preferredId !== null) {
-            $preferred = InstitutionalFormat::query()
-                ->whereKey($preferredId)
-                ->where('status', InstitutionalFormatStatus::Ready->value)
-                ->where(function ($query) use ($request): void {
-                    $query->whereNull('owner_id')->orWhere('owner_id', $request->owner_id);
-                })
-                ->first();
-
-            if ($preferred) {
-                $version = FormatVersion::query()
-                    ->where('format_id', $preferred->id)
-                    ->whereNotNull('published_at')
-                    ->orderByDesc('number')
-                    ->first();
-                if ($version) {
-                    return $version->setRelation('format', $preferred);
-                }
-            }
-        }
-
+        // Sin elección explícita siempre usamos el estándar global. La antigua
+        // preferencia del grupo no debe volver a acoplar formato y generación.
         $standard = InstitutionalFormat::query()
             ->whereNull('owner_id')
             ->where('kind', InstitutionalFormatKind::Standard->value)
