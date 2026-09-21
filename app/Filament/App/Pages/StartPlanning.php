@@ -266,8 +266,6 @@ class StartPlanning extends Page
             $month = $lastMonth;
         }
 
-        $this->calendar_month = $month->format('Y-m');
-
         $validWeeks = collect($weeks)->keyBy('key');
         $gridStart = $month->startOfMonth()->startOfWeek(CarbonInterface::MONDAY);
         $gridEnd = $month->endOfMonth()->endOfWeek(CarbonInterface::SUNDAY);
