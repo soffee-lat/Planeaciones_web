@@ -196,7 +196,9 @@ class CurriculumMapValidationTest extends PedagogyTestCase
             ->assertOk()
             ->assertSee('Faltantes para completar tu horario')
             ->assertSee('Opciones para cubrir FF-1')
-            ->assertSee('Usar este PDA')
+            ->assertSee('Seleccionar')
+            ->assertSee('Agregar selecciones')
+            ->assertSee('name="pda_ids[]"', false)
             ->assertSee((string) $option['pda_code']);
 
         $this->post(route('planning.curriculum-map.add', $request), [
