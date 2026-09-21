@@ -17,8 +17,11 @@ class GroupProfile extends Model
      *
      * @var list<string>
      */
-    public const PEDAGOGICAL_FIELDS = [
+    public const EXPORT_FIELDS = [
         'preferred_format_id',
+    ];
+
+    public const PEDAGOGICAL_FIELDS = [
         'student_count',
         'general_level',
         'characteristics',
