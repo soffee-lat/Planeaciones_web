@@ -37,6 +37,47 @@ class ProductEventRecorderTest extends PedagogyTestCase
         $this->assertArrayNotHasKey('topic', $event->metadata);
     }
 
+    public function test_planning_started_accepts_structured_period_metadata(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $request = $this->draftFor($ctx);
+
+        $event = app(ProductEventRecorder::class)->record(
+            $ctx['user'],
+            ProductEventType::PlanningStarted,
+            request: $request,
+            metadata: [
+                'entry_surface' => 'curricular_validation_v1',
+                'profile_reused' => true,
+                'session_minutes_known' => true,
+                'period_type' => 'month',
+                'structured_topics' => true,
+            ],
+        );
+
+        $this->assertSame('month', $event->metadata['period_type']);
+        $this->assertTrue($event->metadata['structured_topics']);
+    }
+
+    public function test_planning_started_rejects_invalid_structured_period_metadata(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $request = $this->draftFor($ctx);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('PRODUCT_EVENT_PERIOD_TYPE_INVALID');
+
+        app(ProductEventRecorder::class)->record(
+            $ctx['user'],
+            ProductEventType::PlanningStarted,
+            request: $request,
+            metadata: [
+                'period_type' => 'quarter',
+                'structured_topics' => true,
+            ],
+        );
+    }
+
     public function test_no_permite_registrar_evento_sobre_solicitud_ajena(): void
     {
         $a = $this->seedFullTeacher();
