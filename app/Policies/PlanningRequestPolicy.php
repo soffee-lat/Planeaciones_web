@@ -47,14 +47,14 @@ class PlanningRequestPolicy
         // requieren acciones administrativas de fases posteriores.
         return $this->isActiveCustomer($user)
             && $request->owner_id === $user->id
-            && $request->isDraft();
+            && $request->canEditInputs();
     }
 
     public function confirm(User $user, PlanningRequest $request): bool
     {
         return $this->isActiveCustomer($user)
             && $request->owner_id === $user->id
-            && $request->isDraft();
+            && $request->canEditInputs();
     }
 
     public function authorizeProcessing(User $user, PlanningRequest $request): bool
