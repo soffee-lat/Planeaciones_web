@@ -4,7 +4,6 @@ namespace Tests\Feature\Commerce;
 
 use App\Enums\PlanningRequestStatus;
 use App\Filament\App\Pages\MyPlan;
-use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\Pages\EditPlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\Pages\ViewPlanningRequest;
 use App\Services\Commerce\PlanningCommercialPresentation;
@@ -128,16 +127,31 @@ class PlanningCommercialUiTest extends PedagogyTestCase
         $this->assertSame(2, $period->reservations()->count());
     }
 
-    public function test_wizard_preview_shows_current_requirements_without_writes_and_no_plan_message(): void
+    public function test_final_review_preview_shows_current_requirements_without_writes_and_no_plan_message(): void
     {
         $request = $this->draft();
+        $request->forceFill([
+            'curriculum_confirmed_at' => now(),
+            'curriculum_selection_fingerprint' => str_repeat('a', 64),
+        ])->save();
+
         $this->actingAs($request->owner);
-        Livewire::test(CreatePlanningRequest::class)->assertSee('No tienes un plan activo');
+
+        $this->get(route('planning.review', $request))
+            ->assertOk()
+            ->assertSee('No tienes un plan activo');
+
         $period = $this->period($request, ['human_review_required' => true, 'human_review_limit' => 8]);
         $preview = app(PlanningCommercialPresentation::class)->forCustomer($request->owner, '2026-10-01', '2026-10-28');
         $this->assertSame(28, $preview['days']);
         $this->assertSame(4, $preview['units']);
-        Livewire::test(EditPlanningRequest::class, ['record' => $request->id])->assertSee('4 unidades necesarias')->assertSee('8 disponibles')->assertSee('Revisión humana incluida');
+
+        $this->get(route('planning.review', $request))
+            ->assertOk()
+            ->assertSee('4 unidades necesarias')
+            ->assertSee('8 disponibles')
+            ->assertSee('Revisión humana incluida');
+
         $this->assertSame(0, $period->reservations()->count());
         $this->assertNull($request->fresh()->calculation_snapshot);
     }
