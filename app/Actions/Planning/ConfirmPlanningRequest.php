@@ -6,6 +6,7 @@ use App\Enums\PlanningRequestStatus;
 use App\Models\GroupProfile;
 use App\Services\Planning\PlanningCalendarBuilder;
 use App\Services\Planning\PlanningFocusResolver;
+use App\Services\AI\RequestBlockManager;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
 use App\Models\RequestStateEvent;
@@ -39,6 +40,7 @@ class ConfirmPlanningRequest
     public function __construct(
         private PlanningCalendarBuilder $calendarBuilder,
         private PlanningFocusResolver $focusResolver,
+        private RequestBlockManager $blocks,
     ) {}
 
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
@@ -49,10 +51,12 @@ class ConfirmPlanningRequest
             /** @var PlanningRequest $fresh */
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($request->id);
 
-            if ($fresh->status !== PlanningRequestStatus::BORRADOR) {
-                throw new RuntimeException('PLANNING_REQUEST_ALREADY_CONFIRMED');
+            if (! $fresh->canEditInputs()) {
+                throw new RuntimeException('PLANNING_REQUEST_INPUTS_NOT_EDITABLE');
             }
 
+            $fromStatus = $fresh->status;
+            $isInputRevision = $fromStatus === PlanningRequestStatus::ESPERANDO_INFORMACION;
             $this->assertReady($fresh);
 
             $snapshot = $this->buildSnapshot($fresh);
@@ -66,23 +70,31 @@ class ConfirmPlanningRequest
                 'reason' => 'confirmation',
             ]);
 
+            $toStatus = $fresh->commercial_authorized_at !== null
+                ? PlanningRequestStatus::LISTA_PARA_PROCESAR
+                : PlanningRequestStatus::ESPERANDO_PAGO;
+
             $fresh->fill([
                 'input_revision' => $revision,
                 'input_snapshot' => $snapshot,
                 'current_version_id' => $inputVersion->id,
                 'curriculum_confirmed_at' => now(),
-                'status' => PlanningRequestStatus::ESPERANDO_PAGO,
+                'status' => $toStatus,
                 'lock_version' => (int) $fresh->lock_version + 1,
             ])->save();
 
             RequestStateEvent::query()->create([
                 'request_id' => $fresh->id,
-                'from_status' => PlanningRequestStatus::BORRADOR->value,
-                'to_status' => PlanningRequestStatus::ESPERANDO_PAGO->value,
+                'from_status' => $fromStatus->value,
+                'to_status' => $toStatus->value,
                 'actor_id' => $actor->id,
                 'actor_type' => 'user',
-                'reason' => 'draft_confirmed',
+                'reason' => $isInputRevision ? 'input_revision_confirmed' : 'draft_confirmed',
             ]);
+
+            if ($isInputRevision) {
+                $this->blocks->resolve($fresh, 'ai_quality_attention', 'audit', $actor);
+            }
 
             return $fresh->refresh();
         });
