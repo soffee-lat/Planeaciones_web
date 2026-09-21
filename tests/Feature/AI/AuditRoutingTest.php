@@ -18,7 +18,6 @@ use App\Models\Approval;
 use App\Models\OutboxEvent;
 use App\Models\RequestBlock;
 use App\Models\UsageReservation;
-use Illuminate\Support\Facades\DB;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
 use Tests\Concerns\CreatesManualAiPipelineScenario;
@@ -146,8 +145,30 @@ class AuditRoutingTest extends PedagogyTestCase
             ->sole();
         $this->assertNull($outbox->published_at);
 
-        DB::table('ai_executions')->where('id', $scene['audit']->id)->update([
-            'audit_report' => json_encode([
+        $legacyAudit = AiExecution::query()->create([
+            'request_id' => $scene['audit']->request_id,
+            'format_version_id' => $scene['audit']->format_version_id,
+            'stage' => $scene['audit']->stage->value,
+            'mode' => $scene['audit']->mode->value,
+            'provider' => 'test',
+            'model' => 'legacy-audit',
+            'prompt_version_id' => $scene['audit']->prompt_version_id,
+            'input_revision' => $scene['audit']->input_revision,
+            'input_manifest' => $scene['audit']->input_manifest,
+            'rendered_prompt_hash' => $scene['audit']->rendered_prompt_hash,
+            'private_payload_file_id' => null,
+            'operation_key' => $scene['audit']->operation_key . ':legacy-curriculum-gap',
+            'status' => 'succeeded',
+            'started_at' => now(),
+            'finished_at' => now(),
+            'duration_ms' => 1,
+            'error_code' => null,
+            'sanitized_error' => null,
+            'estimated_cost' => null,
+            'actual_cost' => null,
+            'cost_currency' => null,
+            'resulting_version_id' => null,
+            'audit_report' => [
                 'schema_version' => 'audit_result_v1',
                 'passed' => false,
                 'findings' => [[
@@ -157,10 +178,10 @@ class AuditRoutingTest extends PedagogyTestCase
                     'explanation' => 'El snapshot no contiene PDA suficientes para el tema principal.',
                     'expected_correction' => 'Revisar la selección curricular antes de regenerar.',
                 ]],
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ],
         ]);
 
-        $rerouted = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
+        $rerouted = app(RouteAuditResult::class)->execute($legacyAudit);
 
         $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $rerouted->status);
         $this->assertSame('failed', $correction->fresh()->status->value);
