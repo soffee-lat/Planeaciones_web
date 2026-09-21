@@ -36,6 +36,11 @@ final class ProcessOutboxEvent
             $this->markPublished($claimed);
             return true;
         } catch (Throwable $e) {
+            if ($this->isTerminalFailure($e)) {
+                $this->markTerminalFailure($claimed, $e);
+                return true;
+            }
+
             $this->releaseAfterFailure($claimed, $e);
             throw $e;
         }
@@ -156,6 +161,60 @@ final class ProcessOutboxEvent
                 'lease_expires_at' => null,
                 'last_error_code' => null,
             ])->save();
+        });
+    }
+
+    private function isTerminalFailure(Throwable $failure): bool
+    {
+        return $failure instanceof AiPipelineException
+            && in_array($failure->errorCode, [
+                'AI_GENERATION_INPUT_MANIFEST_CHANGED',
+            ], true);
+    }
+
+    private function markTerminalFailure(OutboxEvent $claimed, Throwable $failure): void
+    {
+        $errorCode = $failure instanceof AiPipelineException
+            ? $failure->errorCode
+            : 'AI_OUTBOX_PROCESSING_FAILED';
+
+        DB::transaction(function () use ($claimed, $errorCode): void {
+            /** @var OutboxEvent|null $event */
+            $event = OutboxEvent::query()->whereKey($claimed->id)->lockForUpdate()->first();
+            if (! $event || $event->published_at !== null) {
+                return;
+            }
+
+            $event->forceFill([
+                'published_at' => now(),
+                'claimed_at' => null,
+                'lease_expires_at' => null,
+                'last_error_code' => $errorCode,
+            ])->save();
+
+            $executionId = (int) ($event->payload['ai_execution_id'] ?? 0);
+            if ($executionId > 0) {
+                $execution = AiExecution::query()->whereKey($executionId)->lockForUpdate()->first();
+                if ($execution && $execution->status !== \App\Enums\AiExecutionStatus::Succeeded) {
+                    $execution->forceFill([
+                        'status' => \App\Enums\AiExecutionStatus::Failed->value,
+                        'finished_at' => now(),
+                        'error_code' => $errorCode,
+                        'sanitized_error' => 'generation_dispatch_terminal',
+                    ])->save();
+                }
+            }
+
+            $request = PlanningRequest::query()->whereKey($event->aggregate_id)->lockForUpdate()->first();
+            if ($request) {
+                $this->blocks->open(
+                    $request,
+                    'ai_failed',
+                    $this->stageForEvent($event)->value,
+                    ['error_code' => $errorCode, 'attempts' => (int) $event->attempts, 'terminal' => true],
+                    (string) ($event->payload['correlation_id'] ?? '') ?: null,
+                );
+            }
         });
     }
 
