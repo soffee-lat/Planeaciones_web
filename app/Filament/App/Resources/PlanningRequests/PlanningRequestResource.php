@@ -54,7 +54,7 @@ class PlanningRequestResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->where('owner_id', auth()->id());
+        return parent::getEloquentQuery()->where('owner_id', auth()->id())->with('blocks');
     }
 
     public static function form(Schema $schema): Schema
@@ -429,9 +429,10 @@ class PlanningRequestResource extends Resource
                     ->label('Estado')
                     ->badge()
                     ->formatStateUsing(fn (PlanningRequest $record) => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->status($record))
-                    ->color(fn (PlanningRequestStatus $state) => match ($state) {
-                        PlanningRequestStatus::BORRADOR => 'gray',
-                        PlanningRequestStatus::ESPERANDO_PAGO => 'warning',
+                    ->color(fn (PlanningRequest $record) => match (true) {
+                        app(\App\Services\Commerce\PlanningCommercialPresentation::class)->requiresCurriculumInputRevision($record) => 'warning',
+                        $record->status === PlanningRequestStatus::BORRADOR => 'gray',
+                        $record->status === PlanningRequestStatus::ESPERANDO_PAGO => 'warning',
                         default => 'info',
                     }),
                 TextColumn::make('updated_at')->label('Actualizada')->since()->toggleable(),
