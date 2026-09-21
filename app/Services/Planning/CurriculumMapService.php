@@ -7,6 +7,7 @@ use App\Enums\ProductEventType;
 use App\Enums\RoleCode;
 use App\Models\ArticulatingAxis;
 use App\Models\CurricularContent;
+use App\Models\FormativeField;
 use App\Models\Pda;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
@@ -113,6 +114,8 @@ final class CurriculumMapService
             'axes' => $this->acceptedIds($statuses['axis']),
         ];
 
+        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selected['contents']);
+
         return [
             'request' => $request,
             'suggestion' => $suggestion,
@@ -124,6 +127,7 @@ final class CurriculumMapService
             'axes' => $axes,
             'selected' => $selected,
             'pending_count' => $this->pendingCount($statuses),
+            'schedule_field_coverage' => $scheduleFieldCoverage,
             'catalog' => $this->catalogOptions($request),
         ];
     }
@@ -234,6 +238,14 @@ final class CurriculumMapService
             }
         }
 
+        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selectedContentIds);
+        if ($scheduleFieldCoverage['missing'] !== []) {
+            throw new \RuntimeException(
+                'CURRICULUM_MAP_SCHEDULE_FIELD_REQUIRED:'
+                . implode(',', array_column($scheduleFieldCoverage['missing'], 'code'))
+            );
+        }
+
         $synced = $this->syncSelections->execute($actor, $request, [
             'contents' => $selectedContentIds,
             'pdas' => $selected['pdas'],
@@ -274,11 +286,16 @@ final class CurriculumMapService
     private function catalogOptions(PlanningRequest $request): array
     {
         $contents = CurricularContent::query()
+            ->with('formativeField:id,code,name')
             ->where('curriculum_version_id', $request->curriculum_version_id)
             ->whereHas('pdas', fn ($query) => $query->where('grade_id', $request->grade_id))
             ->orderBy('sort_order')->orderBy('code')
-            ->get(['id', 'code', 'title'])
-            ->mapWithKeys(fn ($content) => [$content->id => $content->code . ' — ' . $content->title])
+            ->get(['id', 'formative_field_id', 'code', 'title'])
+            ->mapWithKeys(fn ($content) => [
+                $content->id => $content->code
+                    . ' — ' . ($content->formativeField?->name ?? 'Sin campo')
+                    . ' — ' . $content->title,
+            ])
             ->all();
 
         $pdas = Pda::query()
@@ -297,6 +314,78 @@ final class CurriculumMapService
             ->all();
 
         return compact('contents', 'pdas', 'axes');
+    }
+
+    /**
+     * Garantiza que cada campo oficial no flexible del horario que entra en la
+     * planeación tenga al menos un contenido curricular confirmado. Sin esto
+     * el contrato de generación sería imposible de satisfacer: el horario
+     * exigiría un field_code que el snapshot curricular prohíbe usar.
+     *
+     * @param int[] $selectedContentIds
+     * @return array{
+     *   required:list<array{code:string,name:string,covered:bool}>,
+     *   missing:list<array{code:string,name:string}>
+     * }
+     */
+    private function scheduleFieldCoverage(PlanningRequest $request, array $selectedContentIds): array
+    {
+        $group = $request->group()->with('activeSchedule.blocks')->first();
+        $schedule = $group?->activeSchedule;
+
+        if (! $schedule) {
+            return ['required' => [], 'missing' => []];
+        }
+
+        $requiredCodes = [];
+        foreach ($schedule->blocks as $block) {
+            if (! $block->include_in_planning || $block->is_flexible) {
+                continue;
+            }
+            foreach ((array) ($block->field_codes ?? []) as $code) {
+                $code = trim((string) $code);
+                if ($code !== '') {
+                    $requiredCodes[$code] = true;
+                }
+            }
+        }
+
+        $requiredCodes = array_keys($requiredCodes);
+        sort($requiredCodes, SORT_STRING);
+
+        if ($requiredCodes === []) {
+            return ['required' => [], 'missing' => []];
+        }
+
+        $selectedFieldCodes = CurricularContent::query()
+            ->with('formativeField:id,code,name')
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->whereIn('id', $selectedContentIds ?: [0])
+            ->get(['id', 'formative_field_id'])
+            ->map(fn ($content) => (string) ($content->formativeField?->code ?? ''))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $fieldNames = FormativeField::query()
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->whereIn('code', $requiredCodes)
+            ->pluck('name', 'code')
+            ->all();
+
+        $required = array_map(fn (string $code) => [
+            'code' => $code,
+            'name' => (string) ($fieldNames[$code] ?? $code),
+            'covered' => in_array($code, $selectedFieldCodes, true),
+        ], $requiredCodes);
+
+        $missing = array_values(array_map(
+            fn (array $field) => ['code' => $field['code'], 'name' => $field['name']],
+            array_filter($required, fn (array $field) => ! $field['covered']),
+        ));
+
+        return compact('required', 'missing');
     }
 
     /** @return array<string,mixed> */
