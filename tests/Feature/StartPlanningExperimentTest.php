@@ -176,6 +176,8 @@ class StartPlanningExperimentTest extends PedagogyTestCase
         $response->assertSee('Tipo de planeación');
         $response->assertSee('Por semana');
         $response->assertSee('Por mes');
+        $response->assertSee('Marca cualquier día de la semana escolar');
+        $response->assertSee('Selecciona primero un grupo para ver su calendario escolar.');
         $response->assertDontSee('Modalidad');
     }
 }
