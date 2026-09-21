@@ -60,7 +60,7 @@ class EditPlanningRequest extends EditRecord
                 ->label('Editar periodo y temas')
                 ->icon('heroicon-o-calendar-days')
                 ->color('gray')
-                ->visible(fn () => ($this->getRecord()?->isDraft() ?? false)
+                ->visible(fn () => ($this->getRecord()?->canEditInputs() ?? false)
                     && $this->getRecord()->planningWeeks()->exists())
                 ->url(fn (): string => StartPlanning::getUrl() . '?draft=' . $this->getRecord()->id),
             Action::make('confirm')
@@ -85,9 +85,19 @@ class EditPlanningRequest extends EditRecord
                             return;
                         }
 
-                        app(ConfirmPlanningRequest::class)->execute(auth()->user(), $record ?? $this->getRecord());
-                        $this->attemptCommercialAuthorization();
-                        $this->redirect(PlanningRequestResource::getUrl('view', ['record' => $this->getRecord()->id]));
+                        $confirmed = app(ConfirmPlanningRequest::class)->execute(auth()->user(), $record ?? $this->getRecord());
+                        $this->record = $confirmed;
+
+                        if ($confirmed->status === \App\Enums\PlanningRequestStatus::ESPERANDO_PAGO) {
+                            $this->attemptCommercialAuthorization();
+                        } else {
+                            Notification::make()->success()
+                                ->title('Insumos actualizados')
+                                ->body('La nueva revisión quedó lista para regenerar sin consumir unidades adicionales.')
+                                ->send();
+                        }
+
+                        $this->redirect(PlanningRequestResource::getUrl('view', ['record' => $confirmed->id]));
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         throw $e;
                     } catch (\Throwable $e) {
