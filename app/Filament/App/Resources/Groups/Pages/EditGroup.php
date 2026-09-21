@@ -29,11 +29,11 @@ class EditGroup extends EditRecord
                 ->color('primary')
                 ->url(fn (): string => GroupResource::getUrl('schedule', ['record' => $this->getRecord()->getKey()])),
             Action::make('preferredFormat')
-                ->label('Formato de planeación')
+                ->label('Formato institucional')
                 ->icon('heroicon-o-document-text')
                 ->schema([
                     Select::make('preferred_format_id')
-                        ->label('Formato que usa este grupo')
+                        ->label('Formato institucional guardado')
                         ->options(fn (): array => InstitutionalFormat::query()
                             ->where('kind', InstitutionalFormatKind::Institutional->value)
                             ->where('status', InstitutionalFormatStatus::Ready->value)
@@ -48,7 +48,7 @@ class EditGroup extends EditRecord
                         ->placeholder('Usar formato estándar')
                         ->searchable()
                         ->native(false)
-                        ->helperText('Planeaciones analizará este formato antes de generar contenido y llenará sus campos específicos.'),
+                        ->helperText('Opcional. Se conserva como preferencia administrativa del grupo, pero la generación pedagógica no depende de este archivo. El formato estándar sigue siendo la exportación recomendada.'),
                 ])
                 ->action(function (array $data): void {
                     /** @var Group $group */
@@ -84,8 +84,8 @@ class EditGroup extends EditRecord
                         ->success()
                         ->title('Formato del grupo actualizado')
                         ->body($formatId === null
-                            ? 'Las siguientes planeaciones usarán el formato estándar.'
-                            : 'Las siguientes planeaciones tendrán en cuenta los campos y estructura de este formato.')
+                            ? 'Se eliminó la preferencia institucional. El formato estándar seguirá disponible como opción recomendada al exportar.'
+                            : 'La preferencia institucional quedó guardada sin modificar el contenido pedagógico ni su revisión.')
                         ->send();
                 }),
         ];
