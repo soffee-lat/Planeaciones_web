@@ -8,6 +8,7 @@ use App\Models\PlanningRequest;
 use App\Services\Planning\CurriculumMapService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class CurriculumMapController
@@ -56,17 +57,50 @@ class CurriculumMapController
     {
         $request = $this->ownedEditable($httpRequest, $planningRequest);
         $data = $httpRequest->validate([
-            'entity_type' => ['required', 'string', 'in:content,pda,axis'],
-            'entity_id' => ['required', 'integer', 'min:1'],
+            'entity_type' => ['nullable', 'string', 'in:content,pda,axis'],
+            'entity_id' => ['nullable', 'integer', 'min:1'],
+            'content_ids' => ['nullable', 'array'],
+            'content_ids.*' => ['integer', 'min:1'],
+            'pda_ids' => ['nullable', 'array'],
+            'pda_ids.*' => ['integer', 'min:1'],
+            'axis_ids' => ['nullable', 'array'],
+            'axis_ids.*' => ['integer', 'min:1'],
         ]);
 
+        $selection = [
+            'content' => array_values(array_unique(array_map('intval', $data['content_ids'] ?? []))),
+            'pda' => array_values(array_unique(array_map('intval', $data['pda_ids'] ?? []))),
+            'axis' => array_values(array_unique(array_map('intval', $data['axis_ids'] ?? []))),
+        ];
+
+        if (! empty($data['entity_type']) && ! empty($data['entity_id'])) {
+            $selection[$data['entity_type']][] = (int) $data['entity_id'];
+            $selection[$data['entity_type']] = array_values(array_unique($selection[$data['entity_type']]));
+        }
+
+        $count = count($selection['content']) + count($selection['pda']) + count($selection['axis']);
+        if ($count === 0) {
+            return back()->withErrors(['curriculum_map' => 'Selecciona al menos una opción del catálogo antes de agregar.']);
+        }
+
         try {
-            $maps->add($httpRequest->user(), $request, $data['entity_type'], (int) $data['entity_id']);
+            DB::transaction(function () use ($maps, $httpRequest, $request, $selection): void {
+                foreach (['content', 'pda', 'axis'] as $type) {
+                    foreach ($selection[$type] as $id) {
+                        $maps->add($httpRequest->user(), $request, $type, $id);
+                    }
+                }
+            }, attempts: 3);
         } catch (\RuntimeException $e) {
             return back()->withErrors(['curriculum_map' => $this->messageFor($e->getMessage())]);
         }
 
-        return back()->with('curriculum_map_status', 'Agregamos tu selección al mapa curricular.');
+        return back()->with(
+            'curriculum_map_status',
+            $count === 1
+                ? 'Agregamos tu selección al mapa curricular.'
+                : "Agregamos {$count} selecciones al mapa curricular en un solo paso.",
+        );
     }
 
     public function confirm(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
