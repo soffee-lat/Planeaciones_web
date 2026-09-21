@@ -38,7 +38,7 @@
         .catalog-intro{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:13px}.catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.catalog-box{border:1px solid var(--border);border-radius:13px;padding:12px;background:var(--panel-2)}.catalog-box h3{margin-bottom:4px}.search{width:100%;border:1px solid var(--border-strong);background:var(--panel);color:var(--text);border-radius:9px;padding:9px 10px;margin:9px 0}.choices{max-height:220px;overflow:auto;display:grid;gap:7px;padding-right:3px}.choice{display:flex;gap:9px;align-items:flex-start;padding:8px;border-radius:9px;border:1px solid transparent;cursor:pointer;font-size:12px;line-height:1.35}.choice:hover{border-color:var(--border-strong);background:var(--panel)}.choice.disabled{opacity:.58;cursor:default}.choice input{margin-top:2px}.catalog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}.empty{padding:18px;border:1px dashed var(--border-strong);border-radius:12px;color:var(--muted);text-align:center;margin-top:10px}
         .no-match{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);background:var(--panel);border-radius:12px;margin-bottom:16px}.no-match-icon{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent);font-weight:900}.no-match strong{display:block;margin-bottom:3px}.no-match p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
         .plan-structure{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel)}.plan-project{padding-bottom:10px}.plan-week{padding:10px 0;border-top:1px solid var(--border)}.plan-week-title{font-size:12px;font-weight:800;color:var(--text)}.plan-topic{margin-top:5px;font-size:12px;color:var(--muted)}.plan-topic strong{color:var(--text)}
-        .coverage-list{margin-top:10px}.coverage-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}.coverage-row:last-child{border-bottom:0}.coverage-ok{color:var(--ok);font-weight:800}.coverage-missing{color:var(--warn);font-weight:800}
+        .coverage-list{margin-top:10px}.coverage-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}.coverage-row:last-child{border-bottom:0}.coverage-main{min-width:0}.coverage-state{display:grid;justify-items:end;gap:5px;text-align:right}.coverage-ok{color:var(--ok);font-weight:800}.coverage-missing{color:var(--warn);font-weight:800}.coverage-link{border:0;background:transparent;color:var(--accent);padding:0;font-size:11px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:2px}.missing-fields{border-color:var(--warn-border);background:color-mix(in srgb,var(--warn-bg) 45%,var(--panel))}.missing-field-row{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--border)}.missing-field-row:first-of-type{border-top:0}.missing-field-copy{min-width:0}.missing-field-title{font-weight:800}.catalog-filter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel));font-size:12px}.catalog-filter[hidden]{display:none}
         @media(max-width:900px){.grid{grid-template-columns:1fr}.aside{position:static}.catalog-grid{grid-template-columns:1fr}.progress{grid-template-columns:1fr}.wrap{padding:14px}.top{align-items:flex-start}.axes{grid-template-columns:1fr}.item-head,.section-head,.catalog-intro{flex-direction:column}.status{align-self:flex-start}.top-actions{display:none}}
     </style>
 </head>
@@ -49,6 +49,12 @@
     $contentPdas = $pdas->groupBy('curricular_content_id');
     $suggestionCount = count($suggestion['content_ids']) + count($suggestion['pda_ids']) + count($suggestion['axis_ids']);
     $editUrl = \App\Filament\App\Pages\StartPlanning::getUrl() . '?draft=' . $request->id;
+    $coverageMissingLabel = fn (array $field) => match ($field['missing_requirement'] ?? null) {
+        'pda' => 'Falta PDA',
+        'content' => 'Falta contenido',
+        'content_and_pda' => 'Falta contenido y PDA',
+        default => 'Falta cobertura',
+    };
 @endphp
 
 <header class="top">
@@ -128,6 +134,31 @@
 
     <div class="grid">
         <div>
+            @if(($schedule_field_coverage['missing'] ?? []) !== [])
+                <section class="section missing-fields" id="faltantes-horario">
+                    <div class="section-head">
+                        <div>
+                            <h2>Faltantes para completar tu horario</h2>
+                            <div class="muted">Te mostramos exactamente qué campo falta. Usa “Ver opciones” para ir al catálogo ya filtrado.</div>
+                        </div>
+                    </div>
+                    @foreach($schedule_field_coverage['missing'] as $field)
+                        <div class="missing-field-row">
+                            <div class="missing-field-copy">
+                                <div class="missing-field-title">{{ $field['name'] }} <span class="code">{{ $field['code'] }}</span></div>
+                                <div class="muted">{{ $coverageMissingLabel($field) }}. Para cubrirlo puedes elegir un PDA de este campo; al agregarlo incluiremos automáticamente su contenido relacionado.</div>
+                            </div>
+                            <button
+                                class="btn outline"
+                                type="button"
+                                data-field-jump="{{ $field['code'] }}"
+                                data-field-name="{{ $field['name'] }}"
+                            >Ver opciones de {{ $field['code'] }}</button>
+                        </div>
+                    @endforeach
+                </section>
+            @endif
+
             <section class="section">
                 <div class="section-head">
                     <div>
@@ -235,6 +266,11 @@
                     </div>
                 </div>
 
+                <div class="catalog-filter" id="catalog-field-filter" hidden>
+                    <span>Mostrando contenidos y PDA de <strong id="catalog-field-filter-name"></strong>.</span>
+                    <button class="coverage-link" type="button" id="catalog-field-filter-clear">Ver todo el catálogo</button>
+                </div>
+
                 <form method="POST" action="{{ route('planning.curriculum-map.add', $request) }}">
                     @csrf
                     <div class="catalog-grid">
@@ -245,7 +281,7 @@
                             <div class="choices" id="contents-list">
                                 @forelse($catalog['contents'] as $id => $label)
                                     @php $already = in_array((int) $id, $selected['contents'], true); @endphp
-                                    <label class="choice {{ $already ? 'disabled' : '' }}">
+                                    <label class="choice {{ $already ? 'disabled' : '' }}" data-field-code="{{ $catalog['content_field_codes'][$id] ?? '' }}">
                                         <input type="checkbox" name="content_ids[]" value="{{ $id }}" @checked($already) @disabled($already)>
                                         <span>{{ $label }}@if($already) · ya incluido @endif</span>
                                     </label>
@@ -262,7 +298,7 @@
                             <div class="choices" id="pdas-list">
                                 @forelse($catalog['pdas'] as $id => $label)
                                     @php $already = in_array((int) $id, $selected['pdas'], true); @endphp
-                                    <label class="choice {{ $already ? 'disabled' : '' }}">
+                                    <label class="choice {{ $already ? 'disabled' : '' }}" data-field-code="{{ $catalog['pda_field_codes'][$id] ?? '' }}">
                                         <input type="checkbox" name="pda_ids[]" value="{{ $id }}" @checked($already) @disabled($already)>
                                         <span>{{ $label }}@if($already) · ya incluido @endif</span>
                                     </label>
@@ -316,11 +352,21 @@
                     <div class="coverage-list">
                         @foreach($schedule_field_coverage['required'] as $field)
                             <div class="coverage-row">
-                                <span>{{ $field['name'] }} <span class="code">{{ $field['code'] }}</span></span>
+                                <div class="coverage-main">
+                                    <span>{{ $field['name'] }} <span class="code">{{ $field['code'] }}</span></span>
+                                </div>
                                 @if($field['covered'])
-                                    <span class="coverage-ok">✓ Cubierto</span>
+                                    <div class="coverage-state"><span class="coverage-ok">✓ Cubierto</span></div>
                                 @else
-                                    <span class="coverage-missing">⚠ Falta contenido</span>
+                                    <div class="coverage-state">
+                                        <span class="coverage-missing">⚠ {{ $coverageMissingLabel($field) }}</span>
+                                        <button
+                                            class="coverage-link"
+                                            type="button"
+                                            data-field-jump="{{ $field['code'] }}"
+                                            data-field-name="{{ $field['name'] }}"
+                                        >Ver opciones</button>
+                                    </div>
                                 @endif
                             </div>
                         @endforeach
@@ -347,15 +393,56 @@
 </main>
 
 <script>
-    document.querySelectorAll('[data-filter]').forEach((input) => {
-        input.addEventListener('input', () => {
-            const target = document.getElementById(input.dataset.filter);
-            if (!target) return;
-            const query = input.value.trim().toLowerCase();
-            target.querySelectorAll('.choice').forEach((choice) => {
-                choice.hidden = query !== '' && !choice.textContent.toLowerCase().includes(query);
-            });
+    let activeFieldCode = null;
+
+    const applyChoiceFilter = (listId) => {
+        const target = document.getElementById(listId);
+        if (!target) return;
+
+        const input = document.querySelector('[data-filter="' + listId + '"]');
+        const query = (input?.value ?? '').trim().toLowerCase();
+        const useFieldFilter = activeFieldCode && (listId === 'contents-list' || listId === 'pdas-list');
+
+        target.querySelectorAll('.choice').forEach((choice) => {
+            const textMatches = query === '' || choice.textContent.toLowerCase().includes(query);
+            const fieldMatches = !useFieldFilter || choice.dataset.fieldCode === activeFieldCode;
+            choice.hidden = !(textMatches && fieldMatches);
         });
+    };
+
+    const applyAllChoiceFilters = () => {
+        ['contents-list', 'pdas-list', 'axes-list'].forEach(applyChoiceFilter);
+    };
+
+    document.querySelectorAll('[data-filter]').forEach((input) => {
+        input.addEventListener('input', () => applyChoiceFilter(input.dataset.filter));
+    });
+
+    document.querySelectorAll('[data-field-jump]').forEach((button) => {
+        button.addEventListener('click', () => {
+            activeFieldCode = button.dataset.fieldJump || null;
+
+            document.querySelectorAll('[data-filter="contents-list"], [data-filter="pdas-list"]').forEach((input) => {
+                input.value = '';
+            });
+
+            const filter = document.getElementById('catalog-field-filter');
+            const filterName = document.getElementById('catalog-field-filter-name');
+            if (filter && filterName && activeFieldCode) {
+                filterName.textContent = (button.dataset.fieldName || activeFieldCode) + ' (' + activeFieldCode + ')';
+                filter.hidden = false;
+            }
+
+            applyAllChoiceFilters();
+            document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+
+    document.getElementById('catalog-field-filter-clear')?.addEventListener('click', () => {
+        activeFieldCode = null;
+        const filter = document.getElementById('catalog-field-filter');
+        if (filter) filter.hidden = true;
+        applyAllChoiceFilters();
     });
 </script>
 </body>

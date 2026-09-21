@@ -114,7 +114,7 @@ final class CurriculumMapService
             'axes' => $this->acceptedIds($statuses['axis']),
         ];
 
-        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selected['contents']);
+        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selected['contents'], $selected['pdas']);
 
         return [
             'request' => $request,
@@ -238,7 +238,7 @@ final class CurriculumMapService
             }
         }
 
-        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selectedContentIds);
+        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selectedContentIds, $selected['pdas']);
         if ($scheduleFieldCoverage['missing'] !== []) {
             throw new \RuntimeException(
                 'CURRICULUM_MAP_SCHEDULE_FIELD_REQUIRED:'
@@ -282,15 +282,17 @@ final class CurriculumMapService
         return $confirmed;
     }
 
-    /** @return array<string,array<int,string>> */
+    /** @return array<string,mixed> */
     private function catalogOptions(PlanningRequest $request): array
     {
-        $contents = CurricularContent::query()
+        $contentModels = CurricularContent::query()
             ->with('formativeField:id,code,name')
             ->where('curriculum_version_id', $request->curriculum_version_id)
             ->whereHas('pdas', fn ($query) => $query->where('grade_id', $request->grade_id))
             ->orderBy('sort_order')->orderBy('code')
-            ->get(['id', 'formative_field_id', 'code', 'title'])
+            ->get(['id', 'formative_field_id', 'code', 'title']);
+
+        $contents = $contentModels
             ->mapWithKeys(fn ($content) => [
                 $content->id => $content->code
                     . ' — ' . ($content->formativeField?->name ?? 'Sin campo')
@@ -298,12 +300,35 @@ final class CurriculumMapService
             ])
             ->all();
 
-        $pdas = Pda::query()
+        $contentFieldCodes = $contentModels
+            ->mapWithKeys(fn ($content) => [
+                $content->id => (string) ($content->formativeField?->code ?? ''),
+            ])
+            ->all();
+
+        $pdaModels = Pda::query()
+            ->with('curricularContent.formativeField:id,code,name')
             ->where('curriculum_version_id', $request->curriculum_version_id)
             ->where('grade_id', $request->grade_id)
             ->orderBy('sort_order')->orderBy('code')
-            ->get(['id', 'code', 'full_text'])
-            ->mapWithKeys(fn ($pda) => [$pda->id => $pda->code . ' — ' . mb_strimwidth((string) $pda->full_text, 0, 110, '…')])
+            ->get(['id', 'curricular_content_id', 'code', 'full_text']);
+
+        $pdas = $pdaModels
+            ->mapWithKeys(function ($pda) {
+                $fieldName = $pda->curricularContent?->formativeField?->name ?? 'Sin campo';
+
+                return [
+                    $pda->id => $pda->code
+                        . ' — ' . $fieldName
+                        . ' — ' . mb_strimwidth((string) $pda->full_text, 0, 110, '…'),
+                ];
+            })
+            ->all();
+
+        $pdaFieldCodes = $pdaModels
+            ->mapWithKeys(fn ($pda) => [
+                $pda->id => (string) ($pda->curricularContent?->formativeField?->code ?? ''),
+            ])
             ->all();
 
         $axes = ArticulatingAxis::query()
@@ -313,28 +338,28 @@ final class CurriculumMapService
             ->mapWithKeys(fn ($axis) => [$axis->id => $axis->code . ' — ' . $axis->name])
             ->all();
 
-        return compact('contents', 'pdas', 'axes');
+        return [
+            'contents' => $contents,
+            'pdas' => $pdas,
+            'axes' => $axes,
+            'content_field_codes' => $contentFieldCodes,
+            'pda_field_codes' => $pdaFieldCodes,
+        ];
     }
 
     /**
-     * Garantiza que cada campo oficial no flexible del horario que entra en la
-     * planeación tenga al menos un contenido curricular confirmado. Sin esto
-     * el contrato de generación sería imposible de satisfacer: el horario
-     * exigiría un field_code que el snapshot curricular prohíbe usar.
+     * Devuelve los códigos de campo oficial exigidos por bloques no flexibles
+     * que sí participan en la planeación.
      *
-     * @param int[] $selectedContentIds
-     * @return array{
-     *   required:list<array{code:string,name:string,covered:bool}>,
-     *   missing:list<array{code:string,name:string}>
-     * }
+     * @return list<string>
      */
-    private function scheduleFieldCoverage(PlanningRequest $request, array $selectedContentIds): array
+    private function requiredScheduleFieldCodes(PlanningRequest $request): array
     {
         $group = $request->group()->with('activeSchedule.blocks')->first();
         $schedule = $group?->activeSchedule;
 
         if (! $schedule) {
-            return ['required' => [], 'missing' => []];
+            return [];
         }
 
         $requiredCodes = [];
@@ -342,6 +367,7 @@ final class CurriculumMapService
             if (! $block->include_in_planning || $block->is_flexible) {
                 continue;
             }
+
             foreach ((array) ($block->field_codes ?? []) as $code) {
                 $code = trim((string) $code);
                 if ($code !== '') {
@@ -353,16 +379,63 @@ final class CurriculumMapService
         $requiredCodes = array_keys($requiredCodes);
         sort($requiredCodes, SORT_STRING);
 
+        return array_values($requiredCodes);
+    }
+
+    /**
+     * Garantiza que cada campo oficial no flexible del horario que entra en la
+     * planeación tenga tanto contenido curricular como al menos un PDA elegido.
+     *
+     * @param int[] $selectedContentIds
+     * @param int[] $selectedPdaIds
+     * @return array{
+     *   required:list<array{
+     *     code:string,
+     *     name:string,
+     *     content_selected:bool,
+     *     pda_selected:bool,
+     *     covered:bool,
+     *     missing_requirement:?string
+     *   }>,
+     *   missing:list<array{
+     *     code:string,
+     *     name:string,
+     *     content_selected:bool,
+     *     pda_selected:bool,
+     *     missing_requirement:string
+     *   }>
+     * }
+     */
+    private function scheduleFieldCoverage(
+        PlanningRequest $request,
+        array $selectedContentIds,
+        array $selectedPdaIds,
+    ): array
+    {
+        $requiredCodes = $this->requiredScheduleFieldCodes($request);
+
         if ($requiredCodes === []) {
             return ['required' => [], 'missing' => []];
         }
 
-        $selectedFieldCodes = CurricularContent::query()
+        $selectedContentFieldCodes = CurricularContent::query()
             ->with('formativeField:id,code,name')
             ->where('curriculum_version_id', $request->curriculum_version_id)
             ->whereIn('id', $selectedContentIds ?: [0])
             ->get(['id', 'formative_field_id'])
             ->map(fn ($content) => (string) ($content->formativeField?->code ?? ''))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $selectedPdaFieldCodes = Pda::query()
+            ->with('curricularContent.formativeField:id,code,name')
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->where('grade_id', $request->grade_id)
+            ->whereIn('id', $selectedPdaIds ?: [0])
+            ->get(['id', 'curricular_content_id'])
+            ->map(fn ($pda) => (string) ($pda->curricularContent?->formativeField?->code ?? ''))
             ->filter()
             ->unique()
             ->values()
@@ -374,14 +447,34 @@ final class CurriculumMapService
             ->pluck('name', 'code')
             ->all();
 
-        $required = array_map(fn (string $code) => [
-            'code' => $code,
-            'name' => (string) ($fieldNames[$code] ?? $code),
-            'covered' => in_array($code, $selectedFieldCodes, true),
-        ], $requiredCodes);
+        $required = array_map(function (string $code) use ($fieldNames, $selectedContentFieldCodes, $selectedPdaFieldCodes): array {
+            $hasContent = in_array($code, $selectedContentFieldCodes, true);
+            $hasPda = in_array($code, $selectedPdaFieldCodes, true);
+            $missingRequirement = match (true) {
+                $hasContent && $hasPda => null,
+                ! $hasContent && ! $hasPda => 'content_and_pda',
+                ! $hasContent => 'content',
+                default => 'pda',
+            };
+
+            return [
+                'code' => $code,
+                'name' => (string) ($fieldNames[$code] ?? $code),
+                'content_selected' => $hasContent,
+                'pda_selected' => $hasPda,
+                'covered' => $hasContent && $hasPda,
+                'missing_requirement' => $missingRequirement,
+            ];
+        }, $requiredCodes);
 
         $missing = array_values(array_map(
-            fn (array $field) => ['code' => $field['code'], 'name' => $field['name']],
+            fn (array $field) => [
+                'code' => $field['code'],
+                'name' => $field['name'],
+                'content_selected' => $field['content_selected'],
+                'pda_selected' => $field['pda_selected'],
+                'missing_requirement' => (string) $field['missing_requirement'],
+            ],
             array_filter($required, fn (array $field) => ! $field['covered']),
         ));
 
@@ -391,28 +484,59 @@ final class CurriculumMapService
     /** @return array<string,mixed> */
     private function suggest(PlanningRequest $request): array
     {
+        $request->loadMissing('planningWeeks.topics.subject');
+        $requiredFieldCodes = $this->requiredScheduleFieldCodes($request);
+
+        $baseInput = [
+            'project' => $request->project,
+            'topic' => $request->topic,
+            'book_pages' => $request->book_pages,
+            'required_activities' => $request->required_activities,
+            'special_events' => $request->special_events,
+            'comments' => $request->comments,
+        ];
+
+        // Cuando el horario exige campos concretos, reservamos primero espacio
+        // para intentar cubrirlos y dejamos la sugerencia general como apoyo.
         $base = $this->suggestions->suggest(
             (int) $request->curriculum_version_id,
             (int) $request->grade_id,
-            [
-                'project' => $request->project,
-                'topic' => $request->topic,
-                'book_pages' => $request->book_pages,
-                'required_activities' => $request->required_activities,
-                'special_events' => $request->special_events,
-                'comments' => $request->comments,
-            ],
+            $baseInput,
+            maxContents: $requiredFieldCodes !== [] ? 3 : 6,
         );
 
-        $request->loadMissing('planningWeeks.topics.subject');
-        if ($request->planningWeeks->isEmpty()) {
+        if ($request->planningWeeks->isEmpty() && $requiredFieldCodes === []) {
             return $base;
         }
 
-        $merged = $base;
-        $merged['strategy_version'] = 'deterministic_v2_structured_topics';
+        $merged = [
+            'strategy_version' => 'deterministic_v3_schedule_priority',
+            'tokens' => [],
+            'content_ids' => [],
+            'pda_ids' => [],
+            'axis_ids' => [],
+            'formative_field_ids' => [],
+            'has_strong_match' => false,
+            'reasons' => [],
+        ];
 
-        $seen = [];
+        $mergePiece = function (array $piece, ?string $reasonPrefix = null) use (&$merged): void {
+            foreach (['tokens', 'content_ids', 'pda_ids', 'axis_ids', 'formative_field_ids'] as $listKey) {
+                $merged[$listKey] = array_values(array_unique(array_merge(
+                    $merged[$listKey] ?? [],
+                    $piece[$listKey] ?? [],
+                )));
+            }
+
+            foreach (($piece['reasons'] ?? []) as $contentId => $reason) {
+                $merged['reasons'][$contentId] = ($reasonPrefix ?? '') . $reason;
+            }
+
+            $merged['has_strong_match'] = (bool) ($merged['has_strong_match'] ?? false)
+                || (bool) ($piece['has_strong_match'] ?? false);
+        };
+
+        $topics = [];
         foreach ($request->planningWeeks as $week) {
             foreach ($week->topics as $topic) {
                 $text = trim((string) $topic->topic);
@@ -420,38 +544,64 @@ final class CurriculumMapService
                     continue;
                 }
 
-                $fieldCode = trim((string) ($topic->subject?->curriculum_field_code ?? ''));
-                $key = mb_strtolower($text) . '|' . $fieldCode;
-                if (isset($seen[$key])) {
-                    continue;
-                }
-                $seen[$key] = true;
-
-                $piece = $this->suggestions->suggest(
-                    (int) $request->curriculum_version_id,
-                    (int) $request->grade_id,
-                    ['topic' => $text],
-                    maxContents: 1,
-                    maxPdasPerContent: 2,
-                    maxAxes: 0,
-                    fieldCode: $fieldCode !== '' ? $fieldCode : null,
-                );
-
-                foreach (['tokens', 'content_ids', 'pda_ids', 'axis_ids', 'formative_field_ids'] as $listKey) {
-                    $merged[$listKey] = array_values(array_unique(array_merge(
-                        $merged[$listKey] ?? [],
-                        $piece[$listKey] ?? [],
-                    )));
-                }
-
-                foreach (($piece['reasons'] ?? []) as $contentId => $reason) {
-                    $merged['reasons'][$contentId] = 'Tema “' . $text . '”: ' . $reason;
-                }
-
-                $merged['has_strong_match'] = (bool) ($merged['has_strong_match'] ?? false)
-                    || (bool) ($piece['has_strong_match'] ?? false);
+                $topics[] = [
+                    'text' => $text,
+                    'field_code' => trim((string) ($topic->subject?->curriculum_field_code ?? '')),
+                ];
             }
         }
+
+        // 1) Campos obligatorios del horario. Si hay temas asociados a ese campo,
+        // se usan antes que el texto general de la solicitud.
+        foreach ($requiredFieldCodes as $fieldCode) {
+            $fieldTopicTexts = array_values(array_unique(array_map(
+                fn (array $topic) => $topic['text'],
+                array_filter($topics, fn (array $topic) => $topic['field_code'] === $fieldCode),
+            )));
+
+            $fieldInput = $baseInput;
+            if ($fieldTopicTexts !== []) {
+                $fieldInput['topic'] = implode(' ', $fieldTopicTexts);
+            }
+
+            $piece = $this->suggestions->suggest(
+                (int) $request->curriculum_version_id,
+                (int) $request->grade_id,
+                $fieldInput,
+                maxContents: 1,
+                maxPdasPerContent: 2,
+                maxAxes: 0,
+                fieldCode: $fieldCode,
+            );
+
+            $mergePiece($piece, 'Horario ' . $fieldCode . ': ');
+        }
+
+        // 2) Temas capturados por el docente, respetando su campo cuando la
+        // materia está vinculada al currículo.
+        $seen = [];
+        foreach ($topics as $topic) {
+            $key = mb_strtolower($topic['text']) . '|' . $topic['field_code'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $piece = $this->suggestions->suggest(
+                (int) $request->curriculum_version_id,
+                (int) $request->grade_id,
+                ['topic' => $topic['text']],
+                maxContents: 1,
+                maxPdasPerContent: 2,
+                maxAxes: 0,
+                fieldCode: $topic['field_code'] !== '' ? $topic['field_code'] : null,
+            );
+
+            $mergePiece($piece, 'Tema “' . $topic['text'] . '”: ');
+        }
+
+        // 3) Coincidencias generales y ejes como sugerencias adicionales.
+        $mergePiece($base);
 
         return $merged;
     }

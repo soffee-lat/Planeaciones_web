@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Planning\StartPlanningExperiment;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
+use App\Actions\Schedules\SaveGroupSchedule;
 use App\Enums\ProductEventType;
 use App\Models\PlanningRequest;
 use App\Models\ProductEvent;
@@ -150,6 +151,57 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $request->refresh();
         $this->assertTrue($request->hasConfirmedCurriculumMap());
         $this->assertStringContainsString('/app/planning-requests/', $response->headers->get('Location'));
+    }
+
+    public function test_schedule_coverage_explains_exact_missing_field_and_filters_catalog(): void
+    {
+        $ctx = $this->seedFullTeacher();
+
+        app(SaveGroupSchedule::class)->execute($ctx['user'], $ctx['group'], [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '10:00',
+            'blocks' => [[
+                'day_of_week' => 1,
+                'sequence' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '09:00',
+                'label' => 'Campo oficial',
+                'block_type' => 'class',
+                'responsibility' => 'main_teacher',
+                'include_in_planning' => true,
+                'is_flexible' => false,
+                'field_codes' => ['FF-1'],
+                'notes' => null,
+            ]],
+        ]);
+
+        $request = $this->startRequest($ctx);
+        $service = app(CurriculumMapService::class);
+        $state = $service->state($ctx['user'], $request);
+
+        $this->assertSame('deterministic_v3_schedule_priority', $state['suggestion']['strategy_version']);
+        $this->assertCount(1, $state['schedule_field_coverage']['missing']);
+        $this->assertSame('FF-1', $state['schedule_field_coverage']['missing'][0]['code']);
+        $this->assertSame('content_and_pda', $state['schedule_field_coverage']['missing'][0]['missing_requirement']);
+
+        $this->actingAs($ctx['user']);
+        $this->get(route('planning.curriculum-map', $request))
+            ->assertOk()
+            ->assertSee('Faltantes para completar tu horario')
+            ->assertSee('Ver opciones de FF-1')
+            ->assertSee('data-field-code="FF-1"', false);
+
+        $contentId = (int) $state['suggestion']['content_ids'][0];
+        $pdaId = (int) $state['suggestion']['pda_ids'][0];
+
+        $service->decide($ctx['user'], $request, 'content', $contentId, true);
+        $afterContent = $service->state($ctx['user'], $request, false);
+        $this->assertSame('pda', $afterContent['schedule_field_coverage']['missing'][0]['missing_requirement']);
+
+        $service->decide($ctx['user'], $request, 'pda', $pdaId, true);
+        $afterPda = $service->state($ctx['user'], $request, false);
+        $this->assertSame([], $afterPda['schedule_field_coverage']['missing']);
+        $this->assertTrue($afterPda['schedule_field_coverage']['required'][0]['covered']);
     }
 
     /** @param array<string,mixed> $ctx */
