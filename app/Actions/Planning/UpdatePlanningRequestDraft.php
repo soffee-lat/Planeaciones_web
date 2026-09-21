@@ -24,7 +24,7 @@ class UpdatePlanningRequestDraft
     {
         Gate::forUser($actor)->authorize('update', $request);
 
-        if (! $request->isDraft()) {
+        if (! $request->canEditInputs()) {
             throw ValidationException::withMessages([
                 'status' => 'La solicitud ya fue confirmada; no puede editarse como borrador.',
             ]);
@@ -48,7 +48,7 @@ class UpdatePlanningRequestDraft
 
         return DB::transaction(function () use ($request, $data) {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($request->id);
-            if ($fresh->status !== PlanningRequestStatus::BORRADOR) {
+            if (! $fresh->canEditInputs()) {
                 throw ValidationException::withMessages(['status' => 'La solicitud ya no está en borrador.']);
             }
 
