@@ -3,14 +3,10 @@
 namespace App\Filament\App\Resources\Groups\Pages;
 
 use App\Actions\Pedagogy\UpdateGroupProfile;
-use App\Enums\InstitutionalFormatKind;
-use App\Enums\InstitutionalFormatStatus;
 use App\Filament\App\Resources\Groups\GroupResource;
 use App\Models\Group;
-use App\Models\InstitutionalFormat;
 use App\Models\School;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Arr;
@@ -28,66 +24,6 @@ class EditGroup extends EditRecord
                 ->icon('heroicon-o-calendar-days')
                 ->color('primary')
                 ->url(fn (): string => GroupResource::getUrl('schedule', ['record' => $this->getRecord()->getKey()])),
-            Action::make('preferredFormat')
-                ->label('Formato institucional')
-                ->icon('heroicon-o-document-text')
-                ->schema([
-                    Select::make('preferred_format_id')
-                        ->label('Formato institucional guardado')
-                        ->options(fn (): array => InstitutionalFormat::query()
-                            ->where('kind', InstitutionalFormatKind::Institutional->value)
-                            ->where('status', InstitutionalFormatStatus::Ready->value)
-                            ->where(function ($query): void {
-                                $query->whereNull('owner_id')->orWhere('owner_id', auth()->id());
-                            })
-                            ->whereHas('versions', fn ($query) => $query->whereNotNull('published_at'))
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->all())
-                        ->default(fn () => $this->getRecord()->profile?->preferred_format_id)
-                        ->placeholder('Usar formato estándar')
-                        ->searchable()
-                        ->native(false)
-                        ->helperText('Opcional. Se conserva como preferencia administrativa del grupo, pero la generación pedagógica no depende de este archivo. El formato estándar sigue siendo la exportación recomendada.'),
-                ])
-                ->action(function (array $data): void {
-                    /** @var Group $group */
-                    $group = $this->getRecord();
-                    $formatId = $data['preferred_format_id'] ?? null;
-
-                    if ($formatId !== null) {
-                        $allowed = InstitutionalFormat::query()
-                            ->whereKey($formatId)
-                            ->where('kind', InstitutionalFormatKind::Institutional->value)
-                            ->where('status', InstitutionalFormatStatus::Ready->value)
-                            ->where(function ($query): void {
-                                $query->whereNull('owner_id')->orWhere('owner_id', auth()->id());
-                            })
-                            ->whereHas('versions', fn ($query) => $query->whereNotNull('published_at'))
-                            ->exists();
-                        if (! $allowed) {
-                            throw ValidationException::withMessages([
-                                'preferred_format_id' => 'Ese formato no está disponible para tu cuenta.',
-                            ]);
-                        }
-                    }
-
-                    $profile = $group->profile()->firstOrCreate([], ['revision' => 0]);
-                    app(UpdateGroupProfile::class)->execute(
-                        auth()->user(),
-                        $profile,
-                        ['preferred_format_id' => $formatId === null ? null : (int) $formatId],
-                    );
-                    $this->record = $group->fresh(['profile']);
-
-                    Notification::make()
-                        ->success()
-                        ->title('Formato del grupo actualizado')
-                        ->body($formatId === null
-                            ? 'Se eliminó la preferencia institucional. El formato estándar seguirá disponible como opción recomendada al exportar.'
-                            : 'La preferencia institucional quedó guardada sin modificar el contenido pedagógico ni su revisión.')
-                        ->send();
-                }),
         ];
     }
 
