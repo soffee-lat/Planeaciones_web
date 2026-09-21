@@ -42,9 +42,14 @@ class StartPlanning extends Page
 
         $draft = PlanningRequest::query()
             ->where('owner_id', auth()->id())
-            ->where('status', PlanningRequestStatus::BORRADOR->value)
+            ->whereIn('status', [
+                PlanningRequestStatus::BORRADOR->value,
+                PlanningRequestStatus::ESPERANDO_INFORMACION->value,
+            ])
             ->with('planningWeeks.topics')
             ->findOrFail($draftId);
+
+        abort_unless($draft->canEditInputs(), 409, 'Esta planeación no está disponible para revisión de insumos.');
 
         if (! in_array($draft->period_type, ['week', 'month'], true) || $draft->planningWeeks->isEmpty()) {
             abort(409, 'Esta planeación no usa la estructura semanal editable.');
@@ -274,8 +279,15 @@ class StartPlanning extends Page
             if ($this->draft_id) {
                 $request = PlanningRequest::query()
                     ->where('owner_id', auth()->id())
-                    ->where('status', PlanningRequestStatus::BORRADOR->value)
+                    ->whereIn('status', [
+                        PlanningRequestStatus::BORRADOR->value,
+                        PlanningRequestStatus::ESPERANDO_INFORMACION->value,
+                    ])
                     ->findOrFail($this->draft_id);
+
+                if (! $request->canEditInputs()) {
+                    abort(409, 'Esta planeación ya no está disponible para edición.');
+                }
 
                 if ((int) $request->group_id !== (int) $data['group_id']) {
                     throw ValidationException::withMessages([
