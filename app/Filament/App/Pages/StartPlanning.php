@@ -10,6 +10,8 @@ use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\Group;
 use App\Models\PlanningRequest;
 use App\Services\Planning\PlanningPeriodService;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +28,7 @@ class StartPlanning extends Page
     public ?int $group_id = null;
     public string $period_type = 'week';
     public string $period_key = '';
+    public string $calendar_month = '';
     public string $integrative_project = '';
     public string $integrative_project_purpose = '';
     public string $context_note = '';
@@ -59,6 +62,9 @@ class StartPlanning extends Page
         $this->group_id = (int) $draft->group_id;
         $this->period_type = (string) $draft->period_type;
         $this->period_key = (string) $draft->period_key;
+        $this->calendar_month = $draft->period_type === 'week'
+            ? substr((string) $draft->period_key, 0, 7)
+            : '';
         $this->integrative_project = (string) ($draft->integrative_project ?? '');
         $this->integrative_project_purpose = (string) ($draft->integrative_project_purpose ?? '');
         $this->context_note = (string) ($draft->comments ?? '');
@@ -108,6 +114,9 @@ class StartPlanning extends Page
 
         if ($group = $this->selectedGroup()) {
             app(EnsureDefaultGroupSubjects::class)->execute($group);
+            $this->calendar_month = $this->defaultCalendarMonth($group);
+        } else {
+            $this->calendar_month = '';
         }
     }
 
@@ -117,6 +126,12 @@ class StartPlanning extends Page
         $this->weeks = [];
         $this->integrative_project = '';
         $this->integrative_project_purpose = '';
+
+        if ($this->period_type === 'week' && ($group = $this->selectedGroup())) {
+            $this->calendar_month = $this->defaultCalendarMonth($group);
+        } else {
+            $this->calendar_month = '';
+        }
     }
 
     public function updatedPeriodKey(): void
@@ -149,6 +164,156 @@ class StartPlanning extends Page
         if ($this->weeks[$weekIndex]['topics'] === []) {
             $this->addTopic($weekIndex);
         }
+    }
+
+    public function selectCalendarDay(string $date): void
+    {
+        $group = $this->selectedGroup();
+        if (! $group || $this->period_type !== 'week') {
+            return;
+        }
+
+        try {
+            $day = CarbonImmutable::parse($date)->startOfDay();
+        } catch (\Throwable) {
+            return;
+        }
+
+        if ($day->isWeekend()) {
+            return;
+        }
+
+        $weekKey = $day->startOfWeek(CarbonInterface::MONDAY)->toDateString();
+        $validKeys = collect(app(PlanningPeriodService::class)->cycleWeeks((string) $group->school_year))
+            ->pluck('key')
+            ->all();
+
+        if (! in_array($weekKey, $validKeys, true)) {
+            return;
+        }
+
+        $this->period_key = $weekKey;
+        $this->calendar_month = $day->format('Y-m');
+        $this->rebuildWeeks();
+    }
+
+    public function previousCalendarMonth(): void
+    {
+        $this->shiftCalendarMonth(-1);
+    }
+
+    public function nextCalendarMonth(): void
+    {
+        $this->shiftCalendarMonth(1);
+    }
+
+    /**
+     * @return array{
+     *   month_key:string,
+     *   label:string,
+     *   can_previous:bool,
+     *   can_next:bool,
+     *   selected_week_label:?string,
+     *   selected_week_occupied:bool,
+     *   days:list<array{
+     *     date:string,day:int,in_month:bool,weekend:bool,available:bool,
+     *     selected:bool,occupied:bool,week_key:?string
+     *   }>
+     * }
+     */
+    public function weekCalendar(): array
+    {
+        $group = $this->selectedGroup();
+        if (! $group || $this->period_type !== 'week') {
+            return [
+                'month_key' => '',
+                'label' => '',
+                'can_previous' => false,
+                'can_next' => false,
+                'selected_week_label' => null,
+                'selected_week_occupied' => false,
+                'days' => [],
+            ];
+        }
+
+        $periods = app(PlanningPeriodService::class);
+        $weeks = $periods->cycleWeeks((string) $group->school_year);
+        if ($weeks === []) {
+            return [
+                'month_key' => '',
+                'label' => '',
+                'can_previous' => false,
+                'can_next' => false,
+                'selected_week_label' => null,
+                'selected_week_occupied' => false,
+                'days' => [],
+            ];
+        }
+
+        [$firstMonth, $lastMonth] = $this->calendarMonthBounds($weeks);
+        $monthKey = $this->calendar_month !== '' ? $this->calendar_month : $this->defaultCalendarMonth($group);
+
+        try {
+            $month = CarbonImmutable::createFromFormat('Y-m-d', $monthKey . '-01')->startOfDay();
+        } catch (\Throwable) {
+            $month = $firstMonth;
+        }
+
+        if ($month->lt($firstMonth)) {
+            $month = $firstMonth;
+        }
+        if ($month->gt($lastMonth)) {
+            $month = $lastMonth;
+        }
+
+        $this->calendar_month = $month->format('Y-m');
+
+        $validWeeks = collect($weeks)->keyBy('key');
+        $gridStart = $month->startOfMonth()->startOfWeek(CarbonInterface::MONDAY);
+        $gridEnd = $month->endOfMonth()->endOfWeek(CarbonInterface::SUNDAY);
+        $existing = $this->existingRanges(
+            (int) $group->id,
+            $gridStart->toDateString(),
+            $gridEnd->toDateString(),
+        );
+
+        $occupiedByWeek = [];
+        foreach ($validWeeks as $key => $week) {
+            $occupiedByWeek[$key] = $existing->contains(fn (PlanningRequest $request) =>
+                $request->starts_on?->toDateString() <= $week['ends_on']
+                && $request->ends_on?->toDateString() >= $week['starts_on']
+            );
+        }
+
+        $days = [];
+        for ($cursor = $gridStart; $cursor->lte($gridEnd); $cursor = $cursor->addDay()) {
+            $weekKey = $cursor->startOfWeek(CarbonInterface::MONDAY)->toDateString();
+            $isSchoolDay = ! $cursor->isWeekend();
+            $available = $isSchoolDay && $validWeeks->has($weekKey);
+
+            $days[] = [
+                'date' => $cursor->toDateString(),
+                'day' => $cursor->day,
+                'in_month' => $cursor->month === $month->month,
+                'weekend' => $cursor->isWeekend(),
+                'available' => $available,
+                'selected' => $available && $this->period_key === $weekKey,
+                'occupied' => $available && (bool) ($occupiedByWeek[$weekKey] ?? false),
+                'week_key' => $available ? $weekKey : null,
+            ];
+        }
+
+        $selected = $this->period_key !== '' ? $validWeeks->get($this->period_key) : null;
+
+        return [
+            'month_key' => $month->format('Y-m'),
+            'label' => $this->calendarMonthLabel($month),
+            'can_previous' => $month->gt($firstMonth),
+            'can_next' => $month->lt($lastMonth),
+            'selected_week_label' => $selected['label'] ?? null,
+            'selected_week_occupied' => $selected ? (bool) ($occupiedByWeek[$this->period_key] ?? false) : false,
+            'days' => $days,
+        ];
     }
 
     /** @return array<string,string> */
@@ -365,6 +530,76 @@ class StartPlanning extends Page
                 ]],
             ];
         }, $period['weeks']);
+    }
+
+    private function shiftCalendarMonth(int $months): void
+    {
+        $group = $this->selectedGroup();
+        if (! $group || $this->period_type !== 'week') {
+            return;
+        }
+
+        $weeks = app(PlanningPeriodService::class)->cycleWeeks((string) $group->school_year);
+        if ($weeks === []) {
+            return;
+        }
+
+        [$firstMonth, $lastMonth] = $this->calendarMonthBounds($weeks);
+        $currentKey = $this->calendar_month !== '' ? $this->calendar_month : $this->defaultCalendarMonth($group);
+
+        try {
+            $target = CarbonImmutable::createFromFormat('Y-m-d', $currentKey . '-01')->startOfDay()->addMonths($months);
+        } catch (\Throwable) {
+            $target = $firstMonth;
+        }
+
+        if ($target->lt($firstMonth)) {
+            $target = $firstMonth;
+        }
+        if ($target->gt($lastMonth)) {
+            $target = $lastMonth;
+        }
+
+        $this->calendar_month = $target->format('Y-m');
+    }
+
+    private function defaultCalendarMonth(Group $group): string
+    {
+        $weeks = app(PlanningPeriodService::class)->cycleWeeks((string) $group->school_year);
+        if ($weeks === []) {
+            return '';
+        }
+
+        [$firstMonth, $lastMonth] = $this->calendarMonthBounds($weeks);
+        $today = CarbonImmutable::today();
+
+        if ($today->gte($firstMonth->startOfMonth()) && $today->lte($lastMonth->endOfMonth())) {
+            return $today->format('Y-m');
+        }
+
+        return $firstMonth->format('Y-m');
+    }
+
+    /** @param list<array{key:string,starts_on:string,ends_on:string,label:string}> $weeks
+     *  @return array{0:CarbonImmutable,1:CarbonImmutable}
+     */
+    private function calendarMonthBounds(array $weeks): array
+    {
+        $first = CarbonImmutable::parse($weeks[0]['starts_on'])->startOfMonth();
+        $last = CarbonImmutable::parse($weeks[count($weeks) - 1]['ends_on'])->startOfMonth();
+
+        return [$first, $last];
+    }
+
+    private function calendarMonthLabel(CarbonImmutable $month): string
+    {
+        $names = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+
+        return $names[$month->month] . ' ' . $month->year;
     }
 
     private function existingRanges(int $groupId, string $from, string $to): \Illuminate\Support\Collection
