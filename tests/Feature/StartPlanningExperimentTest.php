@@ -9,6 +9,9 @@ use App\Enums\ProductEventType;
 use App\Filament\App\Pages\StartPlanning;
 use App\Models\GroupSubject;
 use App\Models\ProductEvent;
+use App\Models\PlanningRequest;
+use Carbon\CarbonImmutable;
+use Livewire\Livewire;
 
 class StartPlanningExperimentTest extends PedagogyTestCase
 {
@@ -119,6 +122,46 @@ class StartPlanningExperimentTest extends PedagogyTestCase
             '2026-09-18',
             'Tema válido',
         );
+    }
+
+    public function test_calendario_semanal_selecciona_la_semana_desde_cualquier_dia_y_marca_ocupadas(): void
+    {
+        CarbonImmutable::setTestNow('2026-09-09 10:00:00');
+
+        try {
+            $ctx = $this->seedFullTeacher();
+            $ctx['group']->forceFill(['school_year' => '2026-2027'])->save();
+
+            PlanningRequest::factory()->create([
+                'owner_id' => $ctx['user']->id,
+                'group_id' => $ctx['group']->id,
+                'curriculum_version_id' => $ctx['version']->id,
+                'grade_id' => $ctx['grade']->id,
+                'starts_on' => '2026-09-14',
+                'ends_on' => '2026-09-18',
+            ]);
+
+            $this->actingAs($ctx['user']);
+
+            $component = Livewire::test(StartPlanning::class)
+                ->set('group_id', $ctx['group']->id)
+                ->assertSet('calendar_month', '2026-09')
+                ->call('selectCalendarDay', '2026-09-16')
+                ->assertSet('period_key', '2026-09-14')
+                ->assertSet('weeks.0.starts_on', '2026-09-14')
+                ->assertSet('weeks.0.ends_on', '2026-09-18')
+                ->assertSet('weeks.0.occupied', true);
+
+            $calendar = $component->instance()->weekCalendar();
+            $selectedDays = collect($calendar['days'])->where('selected', true)->values();
+
+            $this->assertSame('14–18 sep 2026', $calendar['selected_week_label']);
+            $this->assertTrue($calendar['selected_week_occupied']);
+            $this->assertCount(5, $selectedDays);
+            $this->assertTrue($selectedDays->every(fn (array $day): bool => $day['occupied']));
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_pagina_del_experimento_muestra_entrada_minima_y_reutilizacion_del_perfil(): void
