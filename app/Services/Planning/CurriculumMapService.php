@@ -115,6 +115,14 @@ final class CurriculumMapService
         ];
 
         $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selected['contents'], $selected['pdas']);
+        $scheduleFieldOptions = $this->scheduleFieldOptions(
+            $request,
+            $scheduleFieldCoverage,
+            $suggestion,
+            $selected['contents'],
+            $selected['pdas'],
+            $statuses,
+        );
 
         return [
             'request' => $request,
@@ -128,6 +136,7 @@ final class CurriculumMapService
             'selected' => $selected,
             'pending_count' => $this->pendingCount($statuses),
             'schedule_field_coverage' => $scheduleFieldCoverage,
+            'schedule_field_options' => $scheduleFieldOptions,
             'catalog' => $this->catalogOptions($request),
         ];
     }
@@ -479,6 +488,159 @@ final class CurriculumMapService
         ));
 
         return compact('required', 'missing');
+    }
+
+    /**
+     * Construye opciones accionables para cada campo faltante. La unidad de
+     * elección es el PDA porque al agregarlo el mapa incluye también su
+     * contenido padre, de modo que una sola acción puede resolver ambos
+     * requisitos sin obligar al docente a adivinar qué combinar.
+     *
+     * Las coincidencias de la estrategia determinista aparecen primero. Si no
+     * existe coincidencia temática, se muestran opciones válidas del mismo
+     * campo y grado como alternativas explícitas, sin presentarlas como
+     * recomendaciones.
+     *
+     * @param array<string,mixed> $coverage
+     * @param array<string,mixed> $suggestion
+     * @param int[] $selectedContentIds
+     * @param int[] $selectedPdaIds
+     * @param array<string,array<int,string>> $statuses
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private function scheduleFieldOptions(
+        PlanningRequest $request,
+        array $coverage,
+        array $suggestion,
+        array $selectedContentIds,
+        array $selectedPdaIds,
+        array $statuses,
+    ): array
+    {
+        $missing = $coverage['missing'] ?? [];
+        if ($missing === []) {
+            return [];
+        }
+
+        $missingCodes = array_values(array_unique(array_filter(array_map(
+            fn (array $field) => trim((string) ($field['code'] ?? '')),
+            $missing,
+        ))));
+
+        if ($missingCodes === []) {
+            return [];
+        }
+
+        $contents = CurricularContent::query()
+            ->with('formativeField:id,code,name')
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->whereHas('formativeField', fn ($field) => $field->whereIn('code', $missingCodes))
+            ->whereHas('pdas', fn ($query) => $query
+                ->where('curriculum_version_id', $request->curriculum_version_id)
+                ->where('grade_id', $request->grade_id))
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->get(['id', 'formative_field_id', 'code', 'title'])
+            ->keyBy('id');
+
+        $optionsByField = array_fill_keys($missingCodes, []);
+        if ($contents->isEmpty()) {
+            return $optionsByField;
+        }
+
+        $pdas = Pda::query()
+            ->where('curriculum_version_id', $request->curriculum_version_id)
+            ->where('grade_id', $request->grade_id)
+            ->whereIn('curricular_content_id', $contents->keys()->all())
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->get(['id', 'curricular_content_id', 'code', 'full_text']);
+
+        $selectedContentSet = array_fill_keys(array_map('intval', $selectedContentIds), true);
+        $selectedPdaSet = array_fill_keys(array_map('intval', $selectedPdaIds), true);
+        $suggestedContentOrder = array_flip(array_map('intval', $suggestion['content_ids'] ?? []));
+        $suggestedPdaOrder = array_flip(array_map('intval', $suggestion['pda_ids'] ?? []));
+        $rejectedContentSet = [];
+        $rejectedPdaSet = [];
+
+        foreach (($statuses['content'] ?? []) as $id => $status) {
+            if ($status === 'rejected') {
+                $rejectedContentSet[(int) $id] = true;
+            }
+        }
+        foreach (($statuses['pda'] ?? []) as $id => $status) {
+            if ($status === 'rejected') {
+                $rejectedPdaSet[(int) $id] = true;
+            }
+        }
+
+        $ranked = array_fill_keys($missingCodes, []);
+
+        foreach ($pdas as $pda) {
+            $pdaId = (int) $pda->id;
+            $contentId = (int) $pda->curricular_content_id;
+
+            if (isset($selectedPdaSet[$pdaId]) || isset($rejectedPdaSet[$pdaId]) || isset($rejectedContentSet[$contentId])) {
+                continue;
+            }
+
+            $content = $contents->get($contentId);
+            if (! $content) {
+                continue;
+            }
+
+            $fieldCode = trim((string) ($content->formativeField?->code ?? ''));
+            if ($fieldCode === '' || ! array_key_exists($fieldCode, $ranked)) {
+                continue;
+            }
+
+            $suggested = array_key_exists($pdaId, $suggestedPdaOrder)
+                || array_key_exists($contentId, $suggestedContentOrder);
+
+            $ranked[$fieldCode][] = [
+                'field_code' => $fieldCode,
+                'content_id' => $contentId,
+                'content_code' => (string) $content->code,
+                'content_title' => (string) $content->title,
+                'pda_id' => $pdaId,
+                'pda_code' => (string) $pda->code,
+                'pda_text' => (string) $pda->full_text,
+                'content_already_selected' => isset($selectedContentSet[$contentId]),
+                'suggested' => $suggested,
+                'reason' => $suggested ? ($suggestion['reasons'][$contentId] ?? null) : null,
+                '_pda_rank' => $suggestedPdaOrder[$pdaId] ?? PHP_INT_MAX,
+                '_content_rank' => $suggestedContentOrder[$contentId] ?? PHP_INT_MAX,
+            ];
+        }
+
+        foreach ($ranked as $fieldCode => $rows) {
+            usort($rows, function (array $a, array $b): int {
+                if ($a['content_already_selected'] !== $b['content_already_selected']) {
+                    return $a['content_already_selected'] ? -1 : 1;
+                }
+                if ($a['suggested'] !== $b['suggested']) {
+                    return $a['suggested'] ? -1 : 1;
+                }
+                if ($a['_pda_rank'] !== $b['_pda_rank']) {
+                    return $a['_pda_rank'] <=> $b['_pda_rank'];
+                }
+                if ($a['_content_rank'] !== $b['_content_rank']) {
+                    return $a['_content_rank'] <=> $b['_content_rank'];
+                }
+
+                $contentCompare = strcmp($a['content_code'], $b['content_code']);
+                return $contentCompare !== 0
+                    ? $contentCompare
+                    : strcmp($a['pda_code'], $b['pda_code']);
+            });
+
+            $optionsByField[$fieldCode] = array_map(function (array $row): array {
+                unset($row['_pda_rank'], $row['_content_rank']);
+                return $row;
+            }, array_slice($rows, 0, 4));
+        }
+
+        return $optionsByField;
     }
 
     /** @return array<string,mixed> */
