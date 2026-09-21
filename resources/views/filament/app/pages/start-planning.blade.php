@@ -1,4 +1,37 @@
 <x-filament-panels::page>
+    <style>
+        .planning-native-select {
+            color: #111827 !important;
+            background-color: #ffffff !important;
+        }
+
+        .planning-native-select option {
+            color: #111827 !important;
+            background-color: #ffffff !important;
+        }
+
+        html.dark .planning-native-select,
+        .dark .planning-native-select {
+            color: #f8fafc !important;
+            background-color: #111827 !important;
+            border-color: #374151 !important;
+        }
+
+        html.dark .planning-native-select option,
+        .dark .planning-native-select option {
+            color: #f8fafc !important;
+            background-color: #111827 !important;
+        }
+
+        .planning-native-select:disabled {
+            color: #6b7280 !important;
+        }
+
+        html.dark .planning-native-select:disabled,
+        .dark .planning-native-select:disabled {
+            color: #94a3b8 !important;
+        }
+    </style>
     @php($periodOptions = $this->periodOptions())
     @php($subjects = $this->subjectOptions())
     @php($selectedGroup = $this->selectedGroup())
@@ -15,7 +48,7 @@
                         <select
                             wire:model.live="group_id"
                             @disabled($draft_id)
-                            class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
+                            class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
                         >
                             <option value="">Selecciona un grupo…</option>
                             @foreach ($groups as $id => $label)
@@ -52,7 +85,7 @@
                         <select
                             wire:model.live="period_key"
                             @disabled(!$group_id)
-                            class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
+                            class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
                         >
                             <option value="">
                                 {{ $group_id ? 'Selecciona un periodo…' : 'Primero selecciona un grupo' }}
@@ -86,7 +119,7 @@
                                         wire:model="integrative_project"
                                         maxlength="255"
                                         placeholder="Ej. Cuidemos nuestra comunidad"
-                                        class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                                        class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
                                     >
                                     @error('integrative_project') <p class="mt-1 text-sm text-danger-600">{{ $message }}</p> @enderror
                                 </div>
@@ -97,7 +130,7 @@
                                         wire:model="integrative_project_purpose"
                                         rows="3"
                                         placeholder="Describe brevemente qué conecta el proyecto y qué busca lograr."
-                                        class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                                        class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
                                     ></textarea>
                                     @error('integrative_project_purpose') <p class="mt-1 text-sm text-danger-600">{{ $message }}</p> @enderror
                                 </div>
@@ -147,7 +180,7 @@
                                                         wire:model="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.topic"
                                                         maxlength="255"
                                                         placeholder="Ej. Números hasta 10,000"
-                                                        class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
+                                                        class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
                                                     >
                                                     @error("weeks.$weekIndex.topics.$topicIndex.topic")
                                                         <p class="mt-1 text-xs text-danger-600">{{ $message }}</p>
@@ -158,7 +191,7 @@
                                                     <label class="mb-1.5 block text-xs font-semibold text-gray-600 dark:text-gray-300">Materia principal</label>
                                                     <select
                                                         wire:model="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.group_subject_id"
-                                                        class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
+                                                        class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
                                                     >
                                                         <option value="">Selecciona…</option>
                                                         @foreach ($subjects as $subjectId => $subjectName)
@@ -209,7 +242,7 @@
                                 wire:model="context_note"
                                 rows="4"
                                 placeholder="Ej. Habrá una actividad especial el viernes, quiero reforzar lectura, considerar material del libro…"
-                                class="block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
+                                class="planning-native-select block w-full rounded-lg border-gray-300 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900"
                             ></textarea>
                             @error('context_note') <p class="mt-1 text-sm text-danger-600">{{ $message }}</p> @enderror
                         </div>
