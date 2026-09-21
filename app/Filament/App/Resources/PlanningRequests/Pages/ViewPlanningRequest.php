@@ -59,6 +59,17 @@ class ViewPlanningRequest extends ViewRecord
                 TextEntry::make('human_review_required_snapshot')->label('Revisión humana incluida')->formatStateUsing(fn ($state) => $state ? 'Sí' : 'No')->visible(fn () => $this->getRecord()->commercial_authorized_at !== null),
             ])->columns(2)->columnSpanFull(),
 
+            Section::make('Se necesita una revisión antes de continuar')
+                ->description('La planeación sí tiene una versión generada, pero la auditoría detectó que algunos temas no están suficientemente respaldados por los contenidos/PDA seleccionados. No seguiremos corrigiendo automáticamente porque eso podría cambiar lo que pediste o inventar referencias curriculares.')
+                ->schema([
+                    TextEntry::make('curriculum_revision_notice')
+                        ->hiddenLabel()
+                        ->state('Revisa los temas y la selección curricular; después se generará una nueva versión conservando el historial anterior.'),
+                ])
+                ->visible(fn (): bool => app(\App\Services\Commerce\PlanningCommercialPresentation::class)
+                    ->requiresCurriculumInputRevision($this->getRecord()))
+                ->columnSpanFull(),
+
             View::make('filament.app.pages.commercial-summary')->viewData(fn () => [
                 'summary' => app(\App\Services\Commerce\PlanningCommercialPresentation::class)->forCustomer(auth()->user(), $this->getRecord()->starts_on?->toDateString(), $this->getRecord()->ends_on?->toDateString()),
             ])->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO)->columnSpanFull(),
