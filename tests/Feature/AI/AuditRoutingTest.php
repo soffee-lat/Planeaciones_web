@@ -18,6 +18,7 @@ use App\Models\Approval;
 use App\Models\OutboxEvent;
 use App\Models\RequestBlock;
 use App\Models\UsageReservation;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
 use Tests\Concerns\CreatesManualAiPipelineScenario;
@@ -109,6 +110,71 @@ class AuditRoutingTest extends PedagogyTestCase
         $this->assertSame(0, $request->correction_limit_snapshot);
     }
 
+    public function test_cobertura_curricular_alta_requiere_revision_de_entrada_y_no_gasta_ronda(): void
+    {
+        $scene = $this->succeededAuditScenario(false, [], '/sessions', 'CURRICULUM_COVERAGE', 'high');
+
+        $request = app(RouteAuditResult::class)->execute($scene['audit']);
+
+        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $request->status);
+        $this->assertSame(0, AiExecution::query()
+            ->where('request_id', $request->id)
+            ->where('stage', AiExecutionStage::Correction->value)
+            ->count());
+        $block = RequestBlock::query()
+            ->where('request_id', $request->id)
+            ->where('code', 'ai_quality_attention')
+            ->whereNull('resolved_at')
+            ->sole();
+        $this->assertSame('AI_CORRECTION_INPUT_REVISION_REQUIRED', $block->details['reason']);
+    }
+
+    public function test_reenrutar_auditoria_curricular_retracta_correccion_pendiente_creada_previamente(): void
+    {
+        $scene = $this->succeededAuditScenario(false);
+
+        $first = app(RouteAuditResult::class)->execute($scene['audit']);
+        $this->assertSame(PlanningRequestStatus::CORRECCION_IA, $first->status);
+
+        $correction = AiExecution::query()
+            ->where('request_id', $first->id)
+            ->where('stage', AiExecutionStage::Correction->value)
+            ->sole();
+        $outbox = OutboxEvent::query()
+            ->where('type', OutboxEventType::PlanningCorrectionRequested->value)
+            ->where('payload->ai_execution_id', $correction->id)
+            ->sole();
+        $this->assertNull($outbox->published_at);
+
+        DB::table('ai_executions')->where('id', $scene['audit']->id)->update([
+            'audit_report' => json_encode([
+                'schema_version' => 'audit_result_v1',
+                'passed' => false,
+                'findings' => [[
+                    'code' => 'CURRICULUM_COVERAGE',
+                    'severity' => 'high',
+                    'json_path' => '/sessions',
+                    'explanation' => 'El snapshot no contiene PDA suficientes para el tema principal.',
+                    'expected_correction' => 'Revisar la selección curricular antes de regenerar.',
+                ]],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+
+        $rerouted = app(RouteAuditResult::class)->execute($scene['audit']->fresh());
+
+        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $rerouted->status);
+        $this->assertSame('failed', $correction->fresh()->status->value);
+        $this->assertSame('AI_CORRECTION_INPUT_REVISION_REQUIRED', $correction->fresh()->error_code);
+        $this->assertNotNull($outbox->fresh()->published_at);
+        $this->assertSame('AI_CORRECTION_INPUT_REVISION_REQUIRED', $outbox->fresh()->last_error_code);
+        $this->assertDatabaseHas('request_state_events', [
+            'request_id' => $rerouted->id,
+            'from_status' => PlanningRequestStatus::CORRECCION_IA->value,
+            'to_status' => PlanningRequestStatus::AUDITORIA_IA->value,
+            'reason' => 'audit_failed_input_revision_required',
+        ]);
+    }
+
     public function test_hallazgo_fuera_de_alcance_seguro_abre_bloqueo_y_no_crea_correccion(): void
     {
         $scene = $this->succeededAuditScenario(false, [], '/curricular_alignment/pdas/0', 'CURRICULUM_REFERENCE', 'high');
@@ -125,7 +191,7 @@ class AuditRoutingTest extends PedagogyTestCase
             ->where('code', 'ai_quality_attention')
             ->whereNull('resolved_at')
             ->sole();
-        $this->assertSame('AI_CORRECTION_SCOPE_UNSAFE', $block->details['reason']);
+        $this->assertSame('AI_CORRECTION_INPUT_REVISION_REQUIRED', $block->details['reason']);
     }
 
     public function test_limite_interno_cero_abre_bloqueo_sin_consultar_correction_limit_comercial(): void
