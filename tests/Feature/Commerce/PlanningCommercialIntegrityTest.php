@@ -4,7 +4,6 @@ namespace Tests\Feature\Commerce;
 
 use App\Actions\Commerce\OpenSubscriptionPeriod;
 use App\Actions\Commerce\ReservePlanningUnits;
-use App\Actions\Planning\StartPlanningInputRevision;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\UsageResource;
 use App\Models\PlanningRequest;
@@ -189,7 +188,7 @@ class PlanningCommercialIntegrityTest extends PedagogyTestCase
         $this->assertSame((array) $reservation, (array) DB::table('usage_reservations')->first());
     }
 
-    public function test_authorized_request_can_enter_guarded_input_revision_without_releasing_commerce(): void
+    public function test_authorized_request_can_hold_guarded_input_revision_without_releasing_commerce(): void
     {
         $request = $this->confirm($this->draft(14));
         $this->period($request);
@@ -210,15 +209,18 @@ class PlanningCommercialIntegrityTest extends PedagogyTestCase
         DB::transaction(function () use ($request): void {
             DB::table('planning_requests')
                 ->where('id', $request->id)
-                ->update(['status' => PlanningRequestStatus::AUDITORIA_IA->value]);
+                ->update([
+                    'status' => PlanningRequestStatus::ESPERANDO_INFORMACION->value,
+                    'curriculum_confirmed_at' => null,
+                    'curriculum_selection_fingerprint' => null,
+                ]);
         });
 
-        $editing = app(StartPlanningInputRevision::class)->execute(
-            $request->owner,
-            $request->fresh(),
-        );
+        $editing = $request->fresh();
 
         $this->assertSame(PlanningRequestStatus::ESPERANDO_INFORMACION, $editing->status);
+        $this->assertTrue($editing->requiresCurriculumInputRevision());
+        $this->assertTrue($editing->canEditInputs());
         $this->assertNull($editing->curriculum_confirmed_at);
         $this->assertNull($editing->curriculum_selection_fingerprint);
         $this->assertNotNull($editing->commercial_authorized_at);
