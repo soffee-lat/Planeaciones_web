@@ -103,7 +103,9 @@ class ConfirmPlanningRequest
             throw new RuntimeException('PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT');
         }
 
-        $contents = $r->contents()->get(['curricular_contents.id', 'code']);
+        $contents = $r->contents()
+            ->with('formativeField:id,code,name')
+            ->get(['curricular_contents.id', 'curricular_contents.formative_field_id', 'code']);
         if ($contents->isEmpty()) {
             throw new RuntimeException('PLANNING_REQUEST_NO_CONTENT_SELECTED');
         }
@@ -116,6 +118,35 @@ class ConfirmPlanningRequest
             if (! in_array($c->id, $pdaContentIds, true)) {
                 throw new RuntimeException('PLANNING_REQUEST_CONTENT_WITHOUT_PDA:' . $c->code);
             }
+        }
+
+        $selectedFieldCodes = $contents
+            ->map(fn ($content) => (string) ($content->formativeField?->code ?? ''))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $groupWithSchedule = $r->group()->with('activeSchedule.blocks')->firstOrFail();
+        $requiredFieldCodes = [];
+        foreach ($groupWithSchedule->activeSchedule?->blocks ?? [] as $block) {
+            if (! $block->include_in_planning || $block->is_flexible) {
+                continue;
+            }
+            foreach ((array) ($block->field_codes ?? []) as $fieldCode) {
+                $fieldCode = trim((string) $fieldCode);
+                if ($fieldCode !== '') {
+                    $requiredFieldCodes[$fieldCode] = true;
+                }
+            }
+        }
+
+        $missingFieldCodes = array_values(array_diff(array_keys($requiredFieldCodes), $selectedFieldCodes));
+        sort($missingFieldCodes, SORT_STRING);
+        if ($missingFieldCodes !== []) {
+            throw new RuntimeException(
+                'PLANNING_REQUEST_SCHEDULE_FIELD_NOT_SELECTED:' . implode(',', $missingFieldCodes)
+            );
         }
     }
 
