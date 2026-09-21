@@ -40,7 +40,9 @@ Docente acepta / rechaza / agrega
     ↓
 Confirma mapa curricular
     ↓
-Genera planeación
+Revisa resumen final y confirma planeación
+    ↓
+Activa / inicia generación desde seguimiento
     ↓
 Usa formato institucional configurado
     ↓
@@ -81,7 +83,7 @@ Acciones mínimas:
 - agregar otra selección compatible;
 - confirmar mapa curricular.
 
-La generación **no** debe comenzar automáticamente al introducir el tema. Primero se valida si el mapa curricular propuesto aporta valor.
+La generación **no** debe comenzar automáticamente al introducir el tema. Primero se valida si el mapa curricular propuesto aporta valor. Después de confirmar el mapa, el docente pasa a un resumen final de sólo lectura; desde ahí confirma la planeación y posteriormente inicia la generación desde el seguimiento cuando la solicitud está activada.
 
 ## Instrumentación mínima
 
