@@ -41,6 +41,10 @@ final class InternalCorrectionPolicy
 
         foreach ($result->findings as $finding) {
             $path = $finding->jsonPath;
+
+            if ($this->requiresInputRevision($finding->code, $finding->severity, $path)) {
+                throw new AiPipelineException('AI_CORRECTION_INPUT_REVISION_REQUIRED', $path);
+            }
             if ($path === '$') {
                 $keys = [...$keys, ...$mutableRoots];
                 continue;
@@ -69,6 +73,22 @@ final class InternalCorrectionPolicy
         sort($keys, SORT_STRING);
 
         return $keys;
+    }
+
+    private function requiresInputRevision(string $code, string $severity, string $path): bool
+    {
+        if (! in_array($severity, ['high', 'critical'], true)) {
+            return false;
+        }
+
+        if ($code === 'CURRICULUM_COVERAGE') {
+            return true;
+        }
+
+        return $code === 'CURRICULUM_REFERENCE'
+            && (str_starts_with($path, '/curricular_alignment')
+                || str_starts_with($path, '/context')
+                || str_starts_with($path, '/source'));
     }
 
     public function nextRound(PlanningRequest $request): int
