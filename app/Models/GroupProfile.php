@@ -11,9 +11,8 @@ class GroupProfile extends Model
     use HasFactory;
 
     /**
-     * Fields whose changes MUST bump `revision`. `revision` itself, timestamps,
-     * PK, and FK `group_id` are excluded because they are not editorial content
-     * of the profile.
+     * Export-only preferences. They may change without invalidating a pedagogical
+     * snapshot or incrementing the group profile revision.
      *
      * @var list<string>
      */
@@ -21,6 +20,12 @@ class GroupProfile extends Model
         'preferred_format_id',
     ];
 
+    /**
+     * Fields whose changes MUST bump `revision`. `revision` itself, timestamps,
+     * PK, FK `group_id` and export preferences are not pedagogical content.
+     *
+     * @var list<string>
+     */
     public const PEDAGOGICAL_FIELDS = [
         'student_count',
         'general_level',
