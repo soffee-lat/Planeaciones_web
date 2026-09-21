@@ -17,7 +17,9 @@ use App\Models\AiExecution;
 use App\Models\Approval;
 use App\Models\OutboxEvent;
 use App\Models\RequestBlock;
+use App\Models\PromptTemplate;
 use App\Models\UsageReservation;
+use App\Support\AI\CanonicalJson;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
 use Tests\Concerns\CreatesManualAiPipelineScenario;
@@ -130,58 +132,94 @@ class AuditRoutingTest extends PedagogyTestCase
 
     public function test_reenrutar_auditoria_curricular_retracta_correccion_pendiente_creada_previamente(): void
     {
-        $scene = $this->succeededAuditScenario(false);
+        $scene = $this->succeededAuditScenario(
+            false,
+            [],
+            '/sessions',
+            'CURRICULUM_COVERAGE',
+            'high',
+        );
 
-        $first = app(RouteAuditResult::class)->execute($scene['audit']);
-        $this->assertSame(PlanningRequestStatus::CORRECCION_IA, $first->status);
+        $request = $scene['request']->fresh();
+        $audit = $scene['audit']->fresh();
+        $promptId = (int) PromptTemplate::query()
+            ->where('key', 'planning.correction')
+            ->value('active_version_id');
 
-        $correction = AiExecution::query()
-            ->where('request_id', $first->id)
-            ->where('stage', AiExecutionStage::Correction->value)
-            ->sole();
-        $outbox = OutboxEvent::query()
-            ->where('type', OutboxEventType::PlanningCorrectionRequested->value)
-            ->where('payload->ai_execution_id', $correction->id)
-            ->sole();
-        $this->assertNull($outbox->published_at);
-
-        $legacyAudit = AiExecution::query()->create([
-            'request_id' => $scene['audit']->request_id,
-            'format_version_id' => $scene['audit']->format_version_id,
-            'stage' => $scene['audit']->stage->value,
-            'mode' => $scene['audit']->mode->value,
-            'provider' => 'test',
-            'model' => 'legacy-audit',
-            'prompt_version_id' => $scene['audit']->prompt_version_id,
-            'input_revision' => $scene['audit']->input_revision,
-            'input_manifest' => $scene['audit']->input_manifest,
-            'rendered_prompt_hash' => $scene['audit']->rendered_prompt_hash,
+        $correction = AiExecution::query()->create([
+            'request_id' => $request->id,
+            'format_version_id' => null,
+            'stage' => AiExecutionStage::Correction->value,
+            'mode' => 'manual',
+            'provider' => null,
+            'model' => null,
+            'prompt_version_id' => $promptId,
+            'input_revision' => $request->input_revision,
+            'input_manifest' => [
+                'schema_version' => 1,
+                'request_id' => $request->id,
+                'input_revision' => $request->input_revision,
+                'source_version_id' => $scene['version']->id,
+                'source_content_hash' => $scene['version']->content_hash,
+                'source_audit_execution_id' => $audit->id,
+                'source_audit_report_hash' => CanonicalJson::hash($audit->audit_report),
+                'section_keys' => ['sessions'],
+                'correction_round' => 2,
+                'correlation_id' => '56565656-5656-4565-8565-565656565656',
+            ],
+            'rendered_prompt_hash' => null,
             'private_payload_file_id' => null,
-            'operation_key' => $scene['audit']->operation_key . ':legacy-curriculum-gap',
-            'status' => 'succeeded',
-            'started_at' => now(),
-            'finished_at' => now(),
-            'duration_ms' => 1,
+            'operation_key' => sprintf(
+                'planning-request:%d:legacy-correction:source:%d:audit:%d',
+                $request->id,
+                $scene['version']->id,
+                $audit->id,
+            ),
+            'status' => 'pending',
+            'started_at' => null,
+            'finished_at' => null,
+            'duration_ms' => null,
             'error_code' => null,
             'sanitized_error' => null,
             'estimated_cost' => null,
             'actual_cost' => null,
             'cost_currency' => null,
             'resulting_version_id' => null,
-            'audit_report' => [
-                'schema_version' => 'audit_result_v1',
-                'passed' => false,
-                'findings' => [[
-                    'code' => 'CURRICULUM_COVERAGE',
-                    'severity' => 'high',
-                    'json_path' => '/sessions',
-                    'explanation' => 'El snapshot no contiene PDA suficientes para el tema principal.',
-                    'expected_correction' => 'Revisar la selección curricular antes de regenerar.',
-                ]],
-            ],
+            'audit_report' => null,
         ]);
 
-        $rerouted = app(RouteAuditResult::class)->execute($legacyAudit);
+        $outbox = OutboxEvent::query()->create([
+            'event_key' => 'ai-execution:' . $correction->id . ':correction-dispatch',
+            'type' => OutboxEventType::PlanningCorrectionRequested->value,
+            'aggregate_id' => $request->id,
+            'payload' => [
+                'request_id' => $request->id,
+                'ai_execution_id' => $correction->id,
+                'input_revision' => $request->input_revision,
+                'source_version_id' => $scene['version']->id,
+                'source_audit_execution_id' => $audit->id,
+                'correction_round' => 2,
+                'correlation_id' => '56565656-5656-4565-8565-565656565656',
+            ],
+            'published_at' => null,
+            'attempts' => 0,
+            'available_at' => now(),
+        ]);
+
+        $request->forceFill([
+            'status' => PlanningRequestStatus::CORRECCION_IA->value,
+            'lock_version' => (int) $request->lock_version + 1,
+        ])->save();
+        $request->stateEvents()->create([
+            'from_status' => PlanningRequestStatus::AUDITORIA_IA->value,
+            'to_status' => PlanningRequestStatus::CORRECCION_IA->value,
+            'actor_id' => null,
+            'actor_type' => 'system',
+            'reason' => 'legacy_audit_failed_correction_dispatched',
+            'correlation_id' => '56565656-5656-4565-8565-565656565656',
+        ]);
+
+        $rerouted = app(RouteAuditResult::class)->execute($audit);
 
         $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $rerouted->status);
         $this->assertSame('failed', $correction->fresh()->status->value);
