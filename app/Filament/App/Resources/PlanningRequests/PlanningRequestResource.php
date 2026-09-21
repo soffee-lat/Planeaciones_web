@@ -486,7 +486,19 @@ class PlanningRequestResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
-                EditAction::make()->visible(fn (PlanningRequest $r) => $r->canEditInputs()),
+                Action::make('continuePlanning')
+                    ->label('Continuar')
+                    ->icon(Heroicon::OutlinedPencilSquare)
+                    ->visible(fn (PlanningRequest $r) => $r->canEditInputs())
+                    ->url(function (PlanningRequest $r): string {
+                        if ($r->planningWeeks()->exists()) {
+                            return $r->hasConfirmedCurriculumMap()
+                                ? route('planning.review', $r)
+                                : route('planning.curriculum-map', $r);
+                        }
+
+                        return static::getUrl('edit', ['record' => $r]);
+                    }),
                 DeleteAction::make()->visible(fn (PlanningRequest $r) => $r->isDraft()),
             ])
             ->defaultSort('updated_at', 'desc');
