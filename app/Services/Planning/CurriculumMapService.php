@@ -260,8 +260,8 @@ final class CurriculumMapService
 
         $confirmed = DB::transaction(function () use ($synced, $selectionFingerprint): PlanningRequest {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($synced->id);
-            if (! $fresh->isDraft()) {
-                throw new \RuntimeException('PLANNING_REQUEST_ALREADY_CONFIRMED');
+            if (! $fresh->canEditInputs()) {
+                throw new \RuntimeException('PLANNING_REQUEST_INPUTS_NOT_EDITABLE');
             }
             $fresh->forceFill([
                 'curriculum_confirmed_at' => now(),
@@ -582,8 +582,8 @@ final class CurriculumMapService
         if ((int) $request->owner_id !== (int) $actor->id) {
             throw new \RuntimeException('CURRICULUM_MAP_OWNER_MISMATCH');
         }
-        if (! $request->isDraft()) {
-            throw new \RuntimeException('CURRICULUM_MAP_DRAFT_REQUIRED');
+        if (! $request->canEditInputs()) {
+            throw new \RuntimeException('CURRICULUM_MAP_EDITABLE_INPUT_REQUIRED');
         }
     }
 }
