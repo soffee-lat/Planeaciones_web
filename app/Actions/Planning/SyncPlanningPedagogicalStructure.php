@@ -27,7 +27,7 @@ final class SyncPlanningPedagogicalStructure
     public function execute(User $actor, PlanningRequest $request, array $input): PlanningRequest
     {
         Gate::forUser($actor)->authorize('update', $request);
-        if (! $request->isDraft()) {
+        if (! $request->canEditInputs()) {
             throw ValidationException::withMessages(['status' => 'La planeación ya no puede editarse.']);
         }
 
@@ -143,7 +143,7 @@ final class SyncPlanningPedagogicalStructure
             $contextNote,
         ): PlanningRequest {
             $fresh = PlanningRequest::query()->lockForUpdate()->findOrFail($request->id);
-            if ($fresh->status !== PlanningRequestStatus::BORRADOR) {
+            if (! $fresh->canEditInputs()) {
                 throw ValidationException::withMessages(['status' => 'La planeación ya no está en borrador.']);
             }
 
