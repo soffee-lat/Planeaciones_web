@@ -4,6 +4,7 @@ namespace App\Filament\App\Resources\PlanningRequests\Pages;
 
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Enums\PlanningRequestStatus;
+use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\Group;
 use App\Models\PlanningRequest;
@@ -14,6 +15,11 @@ use Illuminate\Validation\ValidationException;
 class CreatePlanningRequest extends CreateRecord
 {
     protected static string $resource = PlanningRequestResource::class;
+
+    public function mount(): void
+    {
+        $this->redirect(StartPlanning::getUrl());
+    }
 
     protected function handleRecordCreation(array $data): PlanningRequest
     {
