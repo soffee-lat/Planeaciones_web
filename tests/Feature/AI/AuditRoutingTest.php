@@ -6,6 +6,7 @@ use App\Actions\AI\ImportManualAuditResult;
 use App\Actions\AI\ImportManualCorrectionResult;
 use App\Actions\AI\ProcessOutboxEvent;
 use App\Actions\AI\RouteAuditResult;
+use App\Actions\Planning\StartPlanningInputRevision;
 use App\Enums\AiExecutionStage;
 use App\Enums\ApprovalKind;
 use App\Enums\OutboxEventType;
@@ -128,6 +129,28 @@ class AuditRoutingTest extends PedagogyTestCase
             ->whereNull('resolved_at')
             ->sole();
         $this->assertSame('AI_CORRECTION_INPUT_REVISION_REQUIRED', $block->details['reason']);
+    }
+
+    public function test_hallazgo_curricular_permite_abrir_revision_controlada_de_insumos(): void
+    {
+        $scene = $this->succeededAuditScenario(false, [], '/sessions', 'CURRICULUM_COVERAGE', 'high');
+
+        $blocked = app(RouteAuditResult::class)->execute($scene['audit']);
+        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $blocked->status);
+        $this->assertTrue($blocked->requiresCurriculumInputRevision());
+
+        $editing = app(StartPlanningInputRevision::class)->execute($scene['request']->owner, $blocked);
+
+        $this->assertSame(PlanningRequestStatus::ESPERANDO_INFORMACION, $editing->status);
+        $this->assertTrue($editing->canEditInputs());
+        $this->assertNull($editing->curriculum_confirmed_at);
+        $this->assertNull($editing->curriculum_selection_fingerprint);
+        $this->assertDatabaseHas('request_state_events', [
+            'request_id' => $editing->id,
+            'from_status' => PlanningRequestStatus::AUDITORIA_IA->value,
+            'to_status' => PlanningRequestStatus::ESPERANDO_INFORMACION->value,
+            'reason' => 'audit_requested_input_revision',
+        ]);
     }
 
     public function test_reenrutar_auditoria_curricular_retracta_correccion_pendiente_creada_previamente(): void
