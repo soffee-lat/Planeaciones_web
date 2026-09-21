@@ -6,11 +6,14 @@ use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
 use App\Enums\PlanningRequestStatus;
+use App\Filament\App\Pages\StartPlanning;
+use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\CurricularContent;
 use App\Models\Pda;
 use App\Models\GroupProfile;
 use App\Models\PlanningRequest;
+use Livewire\Livewire;
 
 /**
  * Cobertura del wizard NUEVA PLANEACIÓN (Subfase 2D).
@@ -33,17 +36,13 @@ class NewPlanningWizardTest extends PedagogyTestCase
         $res->assertSee('Nueva planeación');
     }
 
-    public function test_planning_create_page_returns_200_for_customer(): void
+    public function test_legacy_create_page_redirects_to_the_current_planning_flow(): void
     {
         $ctx = $this->seedFullTeacher();
         $this->actingAs($ctx['user']);
-        $res = $this->get(PlanningRequestResource::getUrl('create'));
-        $res->assertOk();
-        // Wizard visible con los cuatro pasos.
-        $res->assertSee('Grupo y modalidad');
-        $res->assertSee('Datos básicos');
-        $res->assertSee('Selección curricular');
-        $res->assertSee('Resumen');
+
+        Livewire::test(CreatePlanningRequest::class)
+            ->assertRedirect(StartPlanning::getUrl());
     }
 
     public function test_eligible_group_options_filters_incomplete_profile(): void
