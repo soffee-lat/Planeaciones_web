@@ -44,6 +44,10 @@ class PlanningCommercialPresentation
 
     public function status(PlanningRequest $request): string
     {
+        if ($this->requiresCurriculumInputRevision($request)) {
+            return 'Requiere revisar temas y currículo';
+        }
+
         return match ($request->status) {
             PlanningRequestStatus::BORRADOR => 'Borrador',
             PlanningRequestStatus::ESPERANDO_PAGO => 'Pendiente de activar',
@@ -61,5 +65,22 @@ class PlanningCommercialPresentation
             PlanningRequestStatus::CORRECCION_SOLICITADA => 'Corrección solicitada',
             PlanningRequestStatus::CANCELADA => 'Cancelada',
         };
+    }
+
+    public function requiresCurriculumInputRevision(PlanningRequest $request): bool
+    {
+        $blocks = $request->relationLoaded('blocks')
+            ? $request->blocks
+            : $request->blocks()->whereNull('resolved_at')->get();
+
+        return $blocks->contains(function ($block): bool {
+            if ($block->resolved_at !== null
+                || $block->code !== 'ai_quality_attention'
+                || $block->stage !== 'audit') {
+                return false;
+            }
+
+            return (string) ($block->details['reason'] ?? '') === 'AI_CORRECTION_INPUT_REVISION_REQUIRED';
+        });
     }
 }
