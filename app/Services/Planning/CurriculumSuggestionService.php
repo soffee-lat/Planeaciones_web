@@ -55,7 +55,15 @@ class CurriculumSuggestionService
      *   reasons:array<int,string>,
      * }
      */
-    public function suggest(int $curriculumVersionId, int $gradeId, array $input, int $maxContents = 6, int $maxPdasPerContent = 3, int $maxAxes = 3): array
+    public function suggest(
+        int $curriculumVersionId,
+        int $gradeId,
+        array $input,
+        int $maxContents = 6,
+        int $maxPdasPerContent = 3,
+        int $maxAxes = 3,
+        ?string $fieldCode = null,
+    ): array
     {
         $rawText = trim(collect([
             $input['project'] ?? null,
@@ -87,6 +95,9 @@ class CurriculumSuggestionService
         $contents = CurricularContent::query()
             ->where('curriculum_version_id', $curriculumVersionId)
             ->whereHas('pdas', fn ($q) => $q->where('grade_id', $gradeId))
+            ->when($fieldCode !== null && trim($fieldCode) !== '', function ($query) use ($fieldCode) {
+                $query->whereHas('formativeField', fn ($field) => $field->where('code', trim($fieldCode)));
+            })
             ->orderBy('id')
             ->get(['id', 'formative_field_id', 'title', 'full_text']);
 
