@@ -59,7 +59,13 @@ final class ProductEventRecorder
     private function allowedMetadata(ProductEventType $type): array
     {
         return match ($type) {
-            ProductEventType::PlanningStarted => ['entry_surface', 'profile_reused', 'session_minutes_known'],
+            ProductEventType::PlanningStarted => [
+                'entry_surface',
+                'profile_reused',
+                'session_minutes_known',
+                'period_type',
+                'structured_topics',
+            ],
             ProductEventType::CurriculumSuggestionsShown => [
                 'strategy_version', 'suggestion_fingerprint', 'content_count', 'pda_count',
                 'axis_count', 'formative_field_count', 'has_strong_match',
@@ -97,6 +103,14 @@ final class ProductEventRecorder
 
         if (isset($metadata['entry_surface']) && ! in_array($metadata['entry_surface'], ['curricular_validation_v1', 'legacy_wizard'], true)) {
             throw new \RuntimeException('PRODUCT_EVENT_ENTRY_SURFACE_INVALID');
+        }
+        if (isset($metadata['period_type'])
+            && ! in_array($metadata['period_type'], ['week', 'month'], true)) {
+            throw new \RuntimeException('PRODUCT_EVENT_PERIOD_TYPE_INVALID');
+        }
+        if (array_key_exists('structured_topics', $metadata)
+            && ! is_bool($metadata['structured_topics'])) {
+            throw new \RuntimeException('PRODUCT_EVENT_STRUCTURED_TOPICS_INVALID');
         }
         if (isset($metadata['entity_type']) && ! in_array($metadata['entity_type'], ['content', 'pda', 'axis', 'field'], true)) {
             throw new \RuntimeException('PRODUCT_EVENT_ENTITY_TYPE_INVALID');
