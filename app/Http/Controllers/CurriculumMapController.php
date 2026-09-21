@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleCode;
-use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
 use App\Services\Planning\CurriculumMapService;
 use Illuminate\Http\RedirectResponse;
@@ -113,12 +112,12 @@ class CurriculumMapController
             return back()->withErrors(['curriculum_map' => $this->messageFor($e->getMessage())]);
         }
 
-        $url = PlanningRequestResource::getUrl('edit', ['record' => $confirmed]);
-
-        return redirect($url . '?paso=4')->with(
-            'curriculum_map_status',
-            'Mapa curricular confirmado. Ya puedes revisar el resumen de la planeación.',
-        );
+        return redirect()
+            ->route('planning.review', $confirmed)
+            ->with(
+                'curriculum_map_status',
+                'Conexiones curriculares confirmadas. Revisa el resumen final antes de confirmar la planeación.',
+            );
     }
 
     private function ownedEditable(Request $httpRequest, PlanningRequest $planningRequest): PlanningRequest
