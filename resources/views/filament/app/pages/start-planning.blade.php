@@ -649,6 +649,7 @@
                     <li><strong>1.</strong> Revisas contenidos, PDA, campos y ejes relacionados.</li>
                     <li><strong>2.</strong> Confirmas las conexiones curriculares.</li>
                     <li><strong>3.</strong> La IA genera respetando semanas, materias, horario y transversalidad.</li>
+                    <li><strong>4.</strong> Cuando el contenido esté aprobado, eliges el formato de exportación. El estándar es la opción recomendada.</li>
                 </ol>
             </x-filament::section>
         </div>
