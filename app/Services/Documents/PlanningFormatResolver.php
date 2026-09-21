@@ -24,7 +24,7 @@ final class PlanningFormatResolver
             // Algunos formatos institucionales globales se cargaron únicamente
             // como ejemplos para analizar estructuras reales. Nunca deben
             // convertirse en la salida de una planeación del docente.
-            if ($this->isGlobalInstitutionalExample($version)) {
+            if ($this->isAnalysisOnlyExample($version)) {
                 return $this->standard();
             }
 
@@ -63,13 +63,10 @@ final class PlanningFormatResolver
         return $version->setRelation('format', $standard);
     }
 
-    private function isGlobalInstitutionalExample(FormatVersion $version): bool
+    private function isAnalysisOnlyExample(FormatVersion $version): bool
     {
-        $format = $version->format;
-
-        return $format !== null
-            && $format->owner_id === null
-            && $format->kind === InstitutionalFormatKind::Institutional;
+        return $version->format?->kind === InstitutionalFormatKind::Institutional
+            && data_get($version->validation_report, 'analysis.source_content_mode') === 'filled_example';
     }
 
     private function isUsableFor(FormatVersion $version, int $ownerId): bool
