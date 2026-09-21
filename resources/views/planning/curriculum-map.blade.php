@@ -39,8 +39,8 @@
         .no-match{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);background:var(--panel);border-radius:12px;margin-bottom:16px}.no-match-icon{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent);font-weight:900}.no-match strong{display:block;margin-bottom:3px}.no-match p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
         .plan-structure{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel)}.plan-project{padding-bottom:10px}.plan-week{padding:10px 0;border-top:1px solid var(--border)}.plan-week-title{font-size:12px;font-weight:800;color:var(--text)}.plan-topic{margin-top:5px;font-size:12px;color:var(--muted)}.plan-topic strong{color:var(--text)}
         .coverage-list{margin-top:10px}.coverage-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}.coverage-row:last-child{border-bottom:0}.coverage-main{min-width:0}.coverage-state{display:grid;justify-items:end;gap:5px;text-align:right}.coverage-ok{color:var(--ok);font-weight:800}.coverage-missing{color:var(--warn);font-weight:800}.coverage-link{border:0;background:transparent;color:var(--accent);padding:0;font-size:11px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:2px}.missing-fields{border-color:var(--warn-border);background:color-mix(in srgb,var(--warn-bg) 45%,var(--panel))}.missing-field-row{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--border)}.missing-field-row:first-of-type{border-top:0}.missing-field-copy{min-width:0}.missing-field-title{font-weight:800}.catalog-filter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel));font-size:12px}.catalog-filter[hidden]{display:none}
-        .coverage-options{margin:0 0 14px;padding:13px;border:1px solid var(--warn-border);border-radius:12px;background:var(--panel);scroll-margin-top:92px;transition:box-shadow .2s ease,border-color .2s ease}.coverage-options.focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}.coverage-options-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:9px}.coverage-options-head strong{font-size:13px}.coverage-option{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}.coverage-option:first-of-type{border-top:0}.coverage-option-copy{min-width:0}.option-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px}.option-badge{display:inline-flex;align-items:center;padding:3px 6px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);font-size:10px;font-weight:800;color:var(--muted)}.option-badge.suggested{border-color:var(--ok-border);background:var(--ok-bg);color:var(--ok)}.coverage-option .title{font-size:13px}.coverage-option .pda-text{margin-top:5px}.coverage-option .reason{margin-top:5px}.coverage-more{margin-top:9px}.coverage-option form{margin:0}.coverage-option .btn{white-space:nowrap}
-        @media(max-width:700px){.coverage-option{grid-template-columns:1fr}.coverage-option form .btn{width:100%}.coverage-options-head{flex-direction:column}}
+        .coverage-options{margin:0 0 14px;padding:13px;border:1px solid var(--warn-border);border-radius:12px;background:var(--panel);scroll-margin-top:92px;transition:box-shadow .2s ease,border-color .2s ease}.coverage-options.focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}.coverage-options-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:9px}.coverage-options-head strong{font-size:13px}.coverage-option{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 8px;border-top:1px solid var(--border);border-radius:9px;cursor:pointer}.coverage-option:first-of-type{border-top:0}.coverage-option:hover{background:var(--panel-2)}.coverage-option.selected{background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel));outline:1px solid color-mix(in srgb,var(--accent) 45%,var(--border))}.coverage-option-check{width:17px;height:17px;accent-color:var(--accent)}.coverage-option-copy{min-width:0}.option-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px}.option-badge{display:inline-flex;align-items:center;padding:3px 6px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);font-size:10px;font-weight:800;color:var(--muted)}.option-badge.suggested{border-color:var(--ok-border);background:var(--ok-bg);color:var(--ok)}.coverage-option .title{font-size:13px}.coverage-option .pda-text{margin-top:5px}.coverage-option .reason{margin-top:5px}.coverage-select-text{font-size:11px;font-weight:800;color:var(--accent);white-space:nowrap}.coverage-more{margin-top:9px}.coverage-batch-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--warn-border)}.coverage-batch-actions .muted{margin:0}.coverage-batch-actions .btn{white-space:nowrap}
+        @media(max-width:700px){.coverage-option{grid-template-columns:auto 1fr}.coverage-select-text{grid-column:2}.coverage-options-head,.coverage-batch-actions{flex-direction:column;align-items:stretch}.coverage-batch-actions .btn{width:100%}}
         @media(max-width:900px){.grid{grid-template-columns:1fr}.aside{position:static}.catalog-grid{grid-template-columns:1fr}.progress{grid-template-columns:1fr}.wrap{padding:14px}.top{align-items:flex-start}.axes{grid-template-columns:1fr}.item-head,.section-head,.catalog-intro{flex-direction:column}.status{align-self:flex-start}.top-actions{display:none}}
     </style>
 </head>
@@ -145,6 +145,8 @@
                         </div>
                     </div>
 
+                    <form method="POST" action="{{ route('planning.curriculum-map.add', $request) }}" id="coverage-options-form">
+                        @csrf
                     @foreach($schedule_field_coverage['missing'] as $field)
                         @php
                             $fieldOptions = $schedule_field_options[$field['code']] ?? [];
@@ -173,7 +175,13 @@
                             </div>
 
                             @forelse($fieldOptions as $option)
-                                <article class="coverage-option">
+                                <label class="coverage-option">
+                                    <input
+                                        class="coverage-option-check"
+                                        type="checkbox"
+                                        name="pda_ids[]"
+                                        value="{{ $option['pda_id'] }}"
+                                    >
                                     <div class="coverage-option-copy">
                                         <div class="option-meta">
                                             @if($option['suggested'])
@@ -191,12 +199,8 @@
                                             <div class="reason">{{ $option['reason'] }}</div>
                                         @endif
                                     </div>
-                                    <form method="POST" action="{{ route('planning.curriculum-map.add', $request) }}">
-                                        @csrf
-                                        <input type="hidden" name="pda_ids[]" value="{{ $option['pda_id'] }}">
-                                        <button class="btn success" type="submit">Usar este PDA</button>
-                                    </form>
-                                </article>
+                                    <span class="coverage-select-text">Seleccionar</span>
+                                </label>
                             @empty
                                 <div class="empty">No hay PDA disponibles para este grado dentro de {{ $field['name'] }}. Revisa la versión curricular o la configuración del grupo.</div>
                             @endforelse
@@ -211,6 +215,12 @@
                             </div>
                         </div>
                     @endforeach
+
+                        <div class="coverage-batch-actions">
+                            <div class="muted" id="coverage-selection-count">Selecciona una o varias opciones y agrégalas juntas.</div>
+                            <button class="btn primary" type="submit" id="coverage-add-selected" disabled>Agregar selecciones</button>
+                        </div>
+                    </form>
                 </section>
             @endif
 
@@ -472,6 +482,34 @@
     document.querySelectorAll('[data-filter]').forEach((input) => {
         input.addEventListener('input', () => applyChoiceFilter(input.dataset.filter));
     });
+
+    const coverageOptionChecks = Array.from(document.querySelectorAll('.coverage-option-check'));
+    const coverageAddSelected = document.getElementById('coverage-add-selected');
+    const coverageSelectionCount = document.getElementById('coverage-selection-count');
+
+    const updateCoverageSelection = () => {
+        const selected = coverageOptionChecks.filter((checkbox) => checkbox.checked);
+
+        coverageOptionChecks.forEach((checkbox) => {
+            checkbox.closest('.coverage-option')?.classList.toggle('selected', checkbox.checked);
+        });
+
+        if (coverageAddSelected) {
+            coverageAddSelected.disabled = selected.length === 0;
+            coverageAddSelected.textContent = selected.length > 0
+                ? 'Agregar ' + selected.length + ' selección' + (selected.length === 1 ? '' : 'es')
+                : 'Agregar selecciones';
+        }
+
+        if (coverageSelectionCount) {
+            coverageSelectionCount.textContent = selected.length === 0
+                ? 'Selecciona una o varias opciones y agrégalas juntas.'
+                : selected.length + ' opción' + (selected.length === 1 ? '' : 'es') + ' seleccionada' + (selected.length === 1 ? '' : 's') + '. Se guardarán en un solo paso.';
+        }
+    };
+
+    coverageOptionChecks.forEach((checkbox) => checkbox.addEventListener('change', updateCoverageSelection));
+    updateCoverageSelection();
 
     document.querySelectorAll('[data-coverage-target]').forEach((button) => {
         button.addEventListener('click', () => {
