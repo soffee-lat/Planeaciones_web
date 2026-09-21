@@ -39,6 +39,8 @@
         .no-match{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);background:var(--panel);border-radius:12px;margin-bottom:16px}.no-match-icon{width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent);font-weight:900}.no-match strong{display:block;margin-bottom:3px}.no-match p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
         .plan-structure{margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel)}.plan-project{padding-bottom:10px}.plan-week{padding:10px 0;border-top:1px solid var(--border)}.plan-week-title{font-size:12px;font-weight:800;color:var(--text)}.plan-topic{margin-top:5px;font-size:12px;color:var(--muted)}.plan-topic strong{color:var(--text)}
         .coverage-list{margin-top:10px}.coverage-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}.coverage-row:last-child{border-bottom:0}.coverage-main{min-width:0}.coverage-state{display:grid;justify-items:end;gap:5px;text-align:right}.coverage-ok{color:var(--ok);font-weight:800}.coverage-missing{color:var(--warn);font-weight:800}.coverage-link{border:0;background:transparent;color:var(--accent);padding:0;font-size:11px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:2px}.missing-fields{border-color:var(--warn-border);background:color-mix(in srgb,var(--warn-bg) 45%,var(--panel))}.missing-field-row{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--border)}.missing-field-row:first-of-type{border-top:0}.missing-field-copy{min-width:0}.missing-field-title{font-weight:800}.catalog-filter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent-soft) 55%,var(--panel));font-size:12px}.catalog-filter[hidden]{display:none}
+        .coverage-options{margin:0 0 14px;padding:13px;border:1px solid var(--warn-border);border-radius:12px;background:var(--panel);scroll-margin-top:92px;transition:box-shadow .2s ease,border-color .2s ease}.coverage-options.focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}.coverage-options-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:9px}.coverage-options-head strong{font-size:13px}.coverage-option{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--border)}.coverage-option:first-of-type{border-top:0}.coverage-option-copy{min-width:0}.option-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px}.option-badge{display:inline-flex;align-items:center;padding:3px 6px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);font-size:10px;font-weight:800;color:var(--muted)}.option-badge.suggested{border-color:var(--ok-border);background:var(--ok-bg);color:var(--ok)}.coverage-option .title{font-size:13px}.coverage-option .pda-text{margin-top:5px}.coverage-option .reason{margin-top:5px}.coverage-more{margin-top:9px}.coverage-option form{margin:0}.coverage-option .btn{white-space:nowrap}
+        @media(max-width:700px){.coverage-option{grid-template-columns:1fr}.coverage-option form .btn{width:100%}.coverage-options-head{flex-direction:column}}
         @media(max-width:900px){.grid{grid-template-columns:1fr}.aside{position:static}.catalog-grid{grid-template-columns:1fr}.progress{grid-template-columns:1fr}.wrap{padding:14px}.top{align-items:flex-start}.axes{grid-template-columns:1fr}.item-head,.section-head,.catalog-intro{flex-direction:column}.status{align-self:flex-start}.top-actions{display:none}}
     </style>
 </head>
@@ -139,21 +141,74 @@
                     <div class="section-head">
                         <div>
                             <h2>Faltantes para completar tu horario</h2>
-                            <div class="muted">Te mostramos exactamente qué campo falta. Usa “Ver opciones” para ir al catálogo ya filtrado.</div>
+                            <div class="muted">No necesitas buscar a ciegas en todo el catálogo. Para cada campo faltante te mostramos PDA que sí pertenecen a ese campo y grado. Al elegir un PDA, incluiremos automáticamente su contenido relacionado.</div>
                         </div>
                     </div>
+
                     @foreach($schedule_field_coverage['missing'] as $field)
+                        @php
+                            $fieldOptions = $schedule_field_options[$field['code']] ?? [];
+                            $optionTargetId = 'coverage-options-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $field['code']);
+                        @endphp
+
                         <div class="missing-field-row">
                             <div class="missing-field-copy">
                                 <div class="missing-field-title">{{ $field['name'] }} <span class="code">{{ $field['code'] }}</span></div>
-                                <div class="muted">{{ $coverageMissingLabel($field) }}. Para cubrirlo puedes elegir un PDA de este campo; al agregarlo incluiremos automáticamente su contenido relacionado.</div>
+                                <div class="muted">{{ $coverageMissingLabel($field) }}.</div>
                             </div>
-                            <button
-                                class="btn outline"
-                                type="button"
-                                data-field-jump="{{ $field['code'] }}"
-                                data-field-name="{{ $field['name'] }}"
-                            >Ver opciones de {{ $field['code'] }}</button>
+                        </div>
+
+                        <div class="coverage-options" id="{{ $optionTargetId }}">
+                            <div class="coverage-options-head">
+                                <div>
+                                    <strong>Opciones para cubrir {{ $field['code'] }}</strong>
+                                    <div class="muted">
+                                        @if(($field['missing_requirement'] ?? null) === 'pda')
+                                            Ya hay contenido de este campo. Elige un PDA; priorizamos los que pertenecen al contenido que ya incluiste.
+                                        @else
+                                            Elige un PDA de esta lista. Al agregarlo también incluiremos su contenido, por lo que puede resolver contenido y PDA en una sola acción.
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+
+                            @forelse($fieldOptions as $option)
+                                <article class="coverage-option">
+                                    <div class="coverage-option-copy">
+                                        <div class="option-meta">
+                                            @if($option['suggested'])
+                                                <span class="option-badge suggested">Coincide con tus temas</span>
+                                            @else
+                                                <span class="option-badge">Opción válida del campo</span>
+                                            @endif
+                                            @if($option['content_already_selected'])
+                                                <span class="option-badge">Contenido ya incluido</span>
+                                            @endif
+                                        </div>
+                                        <div class="title">{{ $option['content_code'] }} — {{ $option['content_title'] }}</div>
+                                        <div class="pda-text"><strong>{{ $option['pda_code'] }}</strong> · {{ $option['pda_text'] }}</div>
+                                        @if(!empty($option['reason']))
+                                            <div class="reason">{{ $option['reason'] }}</div>
+                                        @endif
+                                    </div>
+                                    <form method="POST" action="{{ route('planning.curriculum-map.add', $request) }}">
+                                        @csrf
+                                        <input type="hidden" name="pda_ids[]" value="{{ $option['pda_id'] }}">
+                                        <button class="btn success" type="submit">Usar este PDA</button>
+                                    </form>
+                                </article>
+                            @empty
+                                <div class="empty">No hay PDA disponibles para este grado dentro de {{ $field['name'] }}. Revisa la versión curricular o la configuración del grupo.</div>
+                            @endforelse
+
+                            <div class="coverage-more">
+                                <button
+                                    class="coverage-link"
+                                    type="button"
+                                    data-field-jump="{{ $field['code'] }}"
+                                    data-field-name="{{ $field['name'] }}"
+                                >Ver todas las opciones de {{ $field['code'] }} en el catálogo</button>
+                            </div>
                         </div>
                     @endforeach
                 </section>
@@ -360,11 +415,11 @@
                                 @else
                                     <div class="coverage-state">
                                         <span class="coverage-missing">⚠ {{ $coverageMissingLabel($field) }}</span>
+                                        @php $coverageTargetId = 'coverage-options-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $field['code']); @endphp
                                         <button
                                             class="coverage-link"
                                             type="button"
-                                            data-field-jump="{{ $field['code'] }}"
-                                            data-field-name="{{ $field['name'] }}"
+                                            data-coverage-target="{{ $coverageTargetId }}"
                                         >Ver opciones</button>
                                     </div>
                                 @endif
@@ -416,6 +471,17 @@
 
     document.querySelectorAll('[data-filter]').forEach((input) => {
         input.addEventListener('input', () => applyChoiceFilter(input.dataset.filter));
+    });
+
+    document.querySelectorAll('[data-coverage-target]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const target = document.getElementById(button.dataset.coverageTarget);
+            if (!target) return;
+
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.add('focus');
+            window.setTimeout(() => target.classList.remove('focus'), 1400);
+        });
     });
 
     document.querySelectorAll('[data-field-jump]').forEach((button) => {
