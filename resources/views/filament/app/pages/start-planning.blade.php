@@ -600,6 +600,22 @@
                     </div>
 
                     <div>
+                        <label class="planning-label">Formato del documento</label>
+                        <select
+                            wire:model="format_version_id"
+                            class="planning-control"
+                        >
+                            @foreach ($formats as $id => $label)
+                                <option value="{{ $id }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="planning-help">
+                            El formato general de Planeaciones queda seleccionado por defecto. Si tienes un formato institucional disponible, puedes elegirlo aquí. Esta elección define la salida final del documento y no cambia la generación pedagógica.
+                        </p>
+                        @error('format_version_id') <p class="planning-error">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
                         <label class="planning-label">Tipo de planeación</label>
                         <div class="planning-radio-grid">
                             <label class="planning-radio-card">
