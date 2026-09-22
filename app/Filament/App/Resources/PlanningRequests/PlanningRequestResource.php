@@ -374,6 +374,25 @@ class PlanningRequestResource extends Resource
             ->value('id');
     }
 
+    public static function exportFormatVersionIdFor(PlanningRequest $request): ?int
+    {
+        $options = static::formatVersionOptions();
+        $selected = $request->format_version_id ? (int) $request->format_version_id : null;
+
+        if ($selected !== null && array_key_exists($selected, $options)) {
+            return $selected;
+        }
+
+        $default = static::defaultFormatVersionId();
+        if ($default !== null && array_key_exists($default, $options)) {
+            return $default;
+        }
+
+        $first = array_key_first($options);
+
+        return $first === null ? null : (int) $first;
+    }
+
     /** @return array<int,string> */
     public static function contentOptions(?int $groupId): array
     {
