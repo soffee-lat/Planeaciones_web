@@ -90,5 +90,58 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
                 ->where('stage', AiExecutionStage::Audit->value)
                 ->count(),
         );
+    public function test_explicit_export_format_does_not_change_canonical_generation_contract(): void
+    {
+        config([
+            'ai.mode' => 'manual',
+            'ai.manual.disk' => 'private',
+            'ai.manual.prefix' => 'ai/canonical-explicit-format-test',
+        ]);
+        Storage::fake('private');
+
+        $request = $this->draft();
+        $institutional = $this->publishedInstitutionalFormat($request->owner_id);
+        $request->forceFill(['format_version_id' => $institutional->id])->save();
+
+        $this->period($request);
+        $request = $this->authorize($this->confirm($request));
+        $this->publishManualAiPrompts();
+
+        $execution = app(DispatchPlanningGeneration::class)->execute(
+            $request,
+            '61616161-6161-4161-8161-616161616161',
+        );
+
+        $this->assertSame($institutional->id, $request->fresh()->format_version_id);
+        $this->assertNull($execution->format_version_id);
+        $this->assertNull($execution->input_manifest['format_version_id']);
+
+        app(ProcessOutboxEvent::class)->execute(
+            OutboxEvent::query()
+                ->where('event_key', 'ai-execution:' . $execution->id . ':generation-dispatch')
+                ->sole(),
+        );
+
+        $execution = $execution->fresh(['manualPackage']);
+        $package = json_decode(
+            Storage::disk($execution->manualPackage->disk)->get($execution->manualPackage->path),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame('canonical', $package['format_context']['generation_scope']);
+        $this->assertNull($package['format_context']['format_version_id']);
+        $this->assertSame('generated_plan_draft_v1', $package['output']['schema_version']);
+
+        $version = app(ImportManualGenerationResult::class)->execute(
+            $execution,
+            $this->generatedDraftFor($request->fresh(['currentInputVersion'])),
+        );
+
+        $this->assertNotNull($version->id);
+        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $request->fresh()->status);
+    }
+
     }
 }
