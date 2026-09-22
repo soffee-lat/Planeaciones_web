@@ -3,7 +3,11 @@
 namespace Tests\Feature\AI;
 
 use App\Actions\AI\DispatchPlanningGeneration;
+use App\Actions\AI\ImportManualGenerationResult;
 use App\Actions\AI\ProcessOutboxEvent;
+use App\Enums\AiExecutionStage;
+use App\Enums\PlanningRequestStatus;
+use App\Models\AiExecution;
 use App\Models\OutboxEvent;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
@@ -71,5 +75,20 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
         $this->assertSame('generated_plan_draft_v1', $package['output']['schema']['properties']['contract_version']['const']);
         $this->assertArrayHasKey('sessions', $package['output']['schema']['properties']);
         $this->assertArrayNotHasKey('format_version_id', $package['request']);
+
+        $version = app(ImportManualGenerationResult::class)->execute(
+            $execution,
+            $this->generatedDraftFor($request->fresh(['currentInputVersion'])),
+        );
+
+        $this->assertNotNull($version->id);
+        $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $request->fresh()->status);
+        $this->assertSame(
+            1,
+            AiExecution::query()
+                ->where('request_id', $request->id)
+                ->where('stage', AiExecutionStage::Audit->value)
+                ->count(),
+        );
     }
 }
