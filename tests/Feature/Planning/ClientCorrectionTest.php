@@ -280,7 +280,9 @@ class ClientCorrectionTest extends PedagogyTestCase
             ->assertSee('Solicitar corrección')
             ->assertSee('Rondas de corrección disponibles')
             ->assertSee('Solicita correcciones hasta')
-            ->assertSee('Archivos de tu planeación');
+            ->assertSee('Planeación lista')
+            ->assertSee('Descargar DOCX')
+            ->assertSee('Descargar PDF');
     }
 
     public function test_importar_resultado_cliente_crea_version_hija_resuelve_solicitud_y_obliga_reauditoria(): void
