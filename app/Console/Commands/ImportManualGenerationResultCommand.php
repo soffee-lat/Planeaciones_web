@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\AI\ImportManualGenerationResult;
+use App\Exceptions\AiContractException;
 use App\Exceptions\AiPipelineException;
 use App\Models\AiExecution;
 use Illuminate\Console\Command;
@@ -62,6 +63,9 @@ class ImportManualGenerationResultCommand extends Command
             return self::SUCCESS;
         } catch (JsonException) {
             $this->error('AI_GENERATION_RESULT_JSON_INVALID');
+            return self::FAILURE;
+        } catch (AiContractException $e) {
+            $this->error($e->getMessage());
             return self::FAILURE;
         } catch (AiPipelineException $e) {
             $this->error($e->errorCode . ($e->detail ? ':' . $e->detail : ''));
