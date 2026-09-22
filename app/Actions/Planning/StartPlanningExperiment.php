@@ -10,6 +10,7 @@ use App\Models\GroupProfile;
 use App\Models\PlanningRequest;
 use App\Models\User;
 use App\Services\Analytics\ProductEventRecorder;
+use App\Services\Documents\PlanningFormatResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,7 @@ final class StartPlanningExperiment
         string $workFocus,
         ?string $contextNote = null,
         ?array $pedagogicalStructure = null,
+        ?int $formatVersionId = null,
     ): PlanningRequest {
         $this->assertActor($actor);
 
@@ -63,7 +65,7 @@ final class StartPlanningExperiment
             throw new \RuntimeException('PLANNING_EXPERIMENT_CONTEXT_TOO_LONG');
         }
 
-        return DB::transaction(function () use ($actor, $group, $start, $end, $workFocus, $contextNote, $pedagogicalStructure): PlanningRequest {
+        return DB::transaction(function () use ($actor, $group, $start, $end, $workFocus, $contextNote, $pedagogicalStructure, $formatVersionId): PlanningRequest {
             $request = PlanningRequest::query()->create([
                 'owner_id' => $actor->id,
                 'group_id' => $group->id,
@@ -74,8 +76,19 @@ final class StartPlanningExperiment
                 'ends_on' => $end->toDateString(),
                 'project' => $workFocus,
                 'topic' => $contextNote === '' ? null : $contextNote,
+                'format_version_id' => $formatVersionId,
                 'status' => PlanningRequestStatus::BORRADOR->value,
             ]);
+
+            if ($formatVersionId !== null) {
+                // La elección de formato es sólo de exportación. Se valida aquí
+                // contra las mismas reglas del renderer, pero no forma parte del
+                // snapshot pedagógico ni modifica la generación canónica.
+                $resolvedFormat = app(PlanningFormatResolver::class)->resolve($request);
+                if ((int) $resolvedFormat->id !== (int) $formatVersionId) {
+                    throw new \RuntimeException('PLANNING_EXPERIMENT_FORMAT_NOT_USABLE');
+                }
+            }
 
             if ($pedagogicalStructure !== null) {
                 $request = app(SyncPlanningPedagogicalStructure::class)->execute(
