@@ -8,10 +8,13 @@ use App\Actions\Documents\PublishFormatVersion;
 use App\Actions\Documents\RenderInstitutionalFormatSample;
 use App\Actions\Documents\ReviewInstitutionalFormatSample;
 use App\Actions\Pedagogy\UpdateGroupProfile;
+use App\Actions\Planning\StartPlanningExperiment;
 use App\Enums\InstitutionalFormatKind;
+use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\PlanningRequest;
 use App\Services\Documents\PlanningFormatResolver;
+use Livewire\Livewire;
 use Tests\Concerns\CreatesInstitutionalFormatScenario;
 
 class PlanningFormatSelectionTest extends PedagogyTestCase
@@ -34,6 +37,46 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         $this->assertArrayNotHasKey($foreign->id, $options);
         $this->assertStringContainsString('institucional', $options[$owned->id]);
         $this->assertStringContainsString('estándar', $options[$standard->id]);
+    }
+
+    public function test_new_planning_defaults_to_general_export_format(): void
+    {
+        $scene = $this->seedFullTeacher();
+        $this->actingAs($scene['user']);
+        $standard = app(EnsureStandardFormat::class)->execute()['version'];
+
+        Livewire::test(StartPlanning::class)
+            ->assertSet('format_version_id', $standard->id)
+            ->assertSee('Formato del documento')
+            ->assertSee('El formato general de Planeaciones queda seleccionado por defecto.');
+    }
+
+    public function test_start_planning_persists_explicit_owned_export_format(): void
+    {
+        $scene = $this->seedFullTeacher();
+        $scene['profile']->fill([
+            'student_count' => 25,
+            'general_level' => 'medio',
+            'session_minutes' => 50,
+            'characteristics' => 'Grupo activo.',
+        ])->save();
+
+        $institutional = $this->publishedInstitutionalFormat($scene['user']->id);
+
+        $request = app(StartPlanningExperiment::class)->execute(
+            $scene['user'],
+            $scene['group']->id,
+            '2026-09-21',
+            '2026-09-25',
+            'Conociendo mi entorno',
+            formatVersionId: $institutional->id,
+        );
+
+        $this->assertSame($institutional->id, $request->format_version_id);
+        $this->assertSame(
+            $institutional->id,
+            app(PlanningFormatResolver::class)->resolve($request)->id,
+        );
     }
 
     public function test_filled_planning_example_is_analysis_only_and_falls_back_to_standard(): void
