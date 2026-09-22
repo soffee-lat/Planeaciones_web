@@ -5,6 +5,7 @@ namespace App\Actions\Planning;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\ProductEventType;
 use App\Enums\RoleCode;
+use App\Exceptions\DocumentFormatException;
 use App\Models\Group;
 use App\Models\GroupProfile;
 use App\Models\PlanningRequest;
@@ -84,7 +85,12 @@ final class StartPlanningExperiment
                 // La elección de formato es sólo de exportación. Se valida aquí
                 // contra las mismas reglas del renderer, pero no forma parte del
                 // snapshot pedagógico ni modifica la generación canónica.
-                $resolvedFormat = app(PlanningFormatResolver::class)->resolve($request);
+                try {
+                    $resolvedFormat = app(PlanningFormatResolver::class)->resolve($request);
+                } catch (DocumentFormatException) {
+                    throw new \RuntimeException('PLANNING_EXPERIMENT_FORMAT_NOT_USABLE');
+                }
+
                 if ((int) $resolvedFormat->id !== (int) $formatVersionId) {
                     throw new \RuntimeException('PLANNING_EXPERIMENT_FORMAT_NOT_USABLE');
                 }
