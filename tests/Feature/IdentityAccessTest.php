@@ -77,12 +77,25 @@ class IdentityAccessTest extends TestCase {
         Livewire::test(Register::class)->fillForm([
             'name'=>'Docente ficticia',
             'email'=>'password-corto@example.test',
-            'password'=>'Ruasaga456.',
-            'passwordConfirmation'=>'Ruasaga456.',
+            'password'=>'Ruas456',
+            'passwordConfirmation'=>'Ruas456',
         ])->call('register')
             ->assertHasFormErrors(['password'])
-            ->assertSee('La contraseña debe tener al menos 12 caracteres.');
+            ->assertSee('La contraseña debe tener al menos 8 caracteres.');
         $this->assertDatabaseMissing('users', ['email'=>'password-corto@example.test']);
+    }
+
+    public function test_registration_accepts_password_with_exactly_eight_characters(): void {
+        Notification::fake();
+
+        Livewire::test(Register::class)->fillForm([
+            'name'=>'Docente ficticia',
+            'email'=>'password-ocho@example.test',
+            'password'=>'Ruas456.',
+            'passwordConfirmation'=>'Ruas456.',
+        ])->call('register')->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('users', ['email'=>'password-ocho@example.test']);
     }
 
     public function test_registration_action_ignores_privileged_fields(): void {
