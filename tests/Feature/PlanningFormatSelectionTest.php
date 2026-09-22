@@ -79,6 +79,35 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         );
     }
 
+    public function test_export_default_preserves_explicit_format_selected_during_creation(): void
+    {
+        $scene = $this->seedFullTeacher();
+        $this->actingAs($scene['user']);
+        $institutional = $this->publishedInstitutionalFormat($scene['user']->id);
+
+        $request = PlanningRequest::factory()->create([
+            'owner_id' => $scene['user']->id,
+            'group_id' => $scene['group']->id,
+            'curriculum_version_id' => $scene['version']->id,
+            'grade_id' => $scene['grade']->id,
+            'creation_mode' => 'quick',
+            'format_version_id' => $institutional->id,
+        ]);
+
+        $this->assertSame(
+            $institutional->id,
+            PlanningRequestResource::exportFormatVersionIdFor($request),
+        );
+
+        $request->forceFill(['format_version_id' => null])->save();
+        $standard = app(EnsureStandardFormat::class)->execute()['version'];
+
+        $this->assertSame(
+            $standard->id,
+            PlanningRequestResource::exportFormatVersionIdFor($request->fresh()),
+        );
+    }
+
     public function test_filled_planning_example_is_analysis_only_and_falls_back_to_standard(): void
     {
         $scene = $this->seedFullTeacher();
