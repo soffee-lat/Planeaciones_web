@@ -357,6 +357,23 @@ class PlanningRequestResource extends Resource
         return $options;
     }
 
+    public static function defaultFormatVersionId(): ?int
+    {
+        $format = InstitutionalFormat::query()
+            ->whereNull('owner_id')
+            ->where('kind', InstitutionalFormatKind::Standard->value)
+            ->where('status', InstitutionalFormatStatus::Ready->value)
+            ->first();
+
+        if (! $format) {
+            return null;
+        }
+
+        return $format->publishedVersions()
+            ->orderByDesc('number')
+            ->value('id');
+    }
+
     /** @return array<int,string> */
     public static function contentOptions(?int $groupId): array
     {
