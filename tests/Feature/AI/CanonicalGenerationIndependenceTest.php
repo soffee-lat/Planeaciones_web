@@ -90,6 +90,8 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
                 ->where('stage', AiExecutionStage::Audit->value)
                 ->count(),
         );
+    }
+
     public function test_explicit_export_format_does_not_change_canonical_generation_contract(): void
     {
         config([
@@ -141,7 +143,5 @@ class CanonicalGenerationIndependenceTest extends PedagogyTestCase
 
         $this->assertNotNull($version->id);
         $this->assertSame(PlanningRequestStatus::AUDITORIA_IA, $request->fresh()->status);
-    }
-
     }
 }
