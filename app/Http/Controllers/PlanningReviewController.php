@@ -39,6 +39,7 @@ final class PlanningReviewController
             'contents.formativeField',
             'pdas.curricularContent.formativeField',
             'articulatingAxes',
+            'formatVersion.format',
         ]);
 
         $requiredCodes = [];
