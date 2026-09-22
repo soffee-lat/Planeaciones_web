@@ -65,6 +65,7 @@
                 <div class="row"><div class="label">Grupo</div><div class="value">{{ $request->group?->name ?? '—' }}</div></div>
                 <div class="row"><div class="label">Grado</div><div class="value">{{ $request->group?->grade?->name ?? $request->grade?->name ?? '—' }}</div></div>
                 <div class="row"><div class="label">Periodo</div><div class="value">{{ $request->period_label ?: (($request->starts_on?->format('d/m/Y') ?? '—') . ' → ' . ($request->ends_on?->format('d/m/Y') ?? '—')) }}</div></div>
+                <div class="row"><div class="label">Formato de salida</div><div class="value">{{ $request->formatVersion?->format?->name ?? 'Formato general de Planeaciones' }}</div></div>
                 <div class="row"><div class="label">Tema o proyecto</div><div class="value">{{ $request->integrative_project ?: $request->project }}</div></div>
                 @if($request->integrative_project_purpose)
                     <div class="row"><div class="label">Propósito</div><div class="value">{{ $request->integrative_project_purpose }}</div></div>
