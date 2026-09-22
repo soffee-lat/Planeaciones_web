@@ -153,7 +153,7 @@ class ViewPlanningRequest extends ViewRecord
                         app(DispatchPlanningGeneration::class)->execute($this->getRecord());
                         $this->record = $this->getRecord()->fresh();
                         Notification::make()->success()->title('Generación iniciada')
-                            ->body('Generaremos primero el contenido pedagógico. El formato de salida se elige después de la aprobación.')->send();
+                            ->body('Generaremos primero el contenido pedagógico. El formato elegido se aplicará después de la aprobación y podrás confirmarlo o cambiarlo antes de exportar.')->send();
                     } catch (\Throwable $error) {
                         report($error);
                         Notification::make()->danger()->title('No se pudo iniciar la generación')
@@ -166,7 +166,7 @@ class ViewPlanningRequest extends ViewRecord
                 ->color('primary')
                 ->databaseTransaction(false)
                 ->modalHeading('Exportar planeación')
-                ->modalDescription('El contenido pedagógico ya está aprobado. Elegir un formato sólo cambia la presentación del documento; no vuelve a generar la planeación ni consume otra generación de IA.')
+                ->modalDescription('El contenido pedagógico ya está aprobado. Conservamos el formato que elegiste al crear la planeación; aquí puedes confirmarlo o cambiarlo antes de exportar. Esto no vuelve a generar la planeación ni consume otra generación de IA.')
                 ->schema([
                     Select::make('format_version_id')
                         ->label('Formato de salida')
@@ -175,7 +175,7 @@ class ViewPlanningRequest extends ViewRecord
                         ->required()
                         ->searchable()
                         ->native(false)
-                        ->helperText('Recomendado: Formato estándar. Los formatos institucionales son una opción de exportación avanzada.'),
+                        ->helperText('El formato general sigue siendo el predeterminado cuando no eliges otro. Puedes cambiar la salida sin modificar el contenido pedagógico.'),
                 ])
                 ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::APROBADA)
                 ->action(function (array $data): void {
@@ -287,16 +287,7 @@ class ViewPlanningRequest extends ViewRecord
 
     private function defaultExportFormatVersionId(): ?int
     {
-        $options = PlanningRequestResource::formatVersionOptions();
-        foreach ($options as $id => $label) {
-            if (str_contains(mb_strtolower((string) $label), 'estándar')) {
-                return (int) $id;
-            }
-        }
-
-        $first = array_key_first($options);
-
-        return $first === null ? null : (int) $first;
+        return PlanningRequestResource::exportFormatVersionIdFor($this->getRecord());
     }
 
     private function currentVersion(): ?DocumentVersion
