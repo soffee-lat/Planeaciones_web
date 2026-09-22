@@ -13,7 +13,7 @@ class RegisterCustomer
         $data = Validator::make($input, [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', Password::min(12)],
+            'password' => ['required', Password::min(8)],
         ], [
             'name.required' => 'Escribe tu nombre.',
             'name.string' => 'El nombre no es válido.',
