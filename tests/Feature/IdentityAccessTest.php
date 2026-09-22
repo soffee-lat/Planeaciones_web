@@ -73,6 +73,18 @@ class IdentityAccessTest extends TestCase {
         $this->assertFalse($user->hasVerifiedEmail());
         Notification::assertSentTo($user,VerifyEmail::class);
     }
+    public function test_registration_short_password_shows_human_spanish_message(): void {
+        Livewire::test(Register::class)->fillForm([
+            'name'=>'Docente ficticia',
+            'email'=>'password-corto@example.test',
+            'password'=>'Ruasaga456.',
+            'passwordConfirmation'=>'Ruasaga456.',
+        ])->call('register')
+            ->assertHasFormErrors(['password'])
+            ->assertSee('La contraseña debe tener al menos 12 caracteres.');
+        $this->assertDatabaseMissing('users', ['email'=>'password-corto@example.test']);
+    }
+
     public function test_registration_action_ignores_privileged_fields(): void {
         $user = app(RegisterCustomer::class)->execute([
             'name'=>'Ficticio','email'=>'ATTACK@example.test','password'=>'PruebaSegura123!',
