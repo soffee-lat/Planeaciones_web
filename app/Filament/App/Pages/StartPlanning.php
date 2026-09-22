@@ -26,6 +26,7 @@ class StartPlanning extends Page
 
     public ?int $draft_id = null;
     public ?int $group_id = null;
+    public ?int $format_version_id = null;
     public string $period_type = 'week';
     public string $period_key = '';
     public string $calendar_month = '';
@@ -38,6 +39,8 @@ class StartPlanning extends Page
 
     public function mount(): void
     {
+        $this->format_version_id = PlanningRequestResource::defaultFormatVersionId();
+
         $draftId = request()->integer('draft');
         if ($draftId < 1) {
             return;
@@ -60,6 +63,9 @@ class StartPlanning extends Page
 
         $this->draft_id = (int) $draft->id;
         $this->group_id = (int) $draft->group_id;
+        $this->format_version_id = $draft->format_version_id
+            ? (int) $draft->format_version_id
+            : PlanningRequestResource::defaultFormatVersionId();
         $this->period_type = (string) $draft->period_type;
         $this->period_key = (string) $draft->period_key;
         $this->calendar_month = $draft->period_type === 'week'
@@ -104,6 +110,7 @@ class StartPlanning extends Page
     {
         return [
             'groups' => PlanningRequestResource::eligibleGroupOptions(),
+            'formats' => PlanningRequestResource::formatVersionOptions(),
         ];
     }
 
@@ -384,6 +391,7 @@ class StartPlanning extends Page
     {
         $data = $this->validate([
             'group_id' => ['required', 'integer'],
+            'format_version_id' => ['required', 'integer'],
             'period_type' => ['required', 'string', 'in:week,month'],
             'period_key' => ['required', 'string', 'max:32'],
             'integrative_project' => ['nullable', 'string', 'max:255'],
@@ -397,10 +405,18 @@ class StartPlanning extends Page
             'weeks.*.topics.*.notes' => ['nullable', 'string', 'max:4000'],
         ], [
             'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
+            'format_version_id.required' => 'Selecciona el formato del documento.',
             'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
             'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
             'weeks.*.topics.*.group_subject_id.required' => 'Selecciona la materia principal del tema.',
         ]);
+
+        $formatOptions = PlanningRequestResource::formatVersionOptions();
+        if (! array_key_exists((int) $data['format_version_id'], $formatOptions)) {
+            throw ValidationException::withMessages([
+                'format_version_id' => 'Ese formato ya no está disponible para tu cuenta.',
+            ]);
+        }
 
         $group = $this->selectedGroup();
         if (! $group) {
@@ -463,6 +479,13 @@ class StartPlanning extends Page
                     $request,
                     $structure,
                 );
+
+                // El formato es una preferencia de salida. Cambiarlo no altera
+                // el snapshot pedagógico ni invalida el mapa curricular.
+                $request->forceFill([
+                    'format_version_id' => (int) $data['format_version_id'],
+                ])->save();
+                $request = $request->refresh();
             } else {
                 $request = app(StartPlanningExperiment::class)->execute(
                     auth()->user(),
@@ -472,12 +495,18 @@ class StartPlanning extends Page
                     $workFocus,
                     $data['context_note'] ?? null,
                     $structure,
+                    formatVersionId: (int) $data['format_version_id'],
                 );
             }
         } catch (\RuntimeException $e) {
             if ($e->getMessage() === 'PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE') {
                 throw ValidationException::withMessages([
                     'group_id' => 'Ese grupo ya no está disponible o le falta completar su perfil pedagógico.',
+                ]);
+            }
+            if ($e->getMessage() === 'PLANNING_EXPERIMENT_FORMAT_NOT_USABLE') {
+                throw ValidationException::withMessages([
+                    'format_version_id' => 'Ese formato ya no está disponible para esta planeación.',
                 ]);
             }
             throw $e;
