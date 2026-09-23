@@ -172,6 +172,30 @@ class CurriculumImportTest extends TestCase
         $this->assertNull($curriculum->selectable_version_id, 'Importación NUNCA cambia selectable_version_id.');
     }
 
+    public function test_importacion_persiste_referencia_de_fuente_estructurada_mayor_a_255_caracteres(): void
+    {
+        $payload = $this->validPayload();
+        $payload['version']['source_reference'] = [
+            'title' => str_repeat('Fuente oficial con metadatos verificables. ', 8),
+            'publisher' => 'Secretaría de Educación Pública',
+            'official_url' => 'https://example.test/programa-oficial.pdf',
+        ];
+
+        $expected = json_encode(
+            $payload['version']['source_reference'],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        );
+        $this->assertGreaterThan(255, strlen($expected));
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: false);
+
+        $this->assertTrue($report->success, json_encode($report->toArray()));
+        $this->assertSame(
+            $expected,
+            CurriculumVersion::findOrFail($report->draftId)->source_reference,
+        );
+    }
+
     public function test_reutiliza_curriculo_existente_sin_modificar_metadata(): void
     {
         $existing = Curriculum::create([
