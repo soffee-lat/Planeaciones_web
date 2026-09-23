@@ -48,7 +48,7 @@
 
                     <p class="landing-hero__lead">
                         Planeaciones Soffee te ayuda a organizar el periodo de trabajo, revisar las conexiones curriculares
-                        y preparar una planeación estructurada para tu grupo.
+                        y preparar planeaciones diferenciadas para grupos de preescolar (kínder) y primaria.
                     </p>
 
                     <div class="landing-hero__actions">
@@ -72,6 +72,7 @@
                     </div>
 
                     <div class="landing-trust">
+                        <span>✓</span> Preescolar y primaria
                         <span>✓</span> Diseñado para docentes
                         <span>✓</span> Flujo curricular guiado
                         <span>✓</span> Salida DOCX y PDF
