@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "curriculum": {
+    "code": "MX-NEM-PRESCHOOL",
+    "name": "Educación Preescolar — Nueva Escuela Mexicana",
+    "country_code": "MX",
+    "educational_level": "preschool",
+    "description": "Catálogo curricular estructurado para preescolar. Los códigos son internos de la plataforma."
+  },
+  "version": {
+    "number": 1,
+    "label": "Programa Sintético de Preescolar — Fase 2 — edición 2024",
+    "source_reference": {
+      "legal_basis": [
+        "Acuerdo 14/08/22",
+        "Acuerdo 06/08/23",
+        "Acuerdo 08/08/23"
+      ],
+      "phase_sources": {
+        "F2": "https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase-2.pdf"
+      }
+    },
+    "effective_from": null,
+    "effective_until": null
+  },
+  "educational_phases": [
+    { "code": "F2", "name": "Fase 2", "sort_order": 2 }
+  ],
+  "grades": [
+    { "code": "P1", "name": "Primer grado de preescolar", "phase_code": "F2", "ordinal": 1, "sort_order": 1 },
+    { "code": "P2", "name": "Segundo grado de preescolar", "phase_code": "F2", "ordinal": 2, "sort_order": 2 },
+    { "code": "P3", "name": "Tercer grado de preescolar", "phase_code": "F2", "ordinal": 3, "sort_order": 3 }
+  ],
+  "formative_fields": [
+    { "code": "LEN", "name": "Lenguajes", "sort_order": 1 },
+    { "code": "SPC", "name": "Saberes y Pensamiento Científico", "sort_order": 2 },
+    { "code": "ENS", "name": "Ética, Naturaleza y Sociedades", "sort_order": 3 },
+    { "code": "DHC", "name": "De lo Humano y lo Comunitario", "sort_order": 4 }
+  ],
+  "articulating_axes": [
+    { "code": "AX-INCLUSION", "name": "Inclusión", "sort_order": 1 },
+    { "code": "AX-CRITICAL", "name": "Pensamiento crítico", "sort_order": 2 },
+    { "code": "AX-INTERCULTURAL", "name": "Interculturalidad crítica", "sort_order": 3 },
+    { "code": "AX-GENDER", "name": "Igualdad de género", "sort_order": 4 },
+    { "code": "AX-HEALTH", "name": "Vida saludable", "sort_order": 5 },
+    { "code": "AX-LITERACY", "name": "Apropiación de las culturas a través de la lectura y la escritura", "sort_order": 6 },
+    { "code": "AX-ARTS", "name": "Artes y experiencias estéticas", "sort_order": 7 }
+  ],
+  "curricular_contents": [
+    {
+      "code": "F2-LEN-C001",
+      "title": "__PENDING_EDITORIAL__",
+      "full_text": "__PENDING_EDITORIAL__",
+      "phase_code": "F2",
+      "field_code": "LEN",
+      "source_locator": "Programa Sintético Fase 2, p. <n>",
+      "sort_order": 1
+    }
+  ],
+  "pdas": [
+    {
+      "code": "F2-P1-LEN-C001-P01",
+      "full_text": "__PENDING_EDITORIAL__",
+      "content_code": "F2-LEN-C001",
+      "grade_code": "P1",
+      "source_locator": "Programa Sintético Fase 2, p. <n>",
+      "sort_order": 1
+    }
+  ]
+}
