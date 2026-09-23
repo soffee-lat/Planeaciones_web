@@ -51,7 +51,7 @@
     $contentPdas = $pdas->groupBy('curricular_content_id');
     $suggestionCount = count($suggestion['content_ids']) + count($suggestion['pda_ids']) + count($suggestion['axis_ids']);
     $editUrl = \App\Filament\App\Pages\StartPlanning::getUrl() . '?draft=' . $request->id;
-    $educationalLevelLabel = \\App\\Enums\\EducationalLevel::labelFor($request->group?->curriculumVersion?->curriculum?->educational_level);
+    $educationalLevelLabel = \App\Enums\EducationalLevel::labelFor($request->group?->curriculumVersion?->curriculum?->educational_level);
     $coverageMissingLabel = fn (array $field) => match ($field['missing_requirement'] ?? null) {
         'pda' => 'Falta PDA',
         'content' => 'Falta contenido',
