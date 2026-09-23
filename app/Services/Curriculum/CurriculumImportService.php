@@ -58,6 +58,7 @@ class CurriculumImportService
 
         // --- Fase 2: validación referencial (dentro del archivo).
         $this->validateReferences($payload, $report);
+        $this->validateCanonicalCatalog($payload, $report);
         if ($report->hasErrors()) {
             return $report;
         }
@@ -380,6 +381,128 @@ class CurriculumImportService
             if (($contentPdaCount[$code] ?? 0) === 0) {
                 $report->warnings[] = "Contenido \"{$code}\" no tiene PDA. La publicación posterior fallará hasta agregar al menos uno.";
             }
+        }
+    }
+
+    /**
+     * Reglas de completitud para catálogos canónicos de producción.
+     *
+     * El importador sigue aceptando fixtures y catálogos no canónicos para
+     * pruebas/desarrollo, pero MX-NEM-PRESCHOOL debe representar la Fase 2
+     * completa: P1, P2 y P3, los cuatro Campos formativos, los siete Ejes
+     * articuladores ya usados por la plataforma y al menos un PDA de cada
+     * grado por cada Contenido.
+     */
+    private function validateCanonicalCatalog(array $payload, ImportReport $report): void
+    {
+        $curriculumCode = strtoupper(trim((string) ($payload['curriculum']['code'] ?? '')));
+        if ($curriculumCode !== 'MX-NEM-PRESCHOOL') {
+            return;
+        }
+
+        $level = strtolower(trim((string) ($payload['curriculum']['educational_level'] ?? '')));
+        if ($level !== 'preschool') {
+            $report->addError(
+                'CANONICAL_CURRICULUM_LEVEL_MISMATCH',
+                'MX-NEM-PRESCHOOL debe declarar educational_level="preschool".',
+                '/curriculum/educational_level'
+            );
+        }
+
+        $this->validateExactCodeSet(
+            $payload['educational_phases'] ?? [],
+            ['F2'],
+            'CANONICAL_PHASE_SET_INVALID',
+            '/educational_phases',
+            $report,
+        );
+        $this->validateExactCodeSet(
+            $payload['grades'] ?? [],
+            ['P1', 'P2', 'P3'],
+            'CANONICAL_GRADE_SET_INVALID',
+            '/grades',
+            $report,
+        );
+        $this->validateExactCodeSet(
+            $payload['formative_fields'] ?? [],
+            ['LEN', 'SPC', 'ENS', 'DHC'],
+            'CANONICAL_FIELD_SET_INVALID',
+            '/formative_fields',
+            $report,
+        );
+        $this->validateExactCodeSet(
+            $payload['articulating_axes'] ?? [],
+            [
+                'AX-INCLUSION',
+                'AX-CRITICAL',
+                'AX-INTERCULTURAL',
+                'AX-GENDER',
+                'AX-HEALTH',
+                'AX-LITERACY',
+                'AX-ARTS',
+            ],
+            'CANONICAL_AXIS_SET_INVALID',
+            '/articulating_axes',
+            $report,
+        );
+
+        $coverage = [];
+        foreach ($payload['pdas'] ?? [] as $pda) {
+            $contentCode = $pda['content_code'] ?? null;
+            $gradeCode = $pda['grade_code'] ?? null;
+            if (is_string($contentCode) && is_string($gradeCode)) {
+                $coverage[$contentCode][$gradeCode] = true;
+            }
+        }
+
+        foreach ($payload['curricular_contents'] ?? [] as $i => $content) {
+            $contentCode = $content['code'] ?? null;
+            if (! is_string($contentCode) || $contentCode === '') {
+                continue;
+            }
+
+            foreach (['P1', 'P2', 'P3'] as $gradeCode) {
+                if (! isset($coverage[$contentCode][$gradeCode])) {
+                    $report->addError(
+                        'CANONICAL_CONTENT_GRADE_WITHOUT_PDA',
+                        "El contenido \"{$contentCode}\" no tiene PDA para {$gradeCode}.",
+                        "/curricular_contents/{$i}"
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @param list<string> $expected
+     */
+    private function validateExactCodeSet(
+        array $rows,
+        array $expected,
+        string $errorCode,
+        string $location,
+        ImportReport $report,
+    ): void {
+        $actual = [];
+        foreach ($rows as $row) {
+            $code = $row['code'] ?? null;
+            if (is_string($code) && $code !== '') {
+                $actual[] = strtoupper($code);
+            }
+        }
+
+        sort($actual);
+        $expectedSorted = $expected;
+        sort($expectedSorted);
+
+        if ($actual !== $expectedSorted) {
+            $report->addError(
+                $errorCode,
+                'Conjunto esperado: ' . implode(', ', $expectedSorted)
+                    . '. Recibido: ' . implode(', ', $actual) . '.',
+                $location
+            );
         }
     }
 
