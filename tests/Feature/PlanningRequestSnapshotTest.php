@@ -74,6 +74,15 @@ class PlanningRequestSnapshotTest extends PedagogyTestCase
         // Curriculum checksum included and non-empty (comes from published version).
         $this->assertNotEmpty($snap['curriculum']['version']['checksum']);
 
+        // Nivel y perfil de calibración quedan congelados junto al currículo.
+        $this->assertArrayHasKey('educational_level', $snap['curriculum']['curriculum']);
+        $this->assertArrayHasKey('pedagogical_stage', $snap);
+        $this->assertSame(
+            $snap['curriculum']['curriculum']['educational_level'],
+            $snap['pedagogical_stage']['educational_level'],
+        );
+        $this->assertSame($snap['curriculum']['grade']['name'], $snap['pedagogical_stage']['grade_name']);
+
         // State event recorded.
         $this->assertDatabaseHas('request_state_events', [
             'request_id' => $req->id,
