@@ -288,6 +288,46 @@ class CurriculumImportService
             $gradePhaseByCode[$g['code']] = $pc;
         }
 
+        // Para los niveles productivos soportados, valida también la
+        // combinación nivel/fase/grado y la convención interna de códigos.
+        // Niveles ajenos (por ejemplo fixtures de prueba) conservan el
+        // comportamiento genérico del importador.
+        $educationalLevel = strtolower(trim((string) ($payload['curriculum']['educational_level'] ?? '')));
+        if (in_array($educationalLevel, ['preschool', 'primary'], true)) {
+            foreach ($payload['grades'] as $i => $g) {
+                $phaseCode = strtoupper(trim((string) ($g['phase_code'] ?? '')));
+                $gradeCode = strtoupper(trim((string) ($g['code'] ?? '')));
+                $ordinal = (int) ($g['ordinal'] ?? 0);
+                $expectedPhase = null;
+                $expectedCode = null;
+
+                if ($educationalLevel === 'preschool' && $ordinal >= 1 && $ordinal <= 3) {
+                    $expectedPhase = 'F2';
+                    $expectedCode = 'P' . $ordinal;
+                } elseif ($educationalLevel === 'primary' && $ordinal >= 1 && $ordinal <= 6) {
+                    $expectedPhase = match (true) {
+                        $ordinal <= 2 => 'F3',
+                        $ordinal <= 4 => 'F4',
+                        default => 'F5',
+                    };
+                    $expectedCode = 'G' . $ordinal;
+                }
+
+                if ($expectedPhase === null || $phaseCode !== $expectedPhase || $gradeCode !== $expectedCode) {
+                    $report->addError(
+                        'EDUCATIONAL_SCOPE_INVALID',
+                        sprintf(
+                            'Nivel "%s": el grado "%s" (ordinal %d) no corresponde a la fase/código soportados.',
+                            $educationalLevel,
+                            $gradeCode,
+                            $ordinal,
+                        ),
+                        "/grades/{$i}",
+                    );
+                }
+            }
+        }
+
         // content.phase_code, field_code deben existir
         $contentPhaseByCode = [];
         foreach ($payload['curricular_contents'] as $i => $c) {
