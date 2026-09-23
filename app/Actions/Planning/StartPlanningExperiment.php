@@ -12,12 +12,16 @@ use App\Models\PlanningRequest;
 use App\Models\User;
 use App\Services\Analytics\ProductEventRecorder;
 use App\Services\Documents\PlanningFormatResolver;
+use App\Services\Pedagogy\SupportedEducationalScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 final class StartPlanningExperiment
 {
-    public function __construct(private ProductEventRecorder $events) {}
+    public function __construct(
+        private ProductEventRecorder $events,
+        private SupportedEducationalScope $educationalScope,
+    ) {}
 
     public function execute(
         User $actor,
@@ -32,7 +36,7 @@ final class StartPlanningExperiment
         $this->assertActor($actor);
 
         $group = Group::query()
-            ->with(['profile', 'curriculumVersion'])
+            ->with(['profile', 'curriculumVersion.curriculum', 'grade.educationalPhase'])
             ->where('owner_id', $actor->id)
             ->whereNull('archived_at')
             ->whereHas('profile', function ($query): void {
@@ -45,6 +49,16 @@ final class StartPlanningExperiment
 
         if (! $group) {
             throw new \RuntimeException('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
+        }
+
+        if (! $group->curriculumVersion?->curriculum || ! $group->grade) {
+            throw new \RuntimeException('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
+        }
+
+        try {
+            $this->educationalScope->assert($group->curriculumVersion->curriculum, $group->grade);
+        } catch (\RuntimeException) {
+            throw new \RuntimeException('PLANNING_EXPERIMENT_EDUCATIONAL_SCOPE_NOT_SUPPORTED');
         }
 
         try {
@@ -114,6 +128,8 @@ final class StartPlanningExperiment
                     'session_minutes_known' => $group->profile?->session_minutes !== null,
                     'period_type' => $request->period_type,
                     'structured_topics' => $pedagogicalStructure !== null,
+                    'educational_level' => $group->curriculumVersion?->curriculum?->educational_level,
+                    'grade_ordinal' => (int) ($group->grade?->ordinal ?? 0),
                 ],
             );
 
