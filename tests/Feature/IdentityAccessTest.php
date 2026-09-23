@@ -134,7 +134,11 @@ class IdentityAccessTest extends TestCase {
     public function test_login_accepts_customer_and_rejects_wrong_panel_and_password(): void {
         $user=User::factory()->withRole(RoleCode::Customer)->create(['password'=>'PruebaSegura123!']);
         Livewire::test(Login::class)->fillForm(['email'=>$user->email,'password'=>'incorrecta'])->call('authenticate')->assertHasFormErrors(['email']);
-        Livewire::test(Login::class)->fillForm(['email'=>$user->email,'password'=>'PruebaSegura123!'])->call('authenticate')->assertHasNoFormErrors();
+        Livewire::test(Login::class)
+            ->fillForm(['email'=>$user->email,'password'=>'PruebaSegura123!'])
+            ->call('authenticate')
+            ->assertHasNoFormErrors()
+            ->assertRedirect('/app/inicio');
         $this->assertAuthenticatedAs($user);
         $this->post('/app/logout')->assertRedirect();
         $this->assertGuest();
