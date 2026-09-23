@@ -45,6 +45,10 @@ final class CanonicalPlanDocumentBuilder
                 'Sesiones', $this->sessionSummary($planning),
             ],
             [
+                'Nivel educativo', $this->value($context['educational_level_label'] ?? null, '—'),
+                'Ciclo escolar', $this->value($context['school_year'] ?? null, '—'),
+            ],
+            [
                 'Grado', $this->value($grade['name'] ?? $grade['code'] ?? null, '—'),
                 'Fase', $this->value($phase['name'] ?? $phase['code'] ?? null, '—'),
             ],
