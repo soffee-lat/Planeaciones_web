@@ -4,10 +4,12 @@
 
 La plataforma admite currículos independientes por nivel educativo. El nivel se registra en `curricula.educational_level` y no se duplica en grupos ni solicitudes: cada `Group` referencia una `CurriculumVersion` seleccionable y un `Grade` de esa misma versión.
 
-Niveles productivos iniciales:
+Niveles productivos soportados:
 
 - `preschool` — Preescolar (kínder), Fase 2, grados internos `P1`, `P2`, `P3`.
 - `primary` — Primaria, Fases 3, 4 y 5, grados internos `G1` a `G6`.
+
+Fuera de alcance de Planeaciones Soffee: Educación Inicial / Fase 1 y Secundaria / Fase 6. El flujo de cliente rechaza niveles o combinaciones fase-grado fuera de ese alcance.
 
 Preescolar y Primaria se mantienen como `Curriculum` distintos. No se agregan grados de preescolar al árbol de primaria. Los cuatro Campos formativos y los siete Ejes articuladores pueden compartir códigos internos entre currículos porque su identidad de base de datos está acotada por `CurriculumVersion`.
 
