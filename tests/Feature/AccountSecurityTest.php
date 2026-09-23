@@ -54,14 +54,14 @@ class AccountSecurityTest extends TestCase {
     }
     public function test_revoked_role_and_suspension_apply_to_existing_session(): void {
         $user=User::factory()->withRole(RoleCode::Customer)->create();
-        $this->actingAs($user)->get('/app')->assertOk();
+        $this->actingAs($user)->get('/app/inicio')->assertOk();
         $user->roles()->detach();
-        $this->get('/app')->assertForbidden();
+        $this->get('/app/inicio')->assertForbidden();
     }
     public function test_customer_dashboard_contains_no_other_customer_data(): void {
         $a=User::factory()->withRole(RoleCode::Customer)->create(['name'=>'Docente A']);
         $b=User::factory()->withRole(RoleCode::Customer)->create(['name'=>'Docente B']);
-        $this->actingAs($a)->get('/app')->assertOk()->assertSee('Docente A')->assertDontSee('Docente B')->assertDontSee($b->email);
+        $this->actingAs($a)->get('/app/inicio')->assertOk()->assertSee('Docente A')->assertDontSee('Docente B')->assertDontSee($b->email);
         $this->get('/app/profile?user='.$b->id)->assertOk()->assertSee($a->email)->assertDontSee($b->email);
     }
 }
