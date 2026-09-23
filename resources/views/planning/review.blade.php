@@ -63,6 +63,7 @@
             <section class="section">
                 <h2>Planeación</h2>
                 <div class="row"><div class="label">Grupo</div><div class="value">{{ $request->group?->name ?? '—' }}</div></div>
+                <div class="row"><div class="label">Nivel educativo</div><div class="value">{{ \\App\\Enums\\EducationalLevel::labelFor($request->group?->curriculumVersion?->curriculum?->educational_level) }}</div></div>
                 <div class="row"><div class="label">Grado</div><div class="value">{{ $request->group?->grade?->name ?? $request->grade?->name ?? '—' }}</div></div>
                 <div class="row"><div class="label">Periodo</div><div class="value">{{ $request->period_label ?: (($request->starts_on?->format('d/m/Y') ?? '—') . ' → ' . ($request->ends_on?->format('d/m/Y') ?? '—')) }}</div></div>
                 <div class="row"><div class="label">Formato de salida</div><div class="value">{{ $request->formatVersion?->format?->name ?? 'Formato general de Planeaciones' }}</div></div>
@@ -77,12 +78,12 @@
 
             @if($request->planningWeeks->isNotEmpty())
                 <section class="section">
-                    <h2>Temas por semana y materia</h2>
+                    <h2>Temas por semana y área</h2>
                     @foreach($request->planningWeeks as $week)
                         <div class="week">
                             <div class="week-title">Semana {{ $week->sequence }} · {{ $week->label }}</div>
                             @foreach($week->topics as $topic)
-                                <div class="topic"><strong>{{ $topic->subject?->name ?? 'Materia' }}:</strong> {{ $topic->topic }}@if($topic->notes) · {{ $topic->notes }}@endif</div>
+                                <div class="topic"><strong>{{ $topic->subject?->name ?? 'Área' }}:</strong> {{ $topic->topic }}@if($topic->notes) · {{ $topic->notes }}@endif</div>
                             @endforeach
                         </div>
                     @endforeach
