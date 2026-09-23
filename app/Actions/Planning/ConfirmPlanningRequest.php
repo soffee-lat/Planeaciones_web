@@ -6,6 +6,7 @@ use App\Enums\PlanningRequestStatus;
 use App\Models\GroupProfile;
 use App\Services\Planning\PlanningCalendarBuilder;
 use App\Services\Planning\PlanningFocusResolver;
+use App\Services\Pedagogy\PedagogicalStageProfile;
 use App\Services\AI\RequestBlockManager;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
@@ -41,6 +42,7 @@ class ConfirmPlanningRequest
         private PlanningCalendarBuilder $calendarBuilder,
         private PlanningFocusResolver $focusResolver,
         private RequestBlockManager $blocks,
+        private PedagogicalStageProfile $pedagogicalStage,
     ) {}
 
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
@@ -212,6 +214,9 @@ class ConfirmPlanningRequest
 
         $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
         $grade = $r->grade()->with('educationalPhase')->firstOrFail();
+        $stageProfile = $version->curriculum
+            ? $this->pedagogicalStage->for($version->curriculum, $grade)
+            : null;
 
         $contents = $r->contents()->with(['educationalPhase', 'formativeField'])->orderBy('sort_order')->get();
         $pdas = $r->pdas()->orderBy('sort_order')->get();
@@ -267,6 +272,7 @@ class ConfirmPlanningRequest
             'input_revision' => (int) $r->input_revision + 1,
             'selection_revision' => (int) $r->selection_revision,
             'pedagogical_structure' => $pedagogicalStructure,
+            'pedagogical_stage' => $stageProfile,
             'request' => [
                 'id' => $r->id,
                 'starts_on' => $r->starts_on?->format('Y-m-d'),
@@ -305,6 +311,8 @@ class ConfirmPlanningRequest
                     'id' => $version->curriculum?->id,
                     'code' => $version->curriculum?->code,
                     'name' => $version->curriculum?->name,
+                    'educational_level' => $version->curriculum?->educational_level,
+                    'educational_level_label' => $version->curriculum?->educationalLevelLabel(),
                 ],
                 'version' => [
                     'id' => $version->id,
