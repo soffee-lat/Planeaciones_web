@@ -2,6 +2,7 @@
 
 namespace App\Filament\App\Resources\Groups;
 
+use App\Enums\EducationalLevel;
 use App\Filament\App\Resources\Groups\Pages\CreateGroup;
 use App\Filament\App\Resources\Groups\Pages\EditGroup;
 use App\Filament\App\Resources\Groups\Pages\ListGroups;
@@ -53,10 +54,14 @@ class GroupResource extends Resource
     /**
      * @return array<int,int>
      */
-    private static function selectableVersionIds(): array
+    private static function selectableVersionIds(?string $educationalLevel = null): array
     {
         return Curriculum::query()
             ->whereNotNull('selectable_version_id')
+            ->when(
+                filled($educationalLevel),
+                fn (Builder $query) => $query->where('educational_level', $educationalLevel),
+            )
             ->pluck('selectable_version_id')
             ->all();
     }
@@ -77,11 +82,35 @@ class GroupResource extends Resource
                     ->native(false)
                     ->helperText('Solo aparecen tus escuelas.'),
 
+                Select::make('educational_level')
+                    ->label('Nivel educativo')
+                    ->options(EducationalLevel::options())
+                    ->placeholder('Selecciona preescolar o primaria')
+                    ->required()
+                    ->native(false)
+                    ->live()
+                    ->dehydrated(false)
+                    ->afterStateHydrated(function (Select $component, ?Group $record): void {
+                        if ($record) {
+                            $component->state((string) ($record->curriculumVersion?->curriculum?->educational_level ?? ''));
+                        }
+                    })
+                    ->afterStateUpdated(function (Set $set): void {
+                        $set('curriculum_version_id', null);
+                        $set('grade_id', null);
+                    })
+                    ->helperText('Define claramente si este grupo es de Preescolar (kínder) o Primaria.'),
+
                 Select::make('curriculum_version_id')
                     ->label('Currículo')
-                    ->options(function () {
+                    ->options(function (Get $get) {
+                        $level = trim((string) $get('educational_level'));
+                        if ($level === '') {
+                            return [];
+                        }
+
                         return CurriculumVersion::query()
-                            ->whereIn('id', self::selectableVersionIds())
+                            ->whereIn('id', self::selectableVersionIds($level))
                             ->with('curriculum')
                             ->get()
                             ->mapWithKeys(fn (CurriculumVersion $v) => [
@@ -106,7 +135,7 @@ class GroupResource extends Resource
                             }
                         }
                     })
-                    ->helperText('Solo aparecen currículos publicados y seleccionables.'),
+                    ->helperText('Solo aparecen currículos publicados y seleccionables del nivel educativo elegido.'),
 
                 Select::make('grade_id')
                     ->label('Grado')
@@ -188,6 +217,10 @@ class GroupResource extends Resource
             ->columns([
                 TextColumn::make('name')->label('Grupo')->searchable()->sortable(),
                 TextColumn::make('school.name')->label('Escuela')->searchable(),
+                TextColumn::make('curriculumVersion.curriculum.educational_level')
+                    ->label('Nivel')
+                    ->formatStateUsing(fn ($state): string => EducationalLevel::labelFor((string) $state))
+                    ->badge(),
                 TextColumn::make('grade.name')->label('Grado'),
                 TextColumn::make('curriculumVersion.curriculum.name')->label('Currículo')->toggleable(),
                 TextColumn::make('school_year')->label('Ciclo'),
