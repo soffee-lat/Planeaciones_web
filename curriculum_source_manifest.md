@@ -37,6 +37,20 @@ Convención interna propuesta:
 
 La carga debe conservar la columna de grado exacta del Programa Sintético. No inferir un PDA de un grado a otro ni tratar la progresión como lineal o rígida.
 
+Extracción editorial verificada para `curriculum_mx_nem_preschool_v1.json`:
+- Fuente local: `Programa_Sintetico_Fase-2.pdf`
+- SHA-256 fuente: `f981c30ea9619f5841f4729a6f697951e035eff78c1e1042d02d0d5d663c8702`
+- 1 fase: F2
+- 3 grados internos: P1, P2, P3
+- 4 Campos formativos
+- 34 Contenidos: LEN 9, SPC 9, ENS 8, DHC 8
+- 373 PDA: P1 112, P2 130, P3 131
+- 7 Ejes articuladores compartidos con el currículo NEM
+- Páginas fuente de tablas: Lenguajes 20–26; Saberes y Pensamiento Científico 32–41; Ética, Naturaleza y Sociedades 46–51; De lo Humano y lo Comunitario 56–62
+- SHA-256 del JSON generado: `532202229710635271fd05f156e49ac3fde4a0042abf4f59a964ab458d378333`
+
+El JSON real se valida mediante `curriculum:import --dry-run` antes de crear el borrador. La importación nunca publica ni modifica `selectable_version_id`.
+
 ## Fuentes SEP para primaria
 
 ### Fase 3 — 1.º y 2.º de primaria
