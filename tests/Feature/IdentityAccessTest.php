@@ -27,8 +27,21 @@ class IdentityAccessTest extends TestCase {
         parent::setUp();
         Filament::setCurrentPanel(Filament::getPanel('app'));
     }
+    public function test_public_app_home_exposes_landing_and_auth_actions(): void {
+        $this->get('/app')
+            ->assertOk()
+            ->assertSee('Planeaciones Soffee')
+            ->assertSee('Inicio')
+            ->assertSee('Iniciar sesión')
+            ->assertSee('Registrarse')
+            ->assertSee(route('filament.app.auth.login'), false)
+            ->assertSee(route('filament.app.auth.register'), false);
+    }
     public function test_guests_see_login_on_each_panel_and_internal_registration_is_absent(): void {
-        foreach (['app','review','admin'] as $panel) {
+        $this->get('/app/inicio')->assertRedirect('/app/login');
+        $this->get('/app/login')->assertOk();
+        $this->get('/app/password-reset/request')->assertOk();
+        foreach (['review','admin'] as $panel) {
             $this->get('/'.$panel)->assertRedirect('/'.$panel.'/login');
             $this->get('/'.$panel.'/login')->assertOk();
             $this->get('/'.$panel.'/password-reset/request')->assertOk();
@@ -44,22 +57,30 @@ class IdentityAccessTest extends TestCase {
             [RoleCode::Administrator, ['admin','review']],
         ] as [$role,$allowed]) {
             $user = User::factory()->withRole($role)->create();
-            foreach (['app','review','admin'] as $panel) {
-                $response = $this->actingAs($user)->get('/'.$panel);
+            foreach ([
+                'app' => '/app/inicio',
+                'review' => '/review',
+                'admin' => '/admin',
+            ] as $panel => $path) {
+                $response = $this->actingAs($user)->get($path);
                 $response->assertStatus(in_array($panel,$allowed,true) ? 200 : 403);
             }
         }
     }
     public function test_unverified_accounts_cannot_open_any_dashboard(): void {
-        foreach (['app'=>RoleCode::Customer,'review'=>RoleCode::Reviewer,'admin'=>RoleCode::Administrator] as $panel=>$role) {
-            $user = User::factory()->unverified()->withRole($role)->create();
-            $this->actingAs($user)->get('/'.$panel)->assertRedirect('/'.$panel.'/email-verification/prompt');
+        foreach ([
+            'app'=>['role'=>RoleCode::Customer,'path'=>'/app/inicio'],
+            'review'=>['role'=>RoleCode::Reviewer,'path'=>'/review'],
+            'admin'=>['role'=>RoleCode::Administrator,'path'=>'/admin'],
+        ] as $panel=>$case) {
+            $user = User::factory()->unverified()->withRole($case['role'])->create();
+            $this->actingAs($user)->get($case['path'])->assertRedirect('/'.$panel.'/email-verification/prompt');
         }
     }
     public function test_suspended_and_roleless_accounts_are_denied(): void {
         $user = User::factory()->withRole(RoleCode::Customer)->create(['status'=>'suspended']);
-        $this->actingAs($user)->get('/app')->assertForbidden();
-        $this->actingAs(User::factory()->create())->get('/app')->assertForbidden();
+        $this->actingAs($user)->get('/app/inicio')->assertForbidden();
+        $this->actingAs(User::factory()->create())->get('/app/inicio')->assertForbidden();
     }
     public function test_public_registration_assigns_only_customer_and_sends_verification(): void {
         Notification::fake();
