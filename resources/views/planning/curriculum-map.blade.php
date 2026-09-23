@@ -51,6 +51,7 @@
     $contentPdas = $pdas->groupBy('curricular_content_id');
     $suggestionCount = count($suggestion['content_ids']) + count($suggestion['pda_ids']) + count($suggestion['axis_ids']);
     $editUrl = \App\Filament\App\Pages\StartPlanning::getUrl() . '?draft=' . $request->id;
+    $educationalLevelLabel = \\App\\Enums\\EducationalLevel::labelFor($request->group?->curriculumVersion?->curriculum?->educational_level);
     $coverageMissingLabel = fn (array $field) => match ($field['missing_requirement'] ?? null) {
         'pda' => 'Falta PDA',
         'content' => 'Falta contenido',
@@ -62,7 +63,7 @@
 <header class="top">
     <div>
         <div class="brand">Planeaciones · Docentes</div>
-        <div class="muted">{{ $request->group?->name ?? 'Grupo' }} · {{ $request->project }}</div>
+        <div class="muted">{{ $request->group?->name ?? 'Grupo' }} · {{ $educationalLevelLabel }} · {{ $request->group?->grade?->name ?? 'Grado' }}</div>
     </div>
     <div class="top-actions">
         @if($request->planningWeeks->isNotEmpty())
@@ -75,7 +76,7 @@
 
 <main class="wrap">
     <div class="progress" aria-label="Progreso de la planeación">
-        <div class="step done"><span class="num">✓</span><div><strong>Periodo y temas</strong><br><span>Grupo, semanas, materias y horario</span></div></div>
+        <div class="step done"><span class="num">✓</span><div><strong>Periodo y temas</strong><br><span>Grupo, nivel, semanas, áreas y horario</span></div></div>
         <div class="step active"><span class="num">2</span><div><strong>Conexiones curriculares</strong><br><span>Revisa contenidos, PDA y ejes</span></div></div>
         <div class="step"><span class="num">3</span><div><strong>Confirmación</strong><br><span>Revisa el resumen antes de generar</span></div></div>
     </div>
@@ -100,7 +101,7 @@
                     <div class="plan-week">
                         <div class="plan-week-title">Semana {{ $week->sequence }} · {{ $week->label }}</div>
                         @foreach($week->topics as $topic)
-                            <div class="plan-topic"><strong>{{ $topic->subject?->name ?? 'Materia' }}:</strong> {{ $topic->topic }}</div>
+                            <div class="plan-topic"><strong>{{ $topic->subject?->name ?? 'Área' }}:</strong> {{ $topic->topic }}</div>
                         @endforeach
                     </div>
                 @endforeach
