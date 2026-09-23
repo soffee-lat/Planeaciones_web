@@ -48,12 +48,15 @@ abstract class PedagogyTestCase extends TestCase
     protected function seedPublishedCurriculum(): array
     {
         $admin = $this->admin();
-        $curriculum = Curriculum::factory()->create();
+        $curriculum = Curriculum::factory()->create([
+            'code' => 'MX-NEM-PRIMARY-TEST-' . uniqid(),
+            'educational_level' => 'primary',
+        ]);
         $version = CurriculumVersion::factory()->create(['curriculum_id' => $curriculum->id, 'number' => 1]);
-        $phaseA = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-A']);
-        $phaseB = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'PH-B']);
-        $gradeA = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseA->id, 'code' => 'GR-A', 'ordinal' => 1]);
-        $gradeB = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseB->id, 'code' => 'GR-B', 'ordinal' => 2]);
+        $phaseA = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'F3', 'name' => 'Fase 3']);
+        $phaseB = EducationalPhase::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'F4', 'name' => 'Fase 4']);
+        $gradeA = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseA->id, 'code' => 'G1', 'name' => 'Primer grado', 'ordinal' => 1]);
+        $gradeB = Grade::factory()->create(['curriculum_version_id' => $version->id, 'educational_phase_id' => $phaseB->id, 'code' => 'G3', 'name' => 'Tercer grado', 'ordinal' => 3]);
         $field = FormativeField::factory()->create(['curriculum_version_id' => $version->id, 'code' => 'FF-1']);
         $contentA = CurricularContent::factory()->create([
             'curriculum_version_id' => $version->id,
@@ -76,8 +79,8 @@ abstract class PedagogyTestCase extends TestCase
 
         // Second (draft) version + its own grade for negative tests.
         $draft = CurriculumVersion::factory()->create(['curriculum_id' => $curriculum->id, 'number' => 2]);
-        $draftPhase = EducationalPhase::factory()->create(['curriculum_version_id' => $draft->id, 'code' => 'PH-D']);
-        $draftGrade = Grade::factory()->create(['curriculum_version_id' => $draft->id, 'educational_phase_id' => $draftPhase->id, 'code' => 'GR-D', 'ordinal' => 1]);
+        $draftPhase = EducationalPhase::factory()->create(['curriculum_version_id' => $draft->id, 'code' => 'F3', 'name' => 'Fase 3']);
+        $draftGrade = Grade::factory()->create(['curriculum_version_id' => $draft->id, 'educational_phase_id' => $draftPhase->id, 'code' => 'G1', 'name' => 'Primer grado', 'ordinal' => 1]);
 
         return [
             'curriculum' => $curriculum->refresh(),
