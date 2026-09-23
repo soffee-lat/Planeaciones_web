@@ -50,7 +50,7 @@ final class EnsurePilotAiPrompts
                     '- en primaria incrementa gradualmente autonomía, lectura, escritura, argumentación, investigación y resolución de problemas según el grado, sin dejar de diseñar para niñas y niños;',
                     '- no escolarices prematuramente preescolar ni adelantes exigencias de secundaria en sexto de primaria;',
                     '- no asumas dominio de lectoescritura, abstracción o autonomía si el PDA y el perfil del grupo no lo sustentan.',
-                    'Si INPUT.group.planning_calendar contiene días, ese calendario es obligatorio:'
+                    'Si INPUT.group.planning_calendar contiene días, ese calendario es obligatorio:',
                     '- genera exactamente una sesión por cada bloque con include_in_planning=true;',
                     '- conserva las fechas y el orden de los bloques de cada día;',
                     '- session.date debe coincidir con la fecha del día del bloque;',
