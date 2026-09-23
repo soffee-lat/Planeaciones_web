@@ -31,7 +31,7 @@ class NewPlanningWizardTest extends PedagogyTestCase
             'session_minutes' => 50, 'characteristics' => 'Grupo activo.',
         ])->save();
         $this->actingAs($ctx['user']->refresh());
-        $res = $this->get('/app');
+        $res = $this->get('/app/inicio');
         $res->assertOk();
         $res->assertSee('Nueva planeación');
     }
