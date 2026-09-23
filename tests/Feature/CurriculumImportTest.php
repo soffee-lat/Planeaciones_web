@@ -216,6 +216,53 @@ class CurriculumImportTest extends TestCase
         $this->assertContains('REFERENCE_NOT_FOUND', $codes);
     }
 
+    public function test_importador_acepta_preescolar_fase_2_con_codigo_de_grado_interno(): void
+    {
+        $payload = $this->validPayload();
+        $payload['curriculum'] = [
+            'code' => 'MX-NEM-PRESCHOOL-TEST',
+            'name' => 'Preescolar de prueba',
+            'country_code' => 'MX',
+            'educational_level' => 'preschool',
+            'description' => 'Fixture sintético sin validez curricular.',
+        ];
+        $payload['educational_phases'][0] = ['code' => 'F2', 'name' => 'Fase 2', 'sort_order' => 2];
+        $payload['grades'][0] = [
+            'code' => 'P1',
+            'name' => 'Primer grado de preescolar',
+            'phase_code' => 'F2',
+            'ordinal' => 1,
+        ];
+        $payload['curricular_contents'][0]['phase_code'] = 'F2';
+        $payload['pdas'][0]['grade_code'] = 'P1';
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+
+        $this->assertSame([], array_map(fn ($e) => $e->code, $report->errors));
+        $this->assertSame(1, $report->counts['grades']);
+        $this->assertSame(1, $report->counts['pdas']);
+    }
+
+    public function test_importador_rechaza_preescolar_fuera_de_fase_2_o_codigo_p1_p3(): void
+    {
+        $payload = $this->validPayload();
+        $payload['curriculum']['educational_level'] = 'preschool';
+        $payload['educational_phases'][0] = ['code' => 'F3', 'name' => 'Fase incorrecta', 'sort_order' => 3];
+        $payload['grades'][0] = [
+            'code' => 'G1',
+            'name' => 'Primer grado mal clasificado',
+            'phase_code' => 'F3',
+            'ordinal' => 1,
+        ];
+        $payload['curricular_contents'][0]['phase_code'] = 'F3';
+        $payload['pdas'][0]['grade_code'] = 'G1';
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+        $codes = array_map(fn ($e) => $e->code, $report->errors);
+
+        $this->assertContains('EDUCATIONAL_SCOPE_INVALID', $codes);
+    }
+
     public function test_pda_con_grado_en_fase_incorrecta_es_rechazado(): void
     {
         $payload = $this->validPayload();
