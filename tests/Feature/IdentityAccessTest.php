@@ -28,6 +28,8 @@ class IdentityAccessTest extends TestCase {
         Filament::setCurrentPanel(Filament::getPanel('app'));
     }
     public function test_public_app_home_exposes_landing_and_auth_actions(): void {
+        $this->withoutVite();
+
         $this->get('/app')
             ->assertOk()
             ->assertSee('Planeaciones Soffee')
