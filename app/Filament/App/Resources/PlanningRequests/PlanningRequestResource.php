@@ -309,6 +309,7 @@ class PlanningRequestResource extends Resource
                 }
             })
             ->whereHas('curriculumVersion', fn ($q) => $q->whereNotNull('published_at'))
+            ->whereHas('curriculumVersion.curriculum', fn ($q) => $q->whereIn('educational_level', array_keys(EducationalLevel::options())))
             ->with(['grade:id,name', 'curriculumVersion.curriculum:id,name,educational_level'])
             ->orderBy('name')
             ->get()
