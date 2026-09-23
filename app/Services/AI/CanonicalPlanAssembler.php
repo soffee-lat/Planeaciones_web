@@ -345,6 +345,10 @@ class CanonicalPlanAssembler
         $group = is_array($snapshot['group'] ?? null) ? $snapshot['group'] : [];
         $profile = is_array($group['profile'] ?? null) ? $group['profile'] : [];
         $school = is_array($group['school'] ?? null) ? $group['school'] : [];
+        $stage = is_array($snapshot['pedagogical_stage'] ?? null) ? $snapshot['pedagogical_stage'] : [];
+        $curriculum = is_array($snapshot['curriculum']['curriculum'] ?? null)
+            ? $snapshot['curriculum']['curriculum']
+            : [];
 
         return [
             'school_name' => $school['name'] ?? null,
@@ -353,6 +357,9 @@ class CanonicalPlanAssembler
             'municipality' => $school['municipality'] ?? null,
             'group_name' => $group['name'] ?? null,
             'school_year' => $group['school_year'] ?? null,
+            'educational_level' => $stage['educational_level'] ?? $curriculum['educational_level'] ?? null,
+            'educational_level_label' => $stage['educational_level_label'] ?? $curriculum['educational_level_label'] ?? null,
+            'pedagogical_stage' => $stage,
             'profile_revision' => $profile['revision'] ?? null,
             'student_count' => $profile['student_count'] ?? null,
             'general_level' => $profile['general_level'] ?? null,
