@@ -383,7 +383,7 @@ class StartPlanning extends Page
         return Group::query()
             ->where('owner_id', auth()->id())
             ->whereNull('archived_at')
-            ->with(['grade', 'profile'])
+            ->with(['grade', 'profile', 'curriculumVersion.curriculum'])
             ->find($this->group_id);
     }
 
@@ -408,7 +408,7 @@ class StartPlanning extends Page
             'format_version_id.required' => 'Selecciona el formato del documento.',
             'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
             'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
-            'weeks.*.topics.*.group_subject_id.required' => 'Selecciona la materia principal del tema.',
+            'weeks.*.topics.*.group_subject_id.required' => 'Selecciona el área o materia principal del tema.',
         ]);
 
         $formatOptions = PlanningRequestResource::formatVersionOptions();
