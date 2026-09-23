@@ -55,42 +55,28 @@ a {
 .landing-brand {
     display: inline-flex;
     align-items: center;
-    gap: 11px;
+    gap: 13px;
     color: var(--lp-text);
     text-decoration: none;
 }
 
-.landing-brand__mark {
-    display: grid;
-    width: 39px;
-    height: 39px;
-    place-items: center;
-    border: 1px solid rgba(45, 212, 191, .28);
-    border-radius: 12px;
-    background: linear-gradient(145deg, rgba(20, 184, 166, .24), rgba(59, 130, 246, .10));
-    color: #5eead4;
-    font-size: 17px;
-    font-weight: 900;
-    box-shadow: inset 0 1px rgba(255,255,255,.06);
+.landing-logo {
+    display: block;
+    width: 132px;
+    height: auto;
+    object-fit: contain;
 }
 
-.landing-brand__copy {
-    display: grid;
-    line-height: 1.05;
-}
-
-.landing-brand__copy strong {
-    font-size: 15px;
-    letter-spacing: -.025em;
-}
-
-.landing-brand__copy span {
-    margin-top: 4px;
-    color: #7dd3fc;
-    font-size: 11px;
-    font-weight: 750;
-    letter-spacing: .12em;
-    text-transform: uppercase;
+.landing-product-name {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    border-left: 1px solid rgba(255, 255, 255, .16);
+    padding-left: 13px;
+    color: #dbe7f3;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -.01em;
 }
 
 .landing-nav {
@@ -286,9 +272,23 @@ a {
     gap: 16px;
 }
 
-.landing-preview__topbar > div {
+.landing-preview__heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.landing-preview__heading > div {
     display: grid;
     gap: 5px;
+}
+
+.landing-preview__brand-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    object-fit: contain;
+    filter: drop-shadow(0 7px 16px rgba(20, 184, 166, .12));
 }
 
 .landing-preview__topbar strong {
@@ -539,7 +539,11 @@ a {
 }
 
 .landing-brand--footer {
-    opacity: .85;
+    opacity: .86;
+}
+
+.landing-logo--footer {
+    width: 122px;
 }
 
 @media (max-width: 900px) {
@@ -585,8 +589,14 @@ a {
         font-size: 12px;
     }
 
-    .landing-brand__copy {
-        display: none;
+    .landing-logo {
+        width: 112px;
+    }
+
+    .landing-product-name {
+        min-height: 24px;
+        padding-left: 10px;
+        font-size: 11px;
     }
 
     .landing-hero {

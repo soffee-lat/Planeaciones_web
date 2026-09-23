@@ -7,17 +7,15 @@
     <meta name="theme-color" content="#08111f">
     <title>Planeaciones Soffee | Planeación docente</title>
     <meta name="description" content="Organiza tus periodos, revisa conexiones curriculares y prepara tus planeaciones docentes en un solo lugar.">
+    <link rel="icon" type="image/webp" href="{{ asset('branding/soffee-icon.webp') }}">
     @vite('resources/css/landing.css')
 </head>
 <body>
     <div class="landing-shell">
         <header class="landing-header">
             <a class="landing-brand" href="{{ url('/app') }}" aria-label="Planeaciones Soffee, inicio">
-                <span class="landing-brand__mark" aria-hidden="true">S</span>
-                <span class="landing-brand__copy">
-                    <strong>Planeaciones</strong>
-                    <span>Soffee</span>
-                </span>
+                <img class="landing-logo" src="{{ asset('branding/soffee-logo-white.webp') }}" alt="Soffee">
+                <span class="landing-product-name">Planeaciones</span>
             </a>
 
             <nav class="landing-nav" aria-label="Navegación principal">
@@ -83,9 +81,12 @@
                 <div class="landing-hero__visual" aria-label="Vista conceptual del flujo de una planeación">
                     <div class="landing-preview">
                         <div class="landing-preview__topbar">
-                            <div>
-                                <span class="landing-preview__eyebrow">PLANEACIÓN SEMANAL</span>
-                                <strong>Conociendo mi entorno</strong>
+                            <div class="landing-preview__heading">
+                                <img class="landing-preview__brand-icon" src="{{ asset('branding/soffee-icon.webp') }}" alt="" aria-hidden="true">
+                                <div>
+                                    <span class="landing-preview__eyebrow">PLANEACIÓN SEMANAL</span>
+                                    <strong>Conociendo mi entorno</strong>
+                                </div>
                             </div>
                             <span class="landing-preview__status">Lista</span>
                         </div>
@@ -186,11 +187,8 @@
 
         <footer class="landing-footer">
             <div class="landing-brand landing-brand--footer">
-                <span class="landing-brand__mark" aria-hidden="true">S</span>
-                <span class="landing-brand__copy">
-                    <strong>Planeaciones</strong>
-                    <span>Soffee</span>
-                </span>
+                <img class="landing-logo landing-logo--footer" src="{{ asset('branding/soffee-logo-white.webp') }}" alt="Soffee">
+                <span class="landing-product-name">Planeaciones</span>
             </div>
             <p>© {{ now()->year }} Soffee. Herramientas digitales para organizar mejor tu trabajo docente.</p>
         </footer>
