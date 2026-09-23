@@ -25,7 +25,10 @@ final class SupportedEducationalScope
             throw new RuntimeException('EDUCATIONAL_LEVEL_NOT_SUPPORTED');
         }
 
-        $grade->loadMissing('educationalPhase');
+        if (! $grade->relationLoaded('educationalPhase')) {
+            $grade->loadMissing('educationalPhase');
+        }
+
         $phaseCode = strtoupper(trim((string) ($grade->educationalPhase?->code ?? '')));
         $ordinal = (int) $grade->ordinal;
 
