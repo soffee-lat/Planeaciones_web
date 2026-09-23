@@ -10,6 +10,8 @@ final class PedagogicalStageProfile
 {
     public const SCHEMA_VERSION = 1;
 
+    public function __construct(private SupportedEducationalScope $scope) {}
+
     /**
      * Perfil de calibración pedagógica para generación y auditoría.
      *
@@ -21,9 +23,9 @@ final class PedagogicalStageProfile
      */
     public function for(Curriculum $curriculum, Grade $grade): array
     {
-        $levelValue = strtolower(trim((string) $curriculum->educational_level));
-        $level = EducationalLevel::tryFrom($levelValue);
-        $ordinal = max(1, (int) $grade->ordinal);
+        $scope = $this->scope->assert($curriculum, $grade);
+        $level = $scope['level'];
+        $ordinal = $scope['grade_ordinal'];
 
         if ($level === EducationalLevel::Preschool) {
             return $this->preschool($grade, min(3, $ordinal));
@@ -33,25 +35,7 @@ final class PedagogicalStageProfile
             return $this->primary($grade, min(6, $ordinal));
         }
 
-        return $this->profile(
-            $levelValue !== '' ? $levelValue : 'unknown',
-            EducationalLevel::labelFor($levelValue),
-            $grade,
-            'generic_' . $ordinal,
-            max(1, min(9, $ordinal)),
-            [
-                'Ajusta la complejidad al PDA seleccionado y al perfil real del grupo.',
-                'Usa lenguaje claro, actividades concretas y productos alcanzables para niñas y niños.',
-                'Prioriza participación activa, contextualización y evaluación formativa.',
-            ],
-            [
-                'No asumas autonomía, lectura, escritura o abstracción que el currículo y el perfil del grupo no sustenten.',
-                'No conviertas la planeación en actividades propias de adolescentes o personas adultas.',
-            ],
-            [
-                'Observa procesos, estrategias, participación y avances, no sólo productos finales.',
-            ],
-        );
+        throw new \LogicException('EDUCATIONAL_LEVEL_NOT_SUPPORTED');
     }
 
     /** @return array<string,mixed> */
