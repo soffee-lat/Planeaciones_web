@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EducationalLevel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,5 +22,15 @@ class Curriculum extends Model
     public function selectableVersion(): BelongsTo
     {
         return $this->belongsTo(CurriculumVersion::class, 'selectable_version_id');
+    }
+
+    public function educationalLevelEnum(): ?EducationalLevel
+    {
+        return EducationalLevel::tryFrom(strtolower(trim((string) $this->educational_level)));
+    }
+
+    public function educationalLevelLabel(): string
+    {
+        return EducationalLevel::labelFor((string) $this->educational_level);
     }
 }
