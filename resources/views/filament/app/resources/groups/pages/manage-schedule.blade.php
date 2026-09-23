@@ -1545,7 +1545,7 @@
             }
 
 
-            /* Catálogo de materias y color por bloque */
+            /* Catálogo de áreas y materias y color por bloque */
             .schedule-subject-chip {
                 display: inline-flex;
                 align-items: center;
@@ -2280,7 +2280,7 @@
                             <div style="display:flex;gap:10px;align-items:center">
                                 <button type="button" class="schedule-button schedule-button-secondary" x-on:click="showSubjectCatalog = true">
                                     <span class="schedule-subject-dot" style="--subject-rgb:59 130 246"></span>
-                                    Materias
+                                    Áreas y materias
                                 </button>
                                 <button type="button" class="schedule-button schedule-button-secondary" x-on:click="setupOpen = true">
                                     <span aria-hidden="true">◷</span>
@@ -2443,8 +2443,8 @@
 
                 <div class="schedule-editor-body">
                     <section class="schedule-editor-section">
-                        <label class="schedule-editor-label">Materia</label>
-                        <p class="schedule-editor-help">Las materias oficiales vienen del currículo del grupo. También puedes crear materias propias para tu escuela.</p>
+                        <label class="schedule-editor-label">Área o materia</label>
+                        <p class="schedule-editor-help">Los campos formativos oficiales vienen del currículo del grupo. También puedes crear áreas, talleres o materias propias de tu escuela.</p>
 
                         <div class="schedule-editor-chip-row">
                             <template x-for="subject in subjects" :key="'subject-' + subject.id">
@@ -2461,14 +2461,14 @@
                                 </button>
                             </template>
 
-                            <button type="button" class="schedule-editor-chip" x-on:click="showSubjectCreator = !showSubjectCreator">＋ Nueva materia</button>
+                            <button type="button" class="schedule-editor-chip" x-on:click="showSubjectCreator = !showSubjectCreator">＋ Nueva área o materia</button>
                         </div>
 
                         <div x-show="showSubjectCreator" x-cloak class="schedule-editor-advanced">
-                            <label class="schedule-editor-label">Nombre de la nueva materia</label>
+                            <label class="schedule-editor-label">Nombre de la nueva área o materia</label>
                             <input x-model="subjectForm.name" type="text" class="schedule-editor-input" placeholder="Ej. Robótica" />
                             <div style="display:grid;grid-template-columns:1fr 54px;gap:9px;margin-top:9px">
-                                <button type="button" class="schedule-editor-done" x-on:click="createCatalogSubject($wire, true)">Agregar materia</button>
+                                <button type="button" class="schedule-editor-done" x-on:click="createCatalogSubject($wire, true)">Agregar área o materia</button>
                                 <input x-model="subjectForm.color" type="color" class="schedule-catalog-color" style="width:54px;height:40px" />
                             </div>
                         </div>
@@ -2694,8 +2694,8 @@
                     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
                         <div>
                             <div class="schedule-editor-kicker">Colores del horario</div>
-                            <div class="schedule-catalog-title">Catálogo de materias</div>
-                            <div class="schedule-catalog-copy">Las oficiales vienen del currículo del grupo. Puedes cambiar sus colores y agregar materias propias.</div>
+                            <div class="schedule-catalog-title">Catálogo de áreas y materias</div>
+                            <div class="schedule-catalog-copy">Los campos formativos vienen del currículo del grupo. Puedes cambiar sus colores y agregar áreas o materias propias.</div>
                         </div>
                         <button type="button" class="schedule-editor-close" x-on:click="showSubjectCatalog = false">✕</button>
                     </div>
@@ -2708,7 +2708,7 @@
                                 <span class="schedule-catalog-swatch" :style="'--subject-color:' + subject.color"></span>
                                 <div>
                                     <div class="schedule-catalog-name" x-text="subject.name"></div>
-                                    <div class="schedule-catalog-meta" x-text="subject.origin === 'official' ? 'Materia oficial del currículo' : 'Materia personalizada'"></div>
+                                    <div class="schedule-catalog-meta" x-text="subject.origin === 'official' ? 'Campo formativo oficial' : 'Área o materia personalizada'"></div>
                                 </div>
                                 <input
                                     type="color"
@@ -2723,7 +2723,7 @@
                 </div>
 
                 <footer class="schedule-catalog-create">
-                    <label class="schedule-editor-label">Agregar materia</label>
+                    <label class="schedule-editor-label">Agregar área o materia</label>
                     <div class="schedule-catalog-create-grid">
                         <input x-model="subjectForm.name" type="text" class="schedule-editor-input" placeholder="Ej. Robótica, Música, Religión..." />
                         <input x-model="subjectForm.color" type="color" class="schedule-catalog-color" style="width:54px;height:43px" />
@@ -3149,7 +3149,7 @@
                     this.subjectCatalogNotice = '';
                     const name = String(this.subjectForm.name || '').trim();
                     if (!name) {
-                        this.subjectCatalogNotice = 'Escribe un nombre para la materia.';
+                        this.subjectCatalogNotice = 'Escribe un nombre para el área o materia.';
                         return;
                     }
 
@@ -3173,7 +3173,7 @@
                         }
 
                         this.subjectForm = { name: '', color: '#0EA5E9' };
-                        this.subjectCatalogNotice = 'Materia agregada al catálogo.';
+                        this.subjectCatalogNotice = 'Área o materia agregada al catálogo.';
                     } catch (error) {
                         this.subjectCatalogNotice = 'No se pudo agregar la materia. Revisa que el nombre no esté repetido.';
                     }
