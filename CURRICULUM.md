@@ -1,5 +1,21 @@
 # Catálogo curricular y selección asistida
 
+## Soporte multinivel — Preescolar y Primaria
+
+La plataforma admite currículos independientes por nivel educativo. El nivel se registra en `curricula.educational_level` y no se duplica en grupos ni solicitudes: cada `Group` referencia una `CurriculumVersion` seleccionable y un `Grade` de esa misma versión.
+
+Niveles productivos iniciales:
+
+- `preschool` — Preescolar (kínder), Fase 2, grados internos `P1`, `P2`, `P3`.
+- `primary` — Primaria, Fases 3, 4 y 5, grados internos `G1` a `G6`.
+
+Preescolar y Primaria se mantienen como `Curriculum` distintos. No se agregan grados de preescolar al árbol de primaria. Los cuatro Campos formativos y los siete Ejes articuladores pueden compartir códigos internos entre currículos porque su identidad de base de datos está acotada por `CurriculumVersion`.
+
+Al confirmar una planeación se congela `educational_level` y un `pedagogical_stage` derivado del nivel y grado. Este perfil sirve como calibración para generación, auditoría y corrección: incluye una banda interna de complejidad, guardrails, prácticas a evitar y énfasis de evaluación. La banda NO es una escala oficial SEP, no diagnostica capacidades y nunca sustituye los PDA, el contexto ni el perfil real del grupo.
+
+La progresión interna inicial usa bandas consecutivas `preschool_1..3 = 1..3` y `primary_1..6 = 4..9`. Su objetivo es impedir dos errores de producto: escolarizar prematuramente preescolar y generar tareas de secundaria/adultos para los grados altos de primaria. Dentro de cada grado, la dificultad real se determina por los PDA seleccionados y el contexto del grupo.
+
+
 Iteración funcional previa a Fase 1. Solo diseño; no datos curriculares reales, migraciones ni seeders ejecutables. Este documento define el módulo curricular del monolito existente.
 
 ## Entidades y relaciones — MVP
