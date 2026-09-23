@@ -2,6 +2,7 @@
 
 namespace App\Filament\App\Resources\PlanningRequests;
 
+use App\Enums\EducationalLevel;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\InstitutionalFormatStatus;
 use App\Enums\InstitutionalFormatKind;
@@ -308,8 +309,15 @@ class PlanningRequestResource extends Resource
                 }
             })
             ->whereHas('curriculumVersion', fn ($q) => $q->whereNotNull('published_at'))
+            ->with(['grade:id,name', 'curriculumVersion.curriculum:id,name,educational_level'])
             ->orderBy('name')
-            ->pluck('name', 'id')
+            ->get()
+            ->mapWithKeys(function (Group $group): array {
+                $level = EducationalLevel::labelFor((string) ($group->curriculumVersion?->curriculum?->educational_level ?? ''));
+                $grade = (string) ($group->grade?->name ?? 'Grado configurado');
+
+                return [(int) $group->id => $group->name . ' · ' . $level . ' · ' . $grade];
+            })
             ->all();
     }
 
