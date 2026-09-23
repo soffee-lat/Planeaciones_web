@@ -2,8 +2,14 @@
 
 ## Objetivo
 
-Este documento prepara la carga del catálogo curricular de primaria para la plataforma de planeaciones.
+Este documento prepara la carga de los catálogos curriculares de Preescolar y Primaria para la plataforma de planeaciones.
 No sustituye la validación editorial ni constituye por sí mismo el catálogo importable definitivo.
+
+Alcance del producto:
+- Incluido: Preescolar, Fase 2.
+- Incluido: Primaria, Fases 3, 4 y 5.
+- Fuera de alcance: Educación Inicial / Fase 1.
+- Fuera de alcance: Secundaria / Fase 6.
 
 ## Base normativa
 
@@ -173,15 +179,15 @@ F3-G2-LEN-C004-P02
 ## Estrategia para la primera carga real
 
 1. Validar el contrato JSON definitivo que implemente la Subfase 2A.
-2. Extraer Fase 3.
-3. Ejecutar dry-run.
-4. Corregir estructura/códigos.
-5. Importar borrador.
-6. Repetir para Fases 4 y 5 dentro de la misma CurriculumVersion.
-7. Ejecutar validaciones cruzadas.
-8. Revisar conteos por fase/campo/grado.
-9. Validar una muestra manual contra los PDF.
-10. Publicar solo después de revisión.
+2. Extraer Fase 2 como currículo independiente `MX-NEM-PRESCHOOL`.
+3. Ejecutar dry-run y validar 1.º, 2.º y 3.º de preescolar por campo.
+4. Corregir estructura/códigos e importar el borrador de Preescolar.
+5. Revisar conteos, relaciones contenido/PDA y una muestra manual contra el PDF oficial.
+6. Publicar Preescolar únicamente después de revisión editorial.
+7. Mantener Primaria como `MX-NEM-PRIMARY`, con Fases 3, 4 y 5 en su propia CurriculumVersion.
+8. Ejecutar las mismas validaciones cruzadas para Primaria.
+9. No importar Fase 1 ni Fase 6 en estos currículos.
+10. Toda corrección posterior crea una nueva CurriculumVersion; nunca se modifica una publicada.
 
 ## Nota sobre un archivo previo del usuario
 
