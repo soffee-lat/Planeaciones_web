@@ -77,6 +77,55 @@ class CurriculumImportTest extends TestCase
         return array_replace_recursive($base, $overrides);
     }
 
+    private function canonicalPreschoolPayload(): array
+    {
+        $payload = $this->validPayload();
+        $payload['curriculum'] = [
+            'code' => 'MX-NEM-PRESCHOOL',
+            'name' => 'Educación Preescolar — Nueva Escuela Mexicana',
+            'country_code' => 'MX',
+            'educational_level' => 'preschool',
+            'description' => 'Fixture canónico sintético.',
+        ];
+        $payload['educational_phases'] = [
+            ['code' => 'F2', 'name' => 'Fase 2', 'sort_order' => 2],
+        ];
+        $payload['grades'] = [
+            ['code' => 'P1', 'name' => 'Primer grado de preescolar', 'phase_code' => 'F2', 'ordinal' => 1],
+            ['code' => 'P2', 'name' => 'Segundo grado de preescolar', 'phase_code' => 'F2', 'ordinal' => 2],
+            ['code' => 'P3', 'name' => 'Tercer grado de preescolar', 'phase_code' => 'F2', 'ordinal' => 3],
+        ];
+        $payload['formative_fields'] = [
+            ['code' => 'LEN', 'name' => 'Lenguajes'],
+            ['code' => 'SPC', 'name' => 'Saberes y Pensamiento Científico'],
+            ['code' => 'ENS', 'name' => 'Ética, Naturaleza y Sociedades'],
+            ['code' => 'DHC', 'name' => 'De lo Humano y lo Comunitario'],
+        ];
+        $payload['curricular_contents'] = [[
+            'code' => 'F2-LEN-C001',
+            'title' => 'Contenido sintético',
+            'full_text' => 'Contenido sintético.',
+            'phase_code' => 'F2',
+            'field_code' => 'LEN',
+        ]];
+        $payload['pdas'] = [
+            ['code' => 'F2-P1-LEN-C001-P01', 'full_text' => 'PDA P1.', 'content_code' => 'F2-LEN-C001', 'grade_code' => 'P1'],
+            ['code' => 'F2-P2-LEN-C001-P01', 'full_text' => 'PDA P2.', 'content_code' => 'F2-LEN-C001', 'grade_code' => 'P2'],
+            ['code' => 'F2-P3-LEN-C001-P01', 'full_text' => 'PDA P3.', 'content_code' => 'F2-LEN-C001', 'grade_code' => 'P3'],
+        ];
+        $payload['articulating_axes'] = [
+            ['code' => 'AX-INCLUSION', 'name' => 'Inclusión'],
+            ['code' => 'AX-CRITICAL', 'name' => 'Pensamiento crítico'],
+            ['code' => 'AX-INTERCULTURAL', 'name' => 'Interculturalidad crítica'],
+            ['code' => 'AX-GENDER', 'name' => 'Igualdad de género'],
+            ['code' => 'AX-HEALTH', 'name' => 'Vida saludable'],
+            ['code' => 'AX-LITERACY', 'name' => 'Apropiación de las culturas a través de la lectura y la escritura'],
+            ['code' => 'AX-ARTS', 'name' => 'Artes y experiencias estéticas'],
+        ];
+
+        return $payload;
+    }
+
     private function writeJson(array $payload): string
     {
         $path = tempnam(sys_get_temp_dir(), 'curr_') . '.json';
@@ -214,6 +263,33 @@ class CurriculumImportTest extends TestCase
         $report = $this->service()->import($payload, $this->admin(), dryRun: true);
         $codes = array_map(fn ($e) => $e->code, $report->errors);
         $this->assertContains('REFERENCE_NOT_FOUND', $codes);
+    }
+
+    public function test_catalogo_canonico_de_preescolar_exige_p1_p2_p3_y_cobertura_por_contenido(): void
+    {
+        $payload = $this->canonicalPreschoolPayload();
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+
+        $this->assertSame([], array_map(fn ($e) => $e->code, $report->errors));
+        $this->assertSame(3, $report->counts['grades']);
+        $this->assertSame(3, $report->counts['pdas']);
+    }
+
+    public function test_catalogo_canonico_de_preescolar_rechaza_grado_faltante(): void
+    {
+        $payload = $this->canonicalPreschoolPayload();
+        array_pop($payload['grades']);
+        $payload['pdas'] = array_values(array_filter(
+            $payload['pdas'],
+            fn (array $pda): bool => $pda['grade_code'] !== 'P3',
+        ));
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+        $codes = array_map(fn ($e) => $e->code, $report->errors);
+
+        $this->assertContains('CANONICAL_GRADE_SET_INVALID', $codes);
+        $this->assertContains('CANONICAL_CONTENT_GRADE_WITHOUT_PDA', $codes);
     }
 
     public function test_importador_acepta_preescolar_fase_2_con_codigo_de_grado_interno(): void
