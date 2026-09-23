@@ -3,6 +3,7 @@
 namespace Tests\Feature\AI;
 
 use App\Actions\AI\PublishPromptVersion;
+use App\Actions\Validation\EnsurePilotAiPrompts;
 use App\Enums\PromptCategory;
 use App\Models\PromptTemplate;
 use App\Models\PromptVersion;
@@ -161,6 +162,26 @@ class PromptVersionTest extends PedagogyTestCase
         $this->expectException(QueryException::class);
         $this->expectExceptionMessage('PROMPT_TEMPLATE_IDENTITY_IMMUTABLE');
         DB::table('prompt_templates')->where('id', $template->id)->update(['category' => 'audit']);
+    }
+
+    public function test_prompts_activos_calibran_nivel_y_grado_sin_tratar_la_banda_como_escala_oficial(): void
+    {
+        $prompts = app(EnsurePilotAiPrompts::class)->execute($this->admin());
+
+        $generation = $prompts['generation']->body;
+        $audit = $prompts['audit']->body;
+        $correction = $prompts['correction']->body;
+
+        $this->assertStringContainsString('INPUT.pedagogical_stage', $generation);
+        $this->assertStringContainsString('preescolar', mb_strtolower($generation));
+        $this->assertStringContainsString('primaria', mb_strtolower($generation));
+        $this->assertStringContainsString('no una escala oficial', mb_strtolower($generation));
+
+        $this->assertStringContainsString('CANONICAL.context.pedagogical_stage', $audit);
+        $this->assertStringContainsString('escolarización prematura', mb_strtolower($audit));
+
+        $this->assertStringContainsString('CANONICAL.context.pedagogical_stage', $correction);
+        $this->assertStringContainsString('nivel, grado, PDA', $correction);
     }
 
     public function test_customer_y_reviewer_no_gestionan_prompts(): void
