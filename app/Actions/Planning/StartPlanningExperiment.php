@@ -128,8 +128,6 @@ final class StartPlanningExperiment
                     'session_minutes_known' => $group->profile?->session_minutes !== null,
                     'period_type' => $request->period_type,
                     'structured_topics' => $pedagogicalStructure !== null,
-                    'educational_level' => $group->curriculumVersion?->curriculum?->educational_level,
-                    'grade_ordinal' => (int) ($group->grade?->ordinal ?? 0),
                 ],
             );
 
