@@ -1,4 +1,4 @@
-# Mapa de fuentes curriculares — Primaria NEM
+# Mapa de fuentes curriculares — Preescolar y Primaria NEM
 
 ## Objetivo
 
@@ -10,6 +10,26 @@ No sustituye la validación editorial ni constituye por sí mismo el catálogo i
 - Plan de Estudio para la educación preescolar, primaria y secundaria — Acuerdo 14/08/22.
 - Modificación al Plan de Estudio — Acuerdo 06/08/23.
 - Programas Sintéticos de las Fases 2 a 6 — Acuerdo 08/08/23.
+
+## Fuentes SEP para preescolar
+
+### Fase 2 — 1.º, 2.º y 3.º de preescolar
+
+Fuente:
+https://educacionbasica.sep.gob.mx/wp-content/uploads/2024/06/Programa_Sintetico_Fase-2.pdf
+
+Primera edición: 2024.
+
+El documento organiza Contenidos y Procesos de desarrollo de aprendizaje por 1.º, 2.º y 3.º dentro de la Fase 2. Las secciones tabulares de contenidos/PDA comienzan en las páginas impresas 20 (Lenguajes), 32 (Saberes y Pensamiento Científico), 46 (Ética, Naturaleza y Sociedades) y 56 (De lo Humano y lo Comunitario).
+
+Convención interna propuesta:
+- Currículo: MX-NEM-PRESCHOOL
+- Fase: F2
+- Grados: P1, P2, P3
+- Contenidos: F2-{CAMPO}-C001...
+- PDA: F2-{GRADO}-{CAMPO}-C001-P01...
+
+La carga debe conservar la columna de grado exacta del Programa Sintético. No inferir un PDA de un grado a otro ni tratar la progresión como lineal o rígida.
 
 ## Fuentes SEP para primaria
 
@@ -82,6 +102,10 @@ Grados:
 7. Artes y experiencias estéticas
 
 ## Convención propuesta de códigos internos
+
+Para evitar colisiones semánticas entre niveles:
+- Preescolar usa P1, P2, P3.
+- Primaria conserva G1, G2, G3, G4, G5, G6.
 
 Los códigos son internos de la plataforma y NO se presentan como identificadores oficiales SEP.
 
