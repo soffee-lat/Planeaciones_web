@@ -577,7 +577,7 @@
     @php($subjects = $this->subjectOptions())
     @php($selectedGroup = $this->selectedGroup())
     @php($selectedLevel = $selectedGroup?->curriculumVersion?->curriculum?->educational_level)
-    @php($selectedLevelLabel = \\App\\Enums\\EducationalLevel::labelFor($selectedLevel))
+    @php($selectedLevelLabel = \App\Enums\EducationalLevel::labelFor($selectedLevel))
 
     <div class="planning-page mx-auto grid w-full max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div class="space-y-6">
