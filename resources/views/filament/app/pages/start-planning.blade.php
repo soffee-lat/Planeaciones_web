@@ -576,6 +576,8 @@
     @php($weekCalendar = $period_type === 'week' ? $this->weekCalendar() : null)
     @php($subjects = $this->subjectOptions())
     @php($selectedGroup = $this->selectedGroup())
+    @php($selectedLevel = $selectedGroup?->curriculumVersion?->curriculum?->educational_level)
+    @php($selectedLevelLabel = \\App\\Enums\\EducationalLevel::labelFor($selectedLevel))
 
     <div class="planning-page mx-auto grid w-full max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div class="space-y-6">
@@ -752,7 +754,7 @@
                                     <span class="planning-optional">(opcional)</span>
                                 </h3>
                                 <p class="planning-section-copy">
-                                    Úsalo cuando varias materias compartirán un mismo hilo conductor. No sustituye los temas propios de cada materia.
+                                    Úsalo cuando varias áreas o materias compartirán un mismo hilo conductor. No sustituye los temas propios de cada área.
                                 </p>
                             </div>
 
@@ -789,9 +791,9 @@
                         <section class="space-y-4">
                             <div class="planning-topics-heading">
                                 <div>
-                                    <h3 class="planning-section-heading">Temas por semana y materia</h3>
+                                    <h3 class="planning-section-heading">Temas por semana y área</h3>
                                     <p class="planning-section-copy">
-                                        Asigna cada tema a su materia principal. Las materias sin tema propio podrán participar de forma transversal cuando sea pertinente.
+                                        Asigna cada tema a su área o materia principal. Las áreas sin tema propio podrán participar de forma transversal cuando sea pertinente.
                                     </p>
                                 </div>
                             </div>
@@ -835,7 +837,7 @@
                                                 </div>
 
                                                 <div>
-                                                    <label class="planning-mini-label">Materia principal</label>
+                                                    <label class="planning-mini-label">Área o materia principal</label>
                                                     <select
                                                         wire:model="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.group_subject_id"
                                                         class="planning-control"
@@ -925,6 +927,12 @@
                 @if ($selectedGroup)
                     <div class="planning-side-copy space-y-2 text-sm">
                         <p><strong>{{ $selectedGroup->name }}</strong></p>
+                        <div style="margin:.65rem 0;padding:.7rem .8rem;border:1px solid var(--pf-accent-border);border-radius:.7rem;background:var(--pf-accent-soft)">
+                            <strong>{{ $selectedLevelLabel }}</strong><br>
+                            <span style="color:var(--pf-text-muted)">
+                                Esta planeación se calibrará específicamente para {{ $selectedGroup->grade?->name ?? 'el grado configurado' }}.
+                            </span>
+                        </div>
                         <p>Grado: {{ $selectedGroup->grade?->name ?? 'Configurado en tu grupo' }}</p>
                         <p>Ciclo escolar: {{ $selectedGroup->school_year }}</p>
 
@@ -934,7 +942,7 @@
                     </div>
                 @else
                     <p class="planning-side-muted text-sm">
-                        Al seleccionar un grupo reutilizaremos su currículo, perfil pedagógico, materias y horario.
+                        Al seleccionar un grupo reutilizaremos su currículo, perfil pedagógico, áreas/campos y horario.
                     </p>
                 @endif
             </x-filament::section>
@@ -944,9 +952,9 @@
 
                 <div class="planning-side-copy space-y-3 text-sm">
                     <p><strong>1.</strong> El periodo define las semanas reales de la planeación.</p>
-                    <p><strong>2.</strong> Cada tema queda ligado a una materia principal.</p>
+                    <p><strong>2.</strong> Cada tema queda ligado a un área o materia principal.</p>
                     <p><strong>3.</strong> El horario determina en qué bloques se desarrolla.</p>
-                    <p><strong>4.</strong> Las materias sin tema asignado pueden reforzar transversalmente los temas activos.</p>
+                    <p><strong>4.</strong> Las áreas sin tema asignado pueden reforzar transversalmente los temas activos.</p>
                     <p><strong>5.</strong> Si es mensual, el sistema conserva la progresión entre semanas.</p>
                 </div>
             </x-filament::section>
@@ -961,7 +969,7 @@
                     <li><strong>1.</strong> Revisas contenidos, PDA, campos y ejes relacionados.</li>
                     <li><strong>2.</strong> Confirmas las conexiones curriculares.</li>
                     <li><strong>3.</strong> Revisas el resumen final y confirmas la planeación.</li>
-                    <li><strong>4.</strong> Cuando esté activada, inicias la generación respetando semanas, materias, horario y transversalidad.</li>
+                    <li><strong>4.</strong> Cuando esté activada, inicias la generación respetando semanas, áreas/campos, horario y transversalidad.</li>
                     <li><strong>5.</strong> Cuando el contenido esté aprobado, eliges el formato de exportación. El estándar es la opción recomendada.</li>
                 </ol>
             </x-filament::section>
