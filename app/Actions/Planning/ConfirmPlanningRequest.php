@@ -7,6 +7,7 @@ use App\Models\GroupProfile;
 use App\Services\Planning\PlanningCalendarBuilder;
 use App\Services\Planning\PlanningFocusResolver;
 use App\Services\Pedagogy\PedagogicalStageProfile;
+use App\Services\Pedagogy\SupportedEducationalScope;
 use App\Services\AI\RequestBlockManager;
 use App\Models\PlanningRequest;
 use App\Models\RequestInputVersion;
@@ -43,6 +44,7 @@ class ConfirmPlanningRequest
         private PlanningFocusResolver $focusResolver,
         private RequestBlockManager $blocks,
         private PedagogicalStageProfile $pedagogicalStage,
+        private SupportedEducationalScope $educationalScope,
     ) {}
 
     public function execute(User $actor, PlanningRequest $request): PlanningRequest
@@ -214,6 +216,9 @@ class ConfirmPlanningRequest
 
         $version = $r->curriculumVersion()->with('curriculum')->firstOrFail();
         $grade = $r->grade()->with('educationalPhase')->firstOrFail();
+        if ($version->curriculum) {
+            $this->educationalScope->assert($version->curriculum, $grade);
+        }
         $stageProfile = $version->curriculum
             ? $this->pedagogicalStage->for($version->curriculum, $grade)
             : null;
