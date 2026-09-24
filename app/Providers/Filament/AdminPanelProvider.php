@@ -2,12 +2,20 @@
 namespace App\Providers\Filament;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 class AdminPanelProvider extends BasePanelProvider {
     public function panel(Panel $panel): Panel {
         return $this->base($panel)->id('admin')->path('admin')
             ->brandName('Planeaciones · Administración')
             ->colors(['primary' => Color::Amber])
-            ->pages([\App\Filament\Admin\Pages\Dashboard::class])
+            ->pages([
+                \App\Filament\Admin\Pages\Dashboard::class,
+                \App\Filament\Admin\Pages\AiOperations::class,
+            ])
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.admin.partials.manual-ai-alerts'),
+            )
             ->resources([
                 \App\Filament\Resources\PlanningRequests\PlanningRequestResource::class,
                 \App\Filament\Resources\Curricula\CurriculumResource::class,
