@@ -40,6 +40,17 @@
         </x-filament::section>
     @endif
 
+    <x-filament::section>
+        <x-slot name="heading">Alertas del operador</x-slot>
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+            En este navegador pulsa <strong>Activar alertas IA</strong> una vez. El panel revisa pendientes cada 15 segundos,
+            muestra aviso persistente, cambia el título de la pestaña y repite sonido/notificación hasta que marques el trabajo como visto.
+        </p>
+        <p class="mt-2 text-xs text-gray-500">
+            Para recibir estos avisos esta versión requiere mantener abierta alguna pestaña del panel de administración.
+        </p>
+    </x-filament::section>
+
     <div class="grid gap-4 md:grid-cols-3">
         <x-filament::section>
             <x-slot name="heading">Esperando proveedor</x-slot>
