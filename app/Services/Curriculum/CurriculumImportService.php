@@ -482,25 +482,37 @@ class CurriculumImportService
             }
 
             if ($curriculumCode === 'MX-NEM-PRESCHOOL') {
-                $gradesForContent = ['P1', 'P2', 'P3'];
-            } else {
-                $phaseCode = strtoupper(trim((string) ($content['phase_code'] ?? '')));
-                $gradesForContent = match ($phaseCode) {
-                    'F3' => ['G1', 'G2'],
-                    'F4' => ['G3', 'G4'],
-                    'F5' => ['G5', 'G6'],
-                    default => [],
-                };
+                foreach (['P1', 'P2', 'P3'] as $gradeCode) {
+                    if (! isset($coverage[$contentCode][$gradeCode])) {
+                        $report->addError(
+                            'CANONICAL_CONTENT_GRADE_WITHOUT_PDA',
+                            "El contenido \"{$contentCode}\" no tiene PDA para {$gradeCode}.",
+                            "/curricular_contents/{$i}"
+                        );
+                    }
+                }
+
+                continue;
             }
 
-            foreach ($gradesForContent as $gradeCode) {
-                if (! isset($coverage[$contentCode][$gradeCode])) {
-                    $report->addError(
-                        'CANONICAL_CONTENT_GRADE_WITHOUT_PDA',
-                        "El contenido \"{$contentCode}\" no tiene PDA para {$gradeCode}.",
-                        "/curricular_contents/{$i}"
-                    );
-                }
+            // En Primaria los Programas Sintéticos pueden dejar una celda de
+            // grado vacía para determinados contenidos de una misma fase. Por
+            // ello no se exige un PDA en ambos grados; sí se exige que el
+            // contenido tenga al menos un PDA oficial dentro de su propia fase.
+            $phaseCode = strtoupper(trim((string) ($content['phase_code'] ?? '')));
+            $gradesForPhase = match ($phaseCode) {
+                'F3' => ['G1', 'G2'],
+                'F4' => ['G3', 'G4'],
+                'F5' => ['G5', 'G6'],
+                default => [],
+            };
+            $coveredGrades = array_keys($coverage[$contentCode] ?? []);
+            if (array_intersect($gradesForPhase, $coveredGrades) === []) {
+                $report->addError(
+                    'CANONICAL_CONTENT_WITHOUT_PHASE_PDA',
+                    "El contenido \"{$contentCode}\" no tiene PDA para ningún grado de {$phaseCode}.",
+                    "/curricular_contents/{$i}"
+                );
             }
         }
     }
