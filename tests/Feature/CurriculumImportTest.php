@@ -126,6 +126,61 @@ class CurriculumImportTest extends TestCase
         return $payload;
     }
 
+    private function canonicalPrimaryPayload(): array
+    {
+        $payload = $this->validPayload();
+        $payload['curriculum'] = [
+            'code' => 'MX-NEM-PRIMARY',
+            'name' => 'Educación Primaria — Nueva Escuela Mexicana',
+            'country_code' => 'MX',
+            'educational_level' => 'primary',
+            'description' => 'Fixture canónico sintético.',
+        ];
+        $payload['educational_phases'] = [
+            ['code' => 'F3', 'name' => 'Fase 3', 'sort_order' => 3],
+            ['code' => 'F4', 'name' => 'Fase 4', 'sort_order' => 4],
+            ['code' => 'F5', 'name' => 'Fase 5', 'sort_order' => 5],
+        ];
+        $payload['grades'] = [
+            ['code' => 'G1', 'name' => 'Primer grado', 'phase_code' => 'F3', 'ordinal' => 1],
+            ['code' => 'G2', 'name' => 'Segundo grado', 'phase_code' => 'F3', 'ordinal' => 2],
+            ['code' => 'G3', 'name' => 'Tercer grado', 'phase_code' => 'F4', 'ordinal' => 3],
+            ['code' => 'G4', 'name' => 'Cuarto grado', 'phase_code' => 'F4', 'ordinal' => 4],
+            ['code' => 'G5', 'name' => 'Quinto grado', 'phase_code' => 'F5', 'ordinal' => 5],
+            ['code' => 'G6', 'name' => 'Sexto grado', 'phase_code' => 'F5', 'ordinal' => 6],
+        ];
+        $payload['formative_fields'] = [
+            ['code' => 'LEN', 'name' => 'Lenguajes'],
+            ['code' => 'SPC', 'name' => 'Saberes y Pensamiento Científico'],
+            ['code' => 'ENS', 'name' => 'Ética, Naturaleza y Sociedades'],
+            ['code' => 'DHC', 'name' => 'De lo Humano y lo Comunitario'],
+        ];
+        $payload['curricular_contents'] = [
+            ['code' => 'F3-LEN-C001', 'title' => 'Contenido F3', 'full_text' => 'Contenido F3.', 'phase_code' => 'F3', 'field_code' => 'LEN'],
+            ['code' => 'F4-LEN-C001', 'title' => 'Contenido F4', 'full_text' => 'Contenido F4.', 'phase_code' => 'F4', 'field_code' => 'LEN'],
+            ['code' => 'F5-LEN-C001', 'title' => 'Contenido F5', 'full_text' => 'Contenido F5.', 'phase_code' => 'F5', 'field_code' => 'LEN'],
+        ];
+        $payload['pdas'] = [
+            ['code' => 'F3-G1-LEN-C001-P01', 'full_text' => 'PDA G1.', 'content_code' => 'F3-LEN-C001', 'grade_code' => 'G1'],
+            ['code' => 'F3-G2-LEN-C001-P01', 'full_text' => 'PDA G2.', 'content_code' => 'F3-LEN-C001', 'grade_code' => 'G2'],
+            ['code' => 'F4-G3-LEN-C001-P01', 'full_text' => 'PDA G3.', 'content_code' => 'F4-LEN-C001', 'grade_code' => 'G3'],
+            ['code' => 'F4-G4-LEN-C001-P01', 'full_text' => 'PDA G4.', 'content_code' => 'F4-LEN-C001', 'grade_code' => 'G4'],
+            ['code' => 'F5-G5-LEN-C001-P01', 'full_text' => 'PDA G5.', 'content_code' => 'F5-LEN-C001', 'grade_code' => 'G5'],
+            ['code' => 'F5-G6-LEN-C001-P01', 'full_text' => 'PDA G6.', 'content_code' => 'F5-LEN-C001', 'grade_code' => 'G6'],
+        ];
+        $payload['articulating_axes'] = [
+            ['code' => 'AX-INCLUSION', 'name' => 'Inclusión'],
+            ['code' => 'AX-CRITICAL', 'name' => 'Pensamiento crítico'],
+            ['code' => 'AX-INTERCULTURAL', 'name' => 'Interculturalidad crítica'],
+            ['code' => 'AX-GENDER', 'name' => 'Igualdad de género'],
+            ['code' => 'AX-HEALTH', 'name' => 'Vida saludable'],
+            ['code' => 'AX-LITERACY', 'name' => 'Apropiación de las culturas a través de la lectura y la escritura'],
+            ['code' => 'AX-ARTS', 'name' => 'Artes y experiencias estéticas'],
+        ];
+
+        return $payload;
+    }
+
     private function writeJson(array $payload): string
     {
         $path = tempnam(sys_get_temp_dir(), 'curr_') . '.json';
@@ -332,6 +387,41 @@ class CurriculumImportTest extends TestCase
 
         $this->assertContains('CANONICAL_GRADE_SET_INVALID', $codes);
         $this->assertContains('CANONICAL_CONTENT_GRADE_WITHOUT_PDA', $codes);
+    }
+
+    public function test_catalogo_canonico_de_primaria_exige_identificadores_y_cobertura_por_fase(): void
+    {
+        $payload = $this->canonicalPrimaryPayload();
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+
+        $this->assertSame([], array_map(fn ($e) => $e->code, $report->errors));
+        $this->assertSame(3, $report->counts['phases']);
+        $this->assertSame(6, $report->counts['grades']);
+        $this->assertSame(6, $report->counts['pdas']);
+    }
+
+    public function test_catalogo_productivo_rechaza_alias_espanol_de_primaria(): void
+    {
+        $payload = $this->canonicalPrimaryPayload();
+        $payload['curriculum']['code'] = 'MX-NEM-PRIMARIA';
+        $payload['curriculum']['educational_level'] = 'primaria';
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+        $codes = array_map(fn ($e) => $e->code, $report->errors);
+
+        $this->assertContains('CANONICAL_CURRICULUM_CODE_UNSUPPORTED', $codes);
+    }
+
+    public function test_catalogo_canonico_primary_rechaza_nivel_primaria(): void
+    {
+        $payload = $this->canonicalPrimaryPayload();
+        $payload['curriculum']['educational_level'] = 'primaria';
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+        $codes = array_map(fn ($e) => $e->code, $report->errors);
+
+        $this->assertContains('CANONICAL_CURRICULUM_LEVEL_MISMATCH', $codes);
     }
 
     public function test_importador_acepta_preescolar_fase_2_con_codigo_de_grado_interno(): void
