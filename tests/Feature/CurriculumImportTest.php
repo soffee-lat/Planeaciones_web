@@ -401,6 +401,34 @@ class CurriculumImportTest extends TestCase
         $this->assertSame(6, $report->counts['pdas']);
     }
 
+    public function test_catalogo_canonico_de_primaria_permite_celda_de_grado_sin_pda_si_el_contenido_tiene_otro_pda_en_la_fase(): void
+    {
+        $payload = $this->canonicalPrimaryPayload();
+        $payload['pdas'] = array_values(array_filter(
+            $payload['pdas'],
+            fn (array $pda): bool => $pda['code'] !== 'F3-G2-LEN-C001-P01',
+        ));
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+
+        $this->assertSame([], array_map(fn ($e) => $e->code, $report->errors));
+        $this->assertSame(5, $report->counts['pdas']);
+    }
+
+    public function test_catalogo_canonico_de_primaria_rechaza_contenido_sin_pda_en_ningun_grado_de_su_fase(): void
+    {
+        $payload = $this->canonicalPrimaryPayload();
+        $payload['pdas'] = array_values(array_filter(
+            $payload['pdas'],
+            fn (array $pda): bool => $pda['content_code'] !== 'F3-LEN-C001',
+        ));
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: true);
+        $codes = array_map(fn ($e) => $e->code, $report->errors);
+
+        $this->assertContains('CANONICAL_CONTENT_WITHOUT_PHASE_PDA', $codes);
+    }
+
     public function test_catalogo_productivo_rechaza_alias_espanol_de_primaria(): void
     {
         $payload = $this->canonicalPrimaryPayload();
