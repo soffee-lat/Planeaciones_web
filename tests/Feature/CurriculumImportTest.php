@@ -428,7 +428,7 @@ class CurriculumImportTest extends TestCase
     {
         $payload = $this->validPayload();
         $payload['curriculum'] = [
-            'code' => 'MX-NEM-PRESCHOOL-TEST',
+            'code' => 'DEMO-PRESCHOOL',
             'name' => 'Preescolar de prueba',
             'country_code' => 'MX',
             'educational_level' => 'preschool',
