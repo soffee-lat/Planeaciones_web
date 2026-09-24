@@ -118,6 +118,12 @@ class PilotFeedbackTest extends PedagogyTestCase
 
     public function test_resumen_detecta_retorno_y_tiempos_entre_hitos(): void
     {
+        // Freeze the baseline before creating the first event. Without this,
+        // travel(10) starts from the wall-clock time at the travel call and
+        // includes test execution time between PlanningStarted and that call,
+        // making the assertion flaky under a slower full suite.
+        $this->freezeTime();
+
         $ctx = $this->seedFullTeacher();
         $first = app(StartPlanningExperiment::class)->execute(
             $ctx['user'], $ctx['group']->id, '2026-09-14', '2026-09-18', 'Tema uno',
