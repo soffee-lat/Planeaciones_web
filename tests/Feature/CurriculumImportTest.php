@@ -199,7 +199,7 @@ class CurriculumImportTest extends TestCase
     public function test_importacion_persiste_titulo_curricular_oficial_mayor_a_255_caracteres(): void
     {
         $payload = $this->validPayload();
-        $payload['curricular_contents'][0]['title'] = str_repeat('Título curricular oficial extenso. ', 9);
+        $payload['curricular_contents'][0]['title'] = rtrim(str_repeat('Título curricular oficial extenso. ', 9));
         $payload['curricular_contents'][0]['full_text'] = $payload['curricular_contents'][0]['title'];
 
         $this->assertGreaterThan(255, mb_strlen($payload['curricular_contents'][0]['title']));
