@@ -173,7 +173,8 @@
                     message.textContent = parts.length
                         ? parts.join(' · ')
                         : String(data.count) + ' tarea(s) pendiente(s)';
-                    alertRoot.classList.remove('hidden');
+                    const acknowledged = localStorage.getItem(ackKey);
+                    alertRoot.classList.toggle('hidden', acknowledged === data.signature);
                     document.title = '(' + String(data.count) + ') ' + originalTitle;
                 };
 
