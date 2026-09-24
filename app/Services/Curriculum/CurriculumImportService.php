@@ -387,38 +387,58 @@ class CurriculumImportService
     /**
      * Reglas de completitud para catálogos canónicos de producción.
      *
-     * El importador sigue aceptando fixtures y catálogos no canónicos para
-     * pruebas/desarrollo, pero MX-NEM-PRESCHOOL debe representar la Fase 2
-     * completa: P1, P2 y P3, los cuatro Campos formativos, los siete Ejes
-     * articuladores ya usados por la plataforma y al menos un PDA de cada
-     * grado por cada Contenido.
+     * Los catálogos productivos soportados usan códigos internos estables en
+     * inglés aunque sus etiquetas de interfaz estén en español:
+     * - MX-NEM-PRESCHOOL / educational_level=preschool
+     * - MX-NEM-PRIMARY / educational_level=primary
+     *
+     * Fixtures y catálogos no canónicos conservan el comportamiento genérico.
      */
     private function validateCanonicalCatalog(array $payload, ImportReport $report): void
     {
         $curriculumCode = strtoupper(trim((string) ($payload['curriculum']['code'] ?? '')));
-        if ($curriculumCode !== 'MX-NEM-PRESCHOOL') {
+
+        if (str_starts_with($curriculumCode, 'MX-NEM-')
+            && ! in_array($curriculumCode, ['MX-NEM-PRESCHOOL', 'MX-NEM-PRIMARY'], true)) {
+            $report->addError(
+                'CANONICAL_CURRICULUM_CODE_UNSUPPORTED',
+                'Los catálogos productivos soportados deben usar MX-NEM-PRESCHOOL o MX-NEM-PRIMARY.',
+                '/curriculum/code'
+            );
+            return;
+        }
+
+        if (! in_array($curriculumCode, ['MX-NEM-PRESCHOOL', 'MX-NEM-PRIMARY'], true)) {
             return;
         }
 
         $level = strtolower(trim((string) ($payload['curriculum']['educational_level'] ?? '')));
-        if ($level !== 'preschool') {
+        $expectedLevel = $curriculumCode === 'MX-NEM-PRESCHOOL' ? 'preschool' : 'primary';
+        if ($level !== $expectedLevel) {
             $report->addError(
                 'CANONICAL_CURRICULUM_LEVEL_MISMATCH',
-                'MX-NEM-PRESCHOOL debe declarar educational_level="preschool".',
+                "{$curriculumCode} debe declarar educational_level=\"{$expectedLevel}\".",
                 '/curriculum/educational_level'
             );
         }
 
+        $expectedPhases = $curriculumCode === 'MX-NEM-PRESCHOOL'
+            ? ['F2']
+            : ['F3', 'F4', 'F5'];
+        $expectedGrades = $curriculumCode === 'MX-NEM-PRESCHOOL'
+            ? ['P1', 'P2', 'P3']
+            : ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'];
+
         $this->validateExactCodeSet(
             $payload['educational_phases'] ?? [],
-            ['F2'],
+            $expectedPhases,
             'CANONICAL_PHASE_SET_INVALID',
             '/educational_phases',
             $report,
         );
         $this->validateExactCodeSet(
             $payload['grades'] ?? [],
-            ['P1', 'P2', 'P3'],
+            $expectedGrades,
             'CANONICAL_GRADE_SET_INVALID',
             '/grades',
             $report,
@@ -461,7 +481,19 @@ class CurriculumImportService
                 continue;
             }
 
-            foreach (['P1', 'P2', 'P3'] as $gradeCode) {
+            if ($curriculumCode === 'MX-NEM-PRESCHOOL') {
+                $gradesForContent = ['P1', 'P2', 'P3'];
+            } else {
+                $phaseCode = strtoupper(trim((string) ($content['phase_code'] ?? '')));
+                $gradesForContent = match ($phaseCode) {
+                    'F3' => ['G1', 'G2'],
+                    'F4' => ['G3', 'G4'],
+                    'F5' => ['G5', 'G6'],
+                    default => [],
+                };
+            }
+
+            foreach ($gradesForContent as $gradeCode) {
                 if (! isset($coverage[$contentCode][$gradeCode])) {
                     $report->addError(
                         'CANONICAL_CONTENT_GRADE_WITHOUT_PDA',
