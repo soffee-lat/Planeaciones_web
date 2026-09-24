@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ManualAiOperationsController;
 use App\Http\Controllers\CurriculumMapController;
 use App\Http\Controllers\InstitutionalFormatDesignerController;
 use App\Http\Controllers\InstitutionalFormatStructureBindingController;
@@ -20,6 +21,13 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/app/format-samples/{sample}/files/{file}', PrivateFormatSampleDownloadController::class)->name('format-samples.download');
 
     Route::middleware('verified')->group(function (): void {
+        Route::prefix('/admin/ai-operations')->name('admin.ai-operations.')->group(function (): void {
+            Route::get('/summary', [ManualAiOperationsController::class, 'summary'])->name('summary');
+            Route::get('/executions/{execution}/package', [ManualAiOperationsController::class, 'download'])->name('download');
+            Route::post('/executions/{execution}/result', [ManualAiOperationsController::class, 'storeResult'])->name('result');
+            Route::post('/prepare', [ManualAiOperationsController::class, 'prepare'])->name('prepare');
+        });
+
         Route::get('/app/planning-requests/{planningRequest}/curriculum-map', [CurriculumMapController::class, 'show'])
             ->name('planning.curriculum-map');
         Route::post('/app/planning-requests/{planningRequest}/curriculum-map/decision', [CurriculumMapController::class, 'decision'])
