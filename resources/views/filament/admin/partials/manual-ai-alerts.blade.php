@@ -62,14 +62,12 @@
 
                 let currentSignature = '';
                 let audioContext = null;
-                let originalTitle = document.title;
+                let originalTitle = document.title.replace(/^\(\d+\)\s+/, '');
 
                 const root = () => document.getElementById('soffee-ai-alert');
                 const countNode = () => document.getElementById('soffee-ai-alert-count');
                 const messageNode = () => document.getElementById('soffee-ai-alert-message');
                 const enableButton = () => document.getElementById('soffee-ai-enable-alerts');
-                const acknowledgeButton = () => document.getElementById('soffee-ai-alert-ack');
-                const openButton = () => document.getElementById('soffee-ai-alert-open');
 
                 const alertsEnabled = () => localStorage.getItem(enabledKey) === '1';
 
@@ -161,7 +159,7 @@
 
                     if (data.count < 1) {
                         alertRoot.classList.add('hidden');
-                        document.title = originalTitle.replace(/^\(\d+\)\s+/, '');
+                        document.title = originalTitle;
                         localStorage.removeItem(ackKey);
                         return;
                     }
@@ -176,8 +174,6 @@
                         ? parts.join(' · ')
                         : String(data.count) + ' tarea(s) pendiente(s)';
                     alertRoot.classList.remove('hidden');
-
-                    originalTitle = originalTitle.replace(/^\(\d+\)\s+/, '');
                     document.title = '(' + String(data.count) + ') ' + originalTitle;
                 };
 
@@ -227,60 +223,72 @@
                     }
                 };
 
-                const configureActivationButton = () => {
+                const refreshActivationButton = () => {
                     const button = enableButton();
+
                     if (! button) {
                         return;
                     }
 
-                    if (alertsEnabled()) {
-                        button.classList.add('hidden');
+                    button.classList.toggle('hidden', alertsEnabled());
+                };
+
+                const activateAlerts = async () => {
+                    localStorage.setItem(enabledKey, '1');
+
+                    try {
+                        await ensureAudio();
+                        await soundBurst();
+                    } catch (error) {
+                        // La alerta visual seguirá funcionando.
+                    }
+
+                    if ('Notification' in window && Notification.permission === 'default') {
+                        try {
+                            await Notification.requestPermission();
+                        } catch (error) {
+                            // El permiso puede ser rechazado; el sonido y la UI
+                            // siguen disponibles mientras el panel esté abierto.
+                        }
+                    }
+
+                    refreshActivationButton();
+                    poll();
+                };
+
+                document.addEventListener('click', (event) => {
+                    const target = event.target instanceof Element ? event.target : null;
+
+                    if (target?.closest('#soffee-ai-enable-alerts')) {
+                        activateAlerts();
                         return;
                     }
 
-                    button.classList.remove('hidden');
-
-                    button.addEventListener('click', async () => {
-                        localStorage.setItem(enabledKey, '1');
-
-                        try {
-                            await ensureAudio();
-                            await soundBurst();
-                        } catch (error) {
-                            // La alerta visual seguirá funcionando.
-                        }
-
-                        if ('Notification' in window && Notification.permission === 'default') {
-                            try {
-                                await Notification.requestPermission();
-                            } catch (error) {
-                                // El permiso puede ser rechazado; el sonido y la UI
-                                // siguen disponibles mientras el panel esté abierto.
-                            }
-                        }
-
-                        button.classList.add('hidden');
-                        poll();
-                    });
-                };
-
-                const bindButtons = () => {
-                    acknowledgeButton()?.addEventListener('click', () => {
+                    if (target?.closest('#soffee-ai-alert-ack')) {
                         if (currentSignature) {
                             localStorage.setItem(ackKey, currentSignature);
                         }
                         root()?.classList.add('hidden');
-                    });
+                        return;
+                    }
 
-                    openButton()?.addEventListener('click', () => {
-                        if (currentSignature) {
-                            localStorage.setItem(ackKey, currentSignature);
-                        }
-                    });
+                    if (target?.closest('#soffee-ai-alert-open') && currentSignature) {
+                        localStorage.setItem(ackKey, currentSignature);
+                    }
+                });
+
+                // Los navegadores pueden exigir una interacción en cada sesión para
+                // habilitar WebAudio. Si ya activaste las alertas, cualquier clic o
+                // tecla en el panel vuelve a preparar el audio sin pedirte nada.
+                const primeAudio = () => {
+                    if (alertsEnabled()) {
+                        ensureAudio();
+                    }
                 };
+                window.addEventListener('pointerdown', primeAudio, { once: true });
+                window.addEventListener('keydown', primeAudio, { once: true });
 
-                configureActivationButton();
-                bindButtons();
+                refreshActivationButton();
                 poll();
 
                 window.setInterval(poll, 15000);
@@ -290,7 +298,11 @@
                         poll();
                     }
                 });
-                document.addEventListener('livewire:navigated', poll);
+                document.addEventListener('livewire:navigated', () => {
+                    originalTitle = document.title.replace(/^\(\d+\)\s+/, '');
+                    refreshActivationButton();
+                    poll();
+                });
             })();
         </script>
     @endif
