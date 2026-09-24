@@ -196,6 +196,24 @@ class CurriculumImportTest extends TestCase
         );
     }
 
+    public function test_importacion_persiste_titulo_curricular_oficial_mayor_a_255_caracteres(): void
+    {
+        $payload = $this->validPayload();
+        $payload['curricular_contents'][0]['title'] = str_repeat('Título curricular oficial extenso. ', 9);
+        $payload['curricular_contents'][0]['full_text'] = $payload['curricular_contents'][0]['title'];
+
+        $this->assertGreaterThan(255, mb_strlen($payload['curricular_contents'][0]['title']));
+
+        $report = $this->service()->import($payload, $this->admin(), dryRun: false);
+
+        $this->assertTrue($report->success, json_encode($report->toArray()));
+        $version = CurriculumVersion::findOrFail($report->draftId);
+        $this->assertSame(
+            $payload['curricular_contents'][0]['title'],
+            $version->curricularContents()->firstOrFail()->title,
+        );
+    }
+
     public function test_reutiliza_curriculo_existente_sin_modificar_metadata(): void
     {
         $existing = Curriculum::create([
