@@ -10,6 +10,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Services\Commerce\CurrentCommercialRights;
 use App\Services\Commerce\PlanningCommercialPresentation;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\CreatesCommercialPlanningScenario;
 use Tests\Feature\PedagogyTestCase;
 
@@ -33,6 +34,43 @@ class AdminUserManagementTest extends PedagogyTestCase
         $this->actingAs($customer);
 
         $this->get('/admin/users')->assertForbidden();
+    }
+
+    public function test_postgresql_connection_timezone_is_pinned_to_utc(): void
+    {
+        $this->assertSame('UTC', config('app.timezone'));
+        $this->assertSame('UTC', config('database.connections.pgsql.timezone'));
+
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            $row = (array) DB::selectOne('SHOW TIME ZONE');
+            $this->assertSame('UTC', array_values($row)[0] ?? null);
+        }
+    }
+
+    public function test_regrant_repairs_stale_internal_membership_period(): void
+    {
+        $customer = $this->customer();
+        $admin = $this->admin();
+
+        $period = app(GrantInternalUnlimitedMembership::class)->execute($admin, $customer);
+        $subscription = $period->subscription()->firstOrFail();
+
+        $subscription->forceFill(['starts_at' => now()->addHours(6)])->save();
+        $period->forceFill([
+            'starts_at' => now()->addHours(6),
+            'ends_at' => now()->addYears(10)->addHours(6),
+            'status' => 'active',
+        ])->save();
+
+        $this->assertNull(app(CurrentCommercialRights::class)->forCustomer($customer));
+
+        $repaired = app(GrantInternalUnlimitedMembership::class)->execute($admin, $customer);
+
+        $this->assertTrue($repaired->isReservable());
+        $this->assertTrue($repaired->starts_at->lte(now()));
+        $this->assertNotSame($period->id, $repaired->id);
+        $this->assertSame('cancelled', $period->fresh()->status->value);
+        $this->assertNotNull(app(CurrentCommercialRights::class)->forCustomer($customer));
     }
 
     public function test_admin_can_grant_internal_unlimited_membership(): void
