@@ -10,11 +10,14 @@ use App\Actions\AI\RouteAuditResult;
 use App\Enums\AiExecutionMode;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
+use App\Enums\CorrectionRequestStatus;
+use App\Enums\CorrectionRequestType;
 use App\Enums\RoleCode;
 use App\Exceptions\AiContractException;
 use App\Exceptions\AiPipelineException;
 use App\Http\Controllers\Controller;
 use App\Models\AiExecution;
+use App\Models\CorrectionRequest;
 use App\Models\OutboxEvent;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -46,15 +49,31 @@ final class ManualAiOperationsController extends Controller
             $byStage[$execution->stage->value] = ($byStage[$execution->stage->value] ?? 0) + 1;
         }
 
-        $signature = hash('sha256', $executions
+        $aiSignature = hash('sha256', $executions
             ->map(fn (AiExecution $execution): string => $execution->id . ':' . $execution->stage->value)
+            ->implode('|'));
+
+        $clientReviews = CorrectionRequest::query()
+            ->where('type', CorrectionRequestType::Client->value)
+            ->where('status', CorrectionRequestStatus::Requested->value)
+            ->orderBy('requested_at')
+            ->orderBy('id')
+            ->get(['id', 'request_id', 'requested_at']);
+
+        $reviewSignature = hash('sha256', $clientReviews
+            ->map(fn (CorrectionRequest $correction): string => $correction->id . ':' . $correction->request_id)
             ->implode('|'));
 
         return response()->json([
             'count' => $executions->count(),
-            'signature' => $signature,
+            'signature' => hash('sha256', 'ai:' . $aiSignature . '|reviews:' . $reviewSignature),
             'by_stage' => $byStage,
             'oldest_at' => $executions->first()?->created_at?->toIso8601String(),
+            'client_reviews' => [
+                'count' => $clientReviews->count(),
+                'signature' => $reviewSignature,
+                'oldest_at' => $clientReviews->first()?->requested_at?->toIso8601String(),
+            ],
         ]);
     }
 
@@ -153,14 +172,19 @@ final class ManualAiOperationsController extends Controller
                 $processOutbox,
             );
 
+            $next = $this->waitingManualQuery()
+                ->where('request_id', $execution->request_id)
+                ->orderBy('id')
+                ->first();
+
             return redirect('/admin/ai-operations')
                 ->with('success', $message)
-                ->with(
-                    'info',
-                    $prepared > 0
+                ->with('info', $next
+                    ? $this->nextStepMessage($next)
+                    : ($prepared > 0
                         ? "Se prepararon {$prepared} paquete(s) para la siguiente etapa."
-                        : null,
-                );
+                        : 'No hay otro paquete manual pendiente para esta solicitud. Revisa el estado de la planeación.'));
+
         } catch (JsonException) {
             return back()->with('error', 'El archivo no contiene JSON válido.');
         } catch (AiContractException $e) {
@@ -367,6 +391,27 @@ final class ManualAiOperationsController extends Controller
         );
 
         return $user;
+    }
+
+    private function nextStepMessage(AiExecution $execution): string
+    {
+        if ($execution->stage === AiExecutionStage::Generation) {
+            return 'Siguiente paso listo: Generación. Descarga el paquete de generación y vuelve con el JSON resultante.';
+        }
+
+        if ($execution->stage === AiExecutionStage::Correction) {
+            return 'Siguiente paso listo: Corrección. Descarga el paquete de corrección, procesa únicamente los hallazgos autorizados y sube el resultado.';
+        }
+
+        $hasPriorCorrection = AiExecution::query()
+            ->where('request_id', $execution->request_id)
+            ->where('stage', AiExecutionStage::Correction->value)
+            ->where('id', '<', $execution->id)
+            ->exists();
+
+        return $hasPriorCorrection
+            ? 'Siguiente paso listo: Reauditoría. Descarga el nuevo paquete y comprueba la versión corregida.'
+            : 'Siguiente paso listo: Auditoría. Descarga el paquete de auditoría y vuelve con el JSON del auditor.';
     }
 
     private function nullableText(mixed $value): ?string
