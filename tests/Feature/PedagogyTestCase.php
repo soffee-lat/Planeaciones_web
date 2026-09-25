@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Curriculum\PublishCurriculumVersion;
+use App\Actions\Schedules\SaveGroupSchedule;
 use App\Enums\RoleCode;
 use App\Enums\SchoolType;
 use App\Models\ArticulatingAxis;
@@ -37,6 +38,38 @@ abstract class PedagogyTestCase extends TestCase
     protected function reviewer(): User
     {
         return User::factory()->withRole(RoleCode::Reviewer)->create();
+    }
+
+    protected function addDefaultPlanningSchedule(User $user, Group $group): void
+    {
+        $group = $group->fresh(['activeSchedule.blocks']) ?? $group;
+
+        $hasUsableSchedule = $group->activeSchedule?->blocks
+            ->contains(fn ($block): bool => (bool) $block->include_in_planning
+                && ! in_array($block->block_type, ['break', 'unavailable'], true))
+            ?? false;
+
+        if ($hasUsableSchedule) {
+            return;
+        }
+
+        app(SaveGroupSchedule::class)->execute($user, $group, [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '12:30',
+            'blocks' => [[
+                'day_of_week' => 1,
+                'sequence' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '08:50',
+                'label' => 'Lenguajes',
+                'block_type' => 'class',
+                'responsibility' => 'main_teacher',
+                'include_in_planning' => true,
+                'is_flexible' => false,
+                'field_codes' => [],
+                'notes' => null,
+            ]],
+        ]);
     }
 
     /**
