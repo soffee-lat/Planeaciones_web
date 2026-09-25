@@ -46,14 +46,22 @@ class CanonicalPlanAssembler
 
         $alignment = $this->buildCurricularAlignment($curriculum, $generated['sessions']);
         $this->validateSessionDates($snapshot['request'] ?? [], $generated['sessions']);
-        $this->validateSessionsAgainstSchedule(
-            is_array($snapshot['group']['planning_calendar'] ?? null) ? $snapshot['group']['planning_calendar'] : [],
-            $generated['sessions'],
-        );
+        $planningCalendar = is_array($snapshot['group']['planning_calendar'] ?? null)
+            ? $snapshot['group']['planning_calendar']
+            : [];
+        $this->validateSessionsAgainstSchedule($planningCalendar, $generated['sessions']);
 
         $profile = is_array($snapshot['group']['profile'] ?? null) ? $snapshot['group']['profile'] : [];
-        $sessionMinutes = (int) ($profile['session_minutes'] ?? 0);
-        if ($sessionMinutes <= 0) {
+        $rawSessionMinutes = $profile['session_minutes'] ?? null;
+        $sessionMinutes = is_numeric($rawSessionMinutes) ? (int) $rawSessionMinutes : null;
+
+        // Con horario congelado, la duración autoritativa vive en cada bloque y
+        // puede variar entre sesiones. session_minutes es sólo un aproximado
+        // legado del perfil y puede permanecer vacío en este flujo.
+        if ($sessionMinutes !== null && $sessionMinutes <= 0) {
+            throw new AiContractException('CANONICAL_SESSION_MINUTES_INVALID');
+        }
+        if ($sessionMinutes === null && $planningCalendar === []) {
             throw new AiContractException('CANONICAL_SESSION_MINUTES_MISSING');
         }
 
@@ -84,7 +92,7 @@ class CanonicalPlanAssembler
             'context' => [
                 ...$this->buildContext($snapshot),
                 'schedule_revision' => $snapshot['group']['schedule']['revision'] ?? null,
-                'planning_calendar' => $snapshot['group']['planning_calendar'] ?? [],
+                'planning_calendar' => $planningCalendar,
             ],
             'curricular_alignment' => $alignment,
             'pedagogical_design' => [

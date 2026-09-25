@@ -36,9 +36,10 @@ class CanonicalPlanAssemblerTest extends PedagogyTestCase
         return app(GeneratedPlanDraftValidator::class)->validate($payload ?? $this->generatedDraftFor($request));
     }
 
-    private function scheduledReadyRequest(): PlanningRequest
+    private function scheduledReadyRequest(?int $sessionMinutes = 50): PlanningRequest
     {
         $request = $this->draft(3);
+        $request->group->profile->forceFill(['session_minutes' => $sessionMinutes])->save();
 
         // Este escenario necesita probar un horario creado desde revisión 1.
         // draft() agrega un horario mínimo para que los escenarios comerciales
@@ -272,6 +273,20 @@ class CanonicalPlanAssemblerTest extends PedagogyTestCase
         $this->assertSame(['2026-10-01', '2026-10-02'], array_column($canonical['context']['planning_calendar'], 'date'));
         $this->assertSame(70, $canonical['sessions'][2]['estimated_minutes']);
         $this->assertFalse($canonical['context']['planning_calendar'][0]['blocks'][2]['include_in_planning']);
+    }
+
+    public function test_horario_permite_minutos_aproximados_vacios_cuando_los_bloques_definen_duracion(): void
+    {
+        $request = $this->scheduledReadyRequest(null);
+
+        $canonical = app(CanonicalPlanAssembler::class)->assemble(
+            $request,
+            $this->validatedDraft($request, $this->validScheduledPayload($request)),
+        )->toArray();
+
+        $this->assertNull($canonical['planning']['session_minutes']);
+        $this->assertSame([50, 50, 70], array_column($canonical['sessions'], 'estimated_minutes'));
+        $this->assertSame(3, $canonical['planning']['session_count']);
     }
 
     public function test_horario_rechaza_omitir_un_bloque_planeable(): void
