@@ -11,6 +11,7 @@ use App\Models\Group;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Renderless;
 
 class ManageSchedule extends Page
@@ -116,11 +117,21 @@ class ManageSchedule extends Page
 
     public function saveSchedule(): void
     {
-        $schedule = app(SaveGroupSchedule::class)->execute(auth()->user(), $this->record, [
-            'day_starts_at' => $this->dayStartsAt,
-            'day_ends_at' => $this->dayEndsAt,
-            'blocks' => $this->blocks,
-        ]);
+        try {
+            $schedule = app(SaveGroupSchedule::class)->execute(auth()->user(), $this->record, [
+                'day_starts_at' => $this->dayStartsAt,
+                'day_ends_at' => $this->dayEndsAt,
+                'blocks' => $this->blocks,
+            ]);
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->danger()
+                ->title('Revisa el horario')
+                ->body('Hay campos obligatorios o bloques inválidos. Corrige los elementos marcados antes de guardar.')
+                ->send();
+
+            throw $exception;
+        }
 
         $this->record = $this->record->fresh(['activeSchedule.blocks', 'subjects']);
         $this->hasSchedule = true;
@@ -129,9 +140,11 @@ class ManageSchedule extends Page
 
         Notification::make()
             ->success()
-            ->title('Horario guardado')
-            ->body('Las próximas planeaciones congelarán esta revisión del horario y la usarán para distribuir las actividades.')
+            ->title('Horario guardado correctamente')
+            ->body('La planeación usará las duraciones reales de los bloques incluidos en este horario.')
             ->send();
+
+        $this->redirect(GroupResource::getUrl('index'));
     }
 
     public function getTitle(): string
