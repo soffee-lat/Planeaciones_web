@@ -183,7 +183,11 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
 
         $this->assertSame($revision, (int) $profile->fresh()->revision);
 
-        $standard = app(EnsureStandardFormat::class)->execute()['version'];
+        $this->assertDatabaseMissing('institutional_formats', [
+            'owner_id' => null,
+            'kind' => InstitutionalFormatKind::Standard->value,
+        ]);
+
         $request = PlanningRequest::factory()->create([
             'owner_id' => $scene['user']->id,
             'group_id' => $scene['group']->id,
@@ -195,7 +199,7 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
 
         $resolved = app(PlanningFormatResolver::class)->resolve($request);
 
-        $this->assertSame($standard->id, $resolved->id);
+        $this->assertNotNull($resolved->published_at);
         $this->assertSame(InstitutionalFormatKind::Standard, $resolved->format->kind);
         $this->assertSame('standard-v1', $resolved->renderer);
     }
