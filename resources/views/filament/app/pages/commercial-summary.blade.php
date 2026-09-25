@@ -4,13 +4,17 @@
         <p>Tu planeación puede quedar confirmada, pero para generarla necesitas un plan con saldo disponible.</p>
     @else
         <p><strong>Plan:</strong> {{ $summary['plan_name'] }}</p>
-        @if (!empty($summary['is_unlimited']))
-            <p><strong>Membresía interna ilimitada.</strong> Esta cuenta está habilitada para pruebas de producción sin límite práctico de planeaciones.</p>
-        @endif
         <p><strong>Periodo vigente:</strong> {{ $summary['period_start'] }} a {{ $summary['period_end'] }}</p>
-        <p>Cada unidad cubre hasta {{ $summary['max_days'] }} días naturales consecutivos, incluidos fines de semana y festivos.</p>
-        @if ($summary['units'] !== null)
-            <p><strong>Esta planeación:</strong> {{ $summary['days'] }} días naturales · {{ $summary['units'] }} unidades necesarias.</p>
+        @if (!empty($summary['is_unlimited']))
+            <p><strong>Membresía interna ilimitada.</strong> Esta cuenta está habilitada para pruebas de producción sin límites comerciales prácticos.</p>
+            @if ($summary['days'] !== null)
+                <p><strong>Esta planeación:</strong> {{ $summary['days'] }} días naturales · puede continuar sin bloqueo por saldo.</p>
+            @endif
+        @else
+            <p>Cada unidad cubre hasta {{ $summary['max_days'] }} días naturales consecutivos, incluidos fines de semana y festivos.</p>
+            @if ($summary['units'] !== null)
+                <p><strong>Esta planeación:</strong> {{ $summary['days'] }} días naturales · {{ $summary['units'] }} unidades necesarias.</p>
+            @endif
         @endif
         @if (!empty($summary['is_unlimited']))
             <p><strong>Unidades de planeación:</strong> disponibilidad ilimitada para pruebas internas.</p>
