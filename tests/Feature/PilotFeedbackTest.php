@@ -125,6 +125,8 @@ class PilotFeedbackTest extends PedagogyTestCase
         $this->freezeTime();
 
         $ctx = $this->seedFullTeacher();
+        $this->addDefaultPlanningSchedule($ctx['user'], $ctx['group']);
+
         $first = app(StartPlanningExperiment::class)->execute(
             $ctx['user'], $ctx['group']->id, '2026-09-14', '2026-09-18', 'Tema uno',
         );
