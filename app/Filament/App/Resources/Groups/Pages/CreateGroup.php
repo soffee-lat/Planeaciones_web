@@ -6,6 +6,7 @@ use App\Actions\Pedagogy\UpdateGroupProfile;
 use App\Filament\App\Resources\Groups\GroupResource;
 use App\Models\Group;
 use App\Models\School;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +14,29 @@ use Illuminate\Validation\ValidationException;
 class CreateGroup extends CreateRecord
 {
     protected static string $resource = GroupResource::class;
+
+    protected static bool $canCreateAnother = false;
+
+    protected function getRedirectUrl(): string
+    {
+        return static::getResource()::getUrl('index');
+    }
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Grupo guardado correctamente';
+    }
+
+    protected function onValidationError(ValidationException $exception): void
+    {
+        parent::onValidationError($exception);
+
+        Notification::make()
+            ->danger()
+            ->title('Faltan campos obligatorios')
+            ->body('Revisa los campos marcados antes de guardar.')
+            ->send();
+    }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
