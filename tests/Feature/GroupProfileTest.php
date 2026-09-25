@@ -84,6 +84,14 @@ class GroupProfileTest extends PedagogyTestCase
         $seed = $this->seedFullTeacher();
         $this->assertTrue($seed['profile']->fresh()->isSufficient());
 
+        $seed['profile']->forceFill([
+            'student_count' => 20,
+            'general_level' => 'medio',
+            'characteristics' => 'Grupo participativo.',
+            'session_minutes' => null,
+        ])->save();
+        $this->assertTrue($seed['profile']->fresh()->isSufficient());
+
         $empty = GroupProfile::factory()->empty()->make();
         $this->assertFalse($empty->isSufficient());
     }
