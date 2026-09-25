@@ -40,17 +40,21 @@ final class GrantInternalUnlimitedMembership
                 return $current;
             }
 
-            $overlapping = $operational->periods()
-                ->whereIn('status', ['pending', 'active'])
-                ->where('ends_at', '>', now())
-                ->exists();
-
-            if ($overlapping) {
-                throw new RuntimeException('INTERNAL_UNLIMITED_PERIOD_CONFLICT');
+            // Una membresía interna se concede para uso inmediato. Si existe una
+            // suscripción interna sin periodo vigente, puede tratarse de una
+            // concesión anterior creada con una sesión PostgreSQL en otra zona
+            // horaria. Reparamos sólo este plan interno: normalizamos el inicio,
+            // cancelamos periodos no vigentes y abrimos uno nuevo en UTC.
+            if ($operational->starts_at?->gt(now())) {
+                $operational->forceFill(['starts_at' => now()->subMinute()])->save();
             }
 
+            $operational->periods()
+                ->whereIn('status', ['pending', 'active'])
+                ->update(['status' => 'cancelled']);
+
             return app(OpenSubscriptionPeriod::class)(
-                $operational,
+                $operational->fresh(),
                 now()->subMinute(),
                 now()->addYears(10),
             );
