@@ -12,6 +12,7 @@ use App\Actions\Planning\WithdrawClientCorrection;
 use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
 use App\Enums\CorrectionRequestStatus;
+use App\Enums\OperationalNotificationType;
 use App\Enums\OutboxEventType;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\UsageReservationStatus;
@@ -20,9 +21,11 @@ use App\Exceptions\ClientCorrectionException;
 use App\Models\AiExecution;
 use App\Models\CorrectionRequest;
 use App\Models\DocumentVersion;
+use App\Models\OperationalNotificationEvent;
 use App\Models\OutboxEvent;
 use App\Models\PlanningDelivery;
 use App\Models\UsageReservation;
+use App\Filament\Admin\Pages\ClientCorrections;
 use App\Services\AI\CorrectionInputBuilder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Tests\Concerns\BuildsGeneratedPlanDraft;
@@ -117,6 +120,30 @@ class ClientCorrectionTest extends PedagogyTestCase
             'to_status' => 'CORRECCION_SOLICITADA',
             'reason' => 'client_correction_requested',
         ]);
+    }
+
+    public function test_revision_cliente_aparece_en_bandeja_admin_y_encola_aviso_operativo(): void
+    {
+        $admin = $this->admin();
+        $scene = $this->deliveredScene(prefix: 'documents/client-correction-admin-inbox');
+        $correction = $this->requestCorrection($scene);
+
+        $event = OperationalNotificationEvent::query()
+            ->where('type', OperationalNotificationType::ClientCorrectionRequested->value)
+            ->where('recipient_id', $admin->id)
+            ->where('aggregate_type', 'correction_request')
+            ->where('aggregate_id', $correction->id)
+            ->sole();
+
+        $this->assertSame('/admin/client-corrections', $event->payload['url']);
+
+        $this->actingAs($admin)
+            ->get(ClientCorrections::getUrl(panel: 'admin'))
+            ->assertOk()
+            ->assertSee('Revisiones de clientes')
+            ->assertSee('Esperando tu decisión')
+            ->assertSee('Necesito instrucciones más claras')
+            ->assertSee('Revisar y decidir');
     }
 
     public function test_reintento_identico_es_idempotente_y_segunda_solicitud_distinta_conflicta(): void
