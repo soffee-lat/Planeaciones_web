@@ -25,6 +25,7 @@ use App\Models\OperationalNotificationEvent;
 use App\Models\OutboxEvent;
 use App\Models\PlanningDelivery;
 use App\Models\UsageReservation;
+use App\Filament\Admin\Pages\AiOperations;
 use App\Filament\Admin\Pages\ClientCorrections;
 use App\Services\AI\CorrectionInputBuilder;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -268,6 +269,41 @@ class ClientCorrectionTest extends PedagogyTestCase
             'type' => OutboxEventType::PlanningCorrectionRequested->value,
             'aggregate_id' => $scene['request']->id,
         ]);
+    }
+
+    public function test_correccion_aceptada_conserva_comentario_visible_y_se_distingue_de_generacion(): void
+    {
+        $scene = $this->deliveredScene(prefix: 'documents/client-correction-visible-context');
+        $started = $this->startCorrection($scene);
+        $correction = $started['correction'];
+        $execution = $started['execution'];
+
+        app(ProcessOutboxEvent::class)->execute(
+            OutboxEvent::query()
+                ->where('event_key', 'ai-execution:' . $execution->id . ':correction-dispatch')
+                ->sole(),
+        );
+
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->get(ClientCorrections::getUrl(panel: 'admin'))
+            ->assertOk()
+            ->assertSee('En proceso')
+            ->assertSee('Necesito instrucciones más claras y una actividad de cierre más concreta.')
+            ->assertSee('Continuar en Operación IA');
+
+        $this->actingAs($admin)
+            ->get(AiOperations::getUrl(panel: 'admin'))
+            ->assertOk()
+            ->assertSee('Corrección solicitada por cliente')
+            ->assertSee('Solicitud original del cliente')
+            ->assertSee('Necesito instrucciones más claras y una actividad de cierre más concreta.')
+            ->assertSee('No se vuelve a generar la planeación')
+            ->assertSee('Aplicar corrección del cliente y preparar reauditoría');
+
+        $this->assertSame(CorrectionRequestStatus::Processing, $correction->fresh()->status);
+        $this->assertSame(AiExecutionStatus::WaitingManual, $execution->fresh()->status);
     }
 
     public function test_correccion_solicitada_dentro_de_ventana_se_procesa_aunque_periodo_ya_vencio(): void

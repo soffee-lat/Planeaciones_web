@@ -54,13 +54,31 @@ class ClientCorrections extends \Filament\Pages\Page
             ->get();
     }
 
-    public function recentCorrections(): Collection
+    public function processingCorrections(): Collection
     {
         return CorrectionRequest::query()
             ->where('type', CorrectionRequestType::Client->value)
             ->whereIn('status', [
                 CorrectionRequestStatus::Accepted->value,
                 CorrectionRequestStatus::Processing->value,
+            ])
+            ->with([
+                'request.owner',
+                'request.group',
+                'requester',
+                'assignee',
+                'sourceVersion',
+            ])
+            ->orderBy('requested_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function recentCorrections(): Collection
+    {
+        return CorrectionRequest::query()
+            ->where('type', CorrectionRequestType::Client->value)
+            ->whereIn('status', [
                 CorrectionRequestStatus::Resolved->value,
                 CorrectionRequestStatus::Rejected->value,
                 CorrectionRequestStatus::Withdrawn->value,
@@ -99,6 +117,11 @@ class ClientCorrections extends \Filament\Pages\Page
     public function requestUrl(CorrectionRequest $correction): string
     {
         return PlanningRequestResource::getUrl('view', ['record' => $correction->request_id], panel: 'admin');
+    }
+
+    public function aiOperationsUrl(): string
+    {
+        return AiOperations::getUrl(panel: 'admin');
     }
 
     private static function pendingQuery()

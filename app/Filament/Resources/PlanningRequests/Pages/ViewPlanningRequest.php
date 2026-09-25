@@ -2,13 +2,17 @@
 
 namespace App\Filament\Resources\PlanningRequests\Pages;
 
+use App\Actions\AI\ProcessOutboxEvent;
 use App\Actions\Planning\RejectClientCorrection;
 use App\Actions\Planning\StartClientCorrection;
 use App\Enums\CorrectionRequestStatus;
 use App\Enums\CorrectionRequestType;
+use App\Enums\OutboxEventType;
 use App\Exceptions\ClientCorrectionException;
+use App\Filament\Admin\Pages\AiOperations;
 use App\Filament\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\CorrectionRequest;
+use App\Models\OutboxEvent;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -34,8 +38,33 @@ class ViewPlanningRequest extends ViewRecord
                             throw new ClientCorrectionException('CLIENT_CORRECTION_START_STATE_INVALID');
                         }
                         app(StartClientCorrection::class)->execute($correction, auth()->user());
+
+                        $event = OutboxEvent::query()
+                            ->where('aggregate_id', $this->getRecord()->id)
+                            ->where('type', OutboxEventType::PlanningCorrectionRequested->value)
+                            ->whereNull('published_at')
+                            ->where('payload->correction_request_id', $correction->id)
+                            ->latest('id')
+                            ->first();
+
+                        if ($event) {
+                            try {
+                                app(ProcessOutboxEvent::class)->execute($event);
+                            } catch (\Throwable $error) {
+                                // La revisión ya quedó aceptada. El scheduler
+                                // podrá preparar el paquete en el siguiente ciclo.
+                                report($error);
+                            }
+                        }
+
                         $this->record = $this->getRecord()->fresh();
-                        Notification::make()->success()->title('Revisión aceptada')->body('La solicitud ya pasó a Corrección IA. Operación IA te avisará cuando el paquete esté listo para descargar.')->send();
+                        Notification::make()
+                            ->success()
+                            ->title('Revisión aceptada')
+                            ->body('Ahora aplicarás exactamente la solicitud del cliente sobre la versión entregada; no se generará una planeación desde cero.')
+                            ->send();
+
+                        $this->redirect(AiOperations::getUrl(panel: 'admin'));
                     } catch (ClientCorrectionException $error) {
                         Notification::make()->warning()->title('No se pudo iniciar la corrección')->body($error->userMessage())->send();
                     } catch (\Throwable $error) {

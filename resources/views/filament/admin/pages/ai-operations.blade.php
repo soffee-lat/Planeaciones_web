@@ -102,6 +102,7 @@
                         $guide = $this->actionGuide($execution);
                         $steps = $this->workflowSteps($execution);
                         $history = $this->historyForRequest((int) $execution->request_id);
+                        $clientCorrection = $this->clientCorrectionForExecution($execution);
                     @endphp
 
                     <div class="overflow-hidden rounded-2xl border-2 border-primary-200 bg-white shadow-sm dark:border-primary-800 dark:bg-gray-900">
@@ -131,6 +132,41 @@
                         </div>
 
                         <div class="p-5">
+                            @if ($clientCorrection)
+                                <div class="mb-6 rounded-2xl border-2 border-warning-300 bg-warning-50 p-5 dark:border-warning-700 dark:bg-warning-950/30">
+                                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                        <div class="min-w-0">
+                                            <div class="text-xs font-bold uppercase tracking-wide text-warning-700 dark:text-warning-300">
+                                                Solicitud original del cliente · Revisión #{{ $clientCorrection->id }}
+                                            </div>
+                                            <div class="mt-2 text-lg font-semibold text-gray-950 dark:text-white">
+                                                {{ $this->correctionReasonLabel($clientCorrection) }}
+                                            </div>
+                                            <p class="mt-2 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">{{ $clientCorrection->description }}</p>
+
+                                            <div class="mt-4 flex flex-wrap gap-2">
+                                                @foreach ($this->correctionSectionLabels($clientCorrection) as $section)
+                                                    <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-warning-800 ring-1 ring-warning-200 dark:bg-gray-900 dark:text-warning-200 dark:ring-warning-800">
+                                                        {{ $section }}
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        <div class="shrink-0 rounded-xl border border-warning-200 bg-white p-3 text-xs text-gray-600 dark:border-warning-800 dark:bg-gray-900 dark:text-gray-300">
+                                            <div><span class="font-semibold">Solicitó:</span> {{ $clientCorrection->requester?->name ?? 'Cliente' }}</div>
+                                            <div class="mt-1"><span class="font-semibold">Fecha:</span> {{ $clientCorrection->requested_at?->format('d/m/Y H:i') ?? '—' }}</div>
+                                            <div class="mt-1"><span class="font-semibold">Versión origen:</span> #{{ $clientCorrection->source_version_id }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 rounded-xl bg-white/80 p-3 text-sm text-gray-700 dark:bg-gray-900/80 dark:text-gray-200">
+                                        <strong>Regla de esta operación:</strong>
+                                        no regenerar la planeación ni reinterpretar el encargo. Modifica únicamente las secciones indicadas arriba según el comentario del cliente; conserva currículo, PDA, contexto, fechas y el resto de la versión entregada.
+                                    </div>
+                                </div>
+                            @endif
+
                             <div class="mb-6">
                                 <div class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Avance de esta planeación</div>
                                 <div class="grid gap-2 md:grid-cols-5">
