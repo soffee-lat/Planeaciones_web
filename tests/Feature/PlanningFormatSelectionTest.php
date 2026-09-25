@@ -12,6 +12,7 @@ use App\Actions\Planning\StartPlanningExperiment;
 use App\Enums\InstitutionalFormatKind;
 use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Models\InstitutionalFormat;
 use App\Models\PlanningRequest;
 use App\Services\Documents\PlanningFormatResolver;
 use Livewire\Livewire;
@@ -39,14 +40,26 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         $this->assertStringContainsString('estándar', $options[$standard->id]);
     }
 
-    public function test_new_planning_defaults_to_general_export_format(): void
+    public function test_new_planning_creates_and_defaults_to_general_export_format_when_missing(): void
     {
         $scene = $this->seedFullTeacher();
         $this->actingAs($scene['user']);
-        $standard = app(EnsureStandardFormat::class)->execute()['version'];
 
-        Livewire::test(StartPlanning::class)
-            ->assertSet('format_version_id', $standard->id)
+        $this->assertDatabaseMissing('institutional_formats', [
+            'owner_id' => null,
+            'kind' => InstitutionalFormatKind::Standard->value,
+        ]);
+
+        $component = Livewire::test(StartPlanning::class);
+
+        $standard = InstitutionalFormat::query()
+            ->whereNull('owner_id')
+            ->where('kind', InstitutionalFormatKind::Standard->value)
+            ->firstOrFail();
+        $version = $standard->publishedVersions()->orderByDesc('number')->firstOrFail();
+
+        $component
+            ->assertSet('format_version_id', $version->id)
             ->assertSee('Formato del documento')
             ->assertSee('El formato general de Planeaciones queda seleccionado por defecto.');
     }
