@@ -15,9 +15,31 @@ use Livewire\Livewire;
 
 class StartPlanningExperimentTest extends PedagogyTestCase
 {
+    private function addPlanningSchedule(array $ctx): void
+    {
+        app(\App\Actions\Schedules\SaveGroupSchedule::class)->execute($ctx['user'], $ctx['group'], [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '12:30',
+            'blocks' => [[
+                'day_of_week' => 1,
+                'sequence' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '08:50',
+                'label' => 'Lenguajes',
+                'block_type' => 'class',
+                'responsibility' => 'main_teacher',
+                'include_in_planning' => true,
+                'is_flexible' => false,
+                'field_codes' => [],
+                'notes' => null,
+            ]],
+        ]);
+    }
+
     public function test_inicio_simplificado_crea_borrador_y_registra_evento(): void
     {
         $ctx = $this->seedFullTeacher();
+        $this->addPlanningSchedule($ctx);
 
         $request = app(StartPlanningExperiment::class)->execute(
             $ctx['user'],
@@ -47,6 +69,7 @@ class StartPlanningExperimentTest extends PedagogyTestCase
     public function test_inicio_estructurado_crea_semanas_y_registra_metadata_permitida(): void
     {
         $ctx = $this->seedFullTeacher();
+        $this->addPlanningSchedule($ctx);
         app(EnsureDefaultGroupSubjects::class)->execute($ctx['group']);
 
         $subject = GroupSubject::query()
@@ -88,6 +111,41 @@ class StartPlanningExperimentTest extends PedagogyTestCase
 
         $this->assertSame('month', $event->metadata['period_type']);
         $this->assertTrue($event->metadata['structured_topics']);
+    }
+
+    public function test_inicio_simplificado_acepta_minutos_aproximados_vacios_si_hay_horario(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $ctx['profile']->forceFill(['session_minutes' => null])->save();
+        $this->addPlanningSchedule($ctx);
+
+        $request = app(StartPlanningExperiment::class)->execute(
+            $ctx['user'],
+            $ctx['group']->id,
+            '2026-09-14',
+            '2026-09-18',
+            'Tema válido',
+        );
+
+        $this->assertSame($ctx['group']->id, $request->group_id);
+        $event = ProductEvent::query()->where('planning_request_id', $request->id)->sole();
+        $this->assertFalse($event->metadata['session_minutes_known']);
+    }
+
+    public function test_inicio_simplificado_no_acepta_grupo_sin_horario_para_planear(): void
+    {
+        $ctx = $this->seedFullTeacher();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('PLANNING_EXPERIMENT_GROUP_NOT_ELIGIBLE');
+
+        app(StartPlanningExperiment::class)->execute(
+            $ctx['user'],
+            $ctx['group']->id,
+            '2026-09-14',
+            '2026-09-18',
+            'Tema válido',
+        );
     }
 
     public function test_inicio_simplificado_no_acepta_grupo_ajeno(): void
