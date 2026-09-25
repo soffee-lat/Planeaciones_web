@@ -371,19 +371,11 @@ class PlanningRequestResource extends Resource
 
     public static function defaultFormatVersionId(): ?int
     {
-        $format = InstitutionalFormat::query()
-            ->whereNull('owner_id')
-            ->where('kind', InstitutionalFormatKind::Standard->value)
-            ->where('status', InstitutionalFormatStatus::Ready->value)
-            ->first();
-
-        if (! $format) {
-            return null;
-        }
-
-        return $format->publishedVersions()
-            ->orderByDesc('number')
-            ->value('id');
+        // El formato general es parte de la plataforma, no una configuración
+        // que el docente deba crear. Si falta (por ejemplo en una instalación
+        // nueva), lo garantizamos de forma idempotente antes de mostrar el flujo.
+        return (int) app(\App\Actions\Documents\EnsureStandardFormat::class)
+            ->execute()['version']->id;
     }
 
     public static function exportFormatVersionIdFor(PlanningRequest $request): ?int
