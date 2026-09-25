@@ -177,6 +177,7 @@ class GroupResource extends Resource
                     TextInput::make('student_count')
                         ->label('Cantidad de alumnos')
                         ->numeric()
+                        ->required()
                         ->minValue(1)
                         ->maxValue(200),
                     Select::make('general_level')
@@ -188,13 +189,19 @@ class GroupResource extends Resource
                             'alto' => 'Alto',
                             'heterogeneo' => 'Heterogéneo',
                         ])
+                        ->required()
                         ->native(false),
                     TextInput::make('session_minutes')
-                        ->label('Duración de sesión (min)')
+                        ->label('Minutos aprox. por materia')
+                        ->helperText('Opcional. Sirve como referencia inicial al crear bloques; la planeación usa la duración real de tu horario.')
                         ->numeric()
                         ->minValue(15)
                         ->maxValue(480),
-                    Textarea::make('characteristics')->label('Características del grupo')->rows(3)->columnSpanFull(),
+                    Textarea::make('characteristics')
+                        ->label('Características del grupo')
+                        ->required()
+                        ->rows(3)
+                        ->columnSpanFull(),
                     Textarea::make('difficulties')->label('Dificultades observadas')->rows(3)->columnSpanFull(),
                     Textarea::make('educational_needs')->label('Necesidades educativas')->rows(3)->columnSpanFull(),
                     Textarea::make('available_materials')->label('Materiales disponibles')->rows(2)->columnSpanFull(),
