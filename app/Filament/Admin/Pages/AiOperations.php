@@ -7,7 +7,9 @@ use App\Enums\AiExecutionStage;
 use App\Enums\AiExecutionStatus;
 use App\Enums\RoleCode;
 use App\Models\AiExecution;
+use App\Models\CorrectionRequest;
 use App\Models\OutboxEvent;
+use App\Services\Planning\ClientCorrectionPolicy;
 use Illuminate\Support\Collection;
 
 class AiOperations extends \Filament\Pages\Page
@@ -96,11 +98,48 @@ class AiOperations extends \Filament\Pages\Page
 
     public function executionLabel(AiExecution $execution): string
     {
+        if ($this->isClientCorrectionExecution($execution)) {
+            return 'Corrección solicitada por cliente';
+        }
+
         if ($execution->stage === AiExecutionStage::Audit && $this->hasPriorCorrection($execution)) {
             return 'Reauditoría';
         }
 
         return $this->stageLabel($execution->stage);
+    }
+
+    public function isClientCorrectionExecution(AiExecution $execution): bool
+    {
+        return $execution->stage === AiExecutionStage::Correction
+            && data_get($execution->input_manifest, 'source_kind') === 'client';
+    }
+
+    public function clientCorrectionForExecution(AiExecution $execution): ?CorrectionRequest
+    {
+        if (! $this->isClientCorrectionExecution($execution)) {
+            return null;
+        }
+
+        $id = (int) data_get($execution->input_manifest, 'source_correction_request_id', 0);
+
+        return $id > 0
+            ? CorrectionRequest::query()->with(['requester'])->find($id)
+            : null;
+    }
+
+    public function correctionReasonLabel(CorrectionRequest $correction): string
+    {
+        return ClientCorrectionPolicy::REASONS[$correction->reason] ?? $correction->reason;
+    }
+
+    /** @return list<string> */
+    public function correctionSectionLabels(CorrectionRequest $correction): array
+    {
+        return collect($correction->section_keys ?? [])
+            ->map(fn (string $key): string => ClientCorrectionPolicy::SECTION_OPTIONS[$key] ?? $key)
+            ->values()
+            ->all();
     }
 
     /** @return array{headline:string,description:string,download:string,process:string,upload:string,submit:string,next:string} */
@@ -115,6 +154,18 @@ class AiOperations extends \Filament\Pages\Page
                 'upload' => '3. Subir resultado de generación',
                 'submit' => 'Importar generación y preparar auditoría',
                 'next' => 'Después de importarlo, Soffee preparará automáticamente la Auditoría.',
+            ];
+        }
+
+        if ($this->isClientCorrectionExecution($execution)) {
+            return [
+                'headline' => 'Aplicar exactamente la corrección solicitada por el cliente',
+                'description' => 'No se vuelve a generar la planeación. Se parte de la versión entregada y sólo pueden modificarse las secciones que el cliente seleccionó, siguiendo su motivo y comentario original.',
+                'download' => '1. Descargar paquete de corrección del cliente',
+                'process' => '2. Procesa el paquete como una edición dirigida: conserva currículo, contexto, fechas y todo lo que quede fuera del alcance. El comentario del cliente es la instrucción principal de esta corrección.',
+                'upload' => '3. Subir resultado de la corrección solicitada',
+                'submit' => 'Aplicar corrección del cliente y preparar reauditoría',
+                'next' => 'Soffee creará una versión hija de la entregada. La entrega anterior se conserva y la nueva versión deberá aprobar una Reauditoría antes de volver a entregarse.',
             ];
         }
 
@@ -166,7 +217,10 @@ class AiOperations extends \Filament\Pages\Page
         $labels = [
             1 => ['Generación', null],
             2 => ['Auditoría inicial', null],
-            3 => ['Corrección', 'Sólo si hay hallazgos'],
+            3 => [
+                $this->isClientCorrectionExecution($execution) ? 'Corrección del cliente' : 'Corrección',
+                $this->isClientCorrectionExecution($execution) ? 'Solicitud aceptada del cliente' : 'Sólo si hay hallazgos',
+            ],
             4 => ['Reauditoría', 'Después de una corrección'],
             5 => ['Aprobación', null],
         ];
