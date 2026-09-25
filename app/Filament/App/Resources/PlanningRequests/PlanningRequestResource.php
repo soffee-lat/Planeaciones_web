@@ -79,7 +79,7 @@ class PlanningRequestResource extends Resource
                             ->searchable()
                             ->native(false)
                             ->disabledOn('edit')
-                            ->helperText('Solo grupos activos con perfil pedagógico suficiente.')
+                            ->helperText('Solo grupos activos con perfil pedagógico completo y un horario con bloques incluidos en la planeación.')
                             ->columnSpanFull(),
 
                         Radio::make('creation_mode')
@@ -310,6 +310,9 @@ class PlanningRequestResource extends Resource
             })
             ->whereHas('curriculumVersion', fn ($q) => $q->whereNotNull('published_at'))
             ->whereHas('curriculumVersion.curriculum', fn ($q) => $q->whereIn('educational_level', array_keys(EducationalLevel::options())))
+            ->whereHas('activeSchedule.blocks', fn ($q) => $q
+                ->where('include_in_planning', true)
+                ->whereNotIn('block_type', ['break', 'unavailable']))
             ->with(['grade:id,name', 'curriculumVersion.curriculum:id,name,educational_level'])
             ->orderBy('name')
             ->get()
