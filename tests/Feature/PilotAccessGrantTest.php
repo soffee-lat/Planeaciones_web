@@ -125,6 +125,8 @@ class PilotAccessGrantTest extends PedagogyTestCase
             'session_minutes' => 50,
         ]);
 
+        $this->addDefaultPlanningSchedule($ctx['user'], $ctx['group']);
+
         $request = app(StartPlanningExperiment::class)->execute(
             $ctx['user'],
             $ctx['group']->id,
