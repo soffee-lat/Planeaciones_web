@@ -391,7 +391,7 @@ class StartPlanning extends Page
     {
         $data = $this->validate([
             'group_id' => ['required', 'integer'],
-            'format_version_id' => ['required', 'integer'],
+            'format_version_id' => ['nullable', 'integer'],
             'period_type' => ['required', 'string', 'in:week,month'],
             'period_key' => ['required', 'string', 'max:32'],
             'integrative_project' => ['nullable', 'string', 'max:255'],
@@ -405,14 +405,17 @@ class StartPlanning extends Page
             'weeks.*.topics.*.notes' => ['nullable', 'string', 'max:4000'],
         ], [
             'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
-            'format_version_id.required' => 'Selecciona el formato del documento.',
             'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
             'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
             'weeks.*.topics.*.group_subject_id.required' => 'Selecciona el área o materia principal del tema.',
         ]);
 
+        $formatVersionId = isset($data['format_version_id']) && $data['format_version_id'] !== null
+            ? (int) $data['format_version_id']
+            : PlanningRequestResource::defaultFormatVersionId();
+
         $formatOptions = PlanningRequestResource::formatVersionOptions();
-        if (! array_key_exists((int) $data['format_version_id'], $formatOptions)) {
+        if (! array_key_exists($formatVersionId, $formatOptions)) {
             throw ValidationException::withMessages([
                 'format_version_id' => 'Ese formato ya no está disponible para tu cuenta.',
             ]);
@@ -483,7 +486,7 @@ class StartPlanning extends Page
                 // El formato es una preferencia de salida. Cambiarlo no altera
                 // el snapshot pedagógico ni invalida el mapa curricular.
                 $request->forceFill([
-                    'format_version_id' => (int) $data['format_version_id'],
+                    'format_version_id' => $formatVersionId,
                 ])->save();
                 $request = $request->refresh();
             } else {
@@ -495,7 +498,7 @@ class StartPlanning extends Page
                     $workFocus,
                     $data['context_note'] ?? null,
                     $structure,
-                    formatVersionId: (int) $data['format_version_id'],
+                    formatVersionId: $formatVersionId,
                 );
             }
         } catch (\RuntimeException $e) {
