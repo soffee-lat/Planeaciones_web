@@ -34,7 +34,18 @@ class PlanningCommercialUiTest extends PedagogyTestCase
         $this->assertNotNull($request->fresh()->input_snapshot);
         $this->assertSame(1, $request->inputVersions()->count());
         $this->assertDatabaseCount('usage_reservations', 0);
+
+        $this->get('/app/planning-requests/'.$request->id)
+            ->assertOk()
+            ->assertSee('Ver mi plan')
+            ->assertDontSee('Activar procesamiento');
+
         $period = $this->period($request);
+
+        $this->get('/app/planning-requests/'.$request->id)
+            ->assertOk()
+            ->assertSee('Usar mi plan y continuar')
+            ->assertDontSee('Activar procesamiento');
         Livewire::test(ViewPlanningRequest::class, ['record' => $request->id])->callAction('activateProcessing')->assertHasNoErrors();
         $this->assertSame($period->id, $request->fresh()->subscription_period_id);
         $this->assertSame(PlanningRequestStatus::LISTA_PARA_PROCESAR, $request->fresh()->status);
