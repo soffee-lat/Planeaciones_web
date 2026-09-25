@@ -15,6 +15,7 @@ use App\Enums\PlanningRequestStatus;
 use App\Exceptions\ClientCorrectionException;
 use App\Exceptions\PlanningCommercialException;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Filament\App\Pages\MyPlan;
 use App\Filament\App\Pages\StartPlanning;
 use App\Models\CorrectionRequest;
 use App\Models\DocumentRenderRun;
@@ -128,18 +129,39 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
 
-            Action::make('activateProcessing')->label('Activar procesamiento')->databaseTransaction(false)
-                ->visible(fn () => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO)
+            Action::make('viewPlan')
+                ->label('Ver mi plan')
+                ->icon('heroicon-o-credit-card')
+                ->color('primary')
+                ->visible(fn (): bool => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO
+                    && ! $this->hasCurrentCommercialRights())
+                ->url(fn (): string => MyPlan::getUrl()),
+
+            Action::make('activateProcessing')
+                ->label('Usar mi plan y continuar')
+                ->icon('heroicon-o-arrow-right')
+                ->databaseTransaction(false)
+                ->visible(fn (): bool => $this->getRecord()->status === PlanningRequestStatus::ESPERANDO_PAGO
+                    && $this->hasCurrentCommercialRights())
                 ->action(function (): void {
                     try {
                         app(AuthorizePlanningRequestForProcessing::class)->execute(auth()->user(), $this->getRecord());
                         $this->record = $this->getRecord()->fresh();
-                        Notification::make()->success()->title('Unidades reservadas')->body('Tu planeación está en Preparando.')->send();
+                        Notification::make()->success()
+                            ->title('Saldo reservado')
+                            ->body('Tu planeación ya está lista para generar.')
+                            ->send();
                     } catch (PlanningCommercialException $error) {
-                        Notification::make()->warning()->title('Pendiente de activar')->body($error->userMessage())->send();
+                        Notification::make()->warning()
+                            ->title('No pudimos reservar el saldo necesario')
+                            ->body($error->userMessage())
+                            ->send();
                     } catch (\Throwable $error) {
                         report($error);
-                        Notification::make()->danger()->title('No pudimos activar el procesamiento')->body('Tu solicitud se conserva. Inténtalo de nuevo o solicita ayuda.')->send();
+                        Notification::make()->danger()
+                            ->title('No pudimos continuar con tu plan')
+                            ->body('Tu planeación se conserva. Inténtalo de nuevo o solicita ayuda.')
+                            ->send();
                     }
                 }),
 
@@ -283,6 +305,12 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
         ];
+    }
+
+    private function hasCurrentCommercialRights(): bool
+    {
+        return app(\App\Services\Commerce\CurrentCommercialRights::class)
+            ->forCustomer(auth()->user()) !== null;
     }
 
     private function defaultExportFormatVersionId(): ?int
