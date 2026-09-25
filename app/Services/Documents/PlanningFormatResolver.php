@@ -42,25 +42,17 @@ final class PlanningFormatResolver
 
     private function standard(): FormatVersion
     {
-        $standard = InstitutionalFormat::query()
-            ->whereNull('owner_id')
-            ->where('kind', InstitutionalFormatKind::Standard->value)
-            ->where('status', InstitutionalFormatStatus::Ready->value)
-            ->first();
-        if (! $standard) {
-            throw new DocumentFormatException('PLANNING_STANDARD_FORMAT_MISSING');
-        }
+        // El formato estándar es infraestructura propia de la plataforma.
+        // Si una instalación aún no lo tiene, lo creamos de forma idempotente
+        // en lugar de obligar al docente a seleccionar o configurar un formato.
+        $ensured = app(\App\Actions\Documents\EnsureStandardFormat::class)->execute();
+        $version = $ensured['version']->fresh('format');
 
-        $version = FormatVersion::query()
-            ->where('format_id', $standard->id)
-            ->whereNotNull('published_at')
-            ->orderByDesc('number')
-            ->first();
-        if (! $version) {
+        if (! $version || $version->published_at === null) {
             throw new DocumentFormatException('PLANNING_STANDARD_FORMAT_VERSION_MISSING');
         }
 
-        return $version->setRelation('format', $standard);
+        return $version;
     }
 
     private function isAnalysisOnlyExample(FormatVersion $version): bool
