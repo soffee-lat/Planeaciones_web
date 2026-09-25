@@ -121,6 +121,8 @@ class PreschoolPlanningFlowTest extends PedagogyTestCase
             'characteristics' => 'Grupo activo que aprende mejor con juego, conversación y materiales concretos.',
         ]);
 
+        $this->addDefaultPlanningSchedule($teacher, $group);
+
         $this->actingAs($teacher);
 
         $groupLabel = PlanningRequestResource::eligibleGroupOptions()[$group->id] ?? null;
