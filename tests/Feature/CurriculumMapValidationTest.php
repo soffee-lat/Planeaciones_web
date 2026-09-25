@@ -269,6 +269,8 @@ class CurriculumMapValidationTest extends PedagogyTestCase
     /** @param array<string,mixed> $ctx */
     private function startRequest(array $ctx): PlanningRequest
     {
+        $this->addDefaultPlanningSchedule($ctx['user'], $ctx['group']);
+
         return app(StartPlanningExperiment::class)->execute(
             $ctx['user'],
             $ctx['group']->id,
