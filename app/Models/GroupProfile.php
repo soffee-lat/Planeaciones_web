@@ -45,13 +45,14 @@ class GroupProfile extends Model
 
     /**
      * Minimum fields required to consider the profile "sufficient" for onboarding.
+     * Session minutes are optional because the active schedule provides the real
+     * duration of each class block used by planning.
      *
      * @var list<string>
      */
     public const REQUIRED_FOR_COMPLETENESS = [
         'student_count',
         'general_level',
-        'session_minutes',
         'characteristics',
     ];
 
