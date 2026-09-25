@@ -62,6 +62,7 @@ class PlanningFormatSelectionTest extends PedagogyTestCase
         ])->save();
 
         $institutional = $this->publishedInstitutionalFormat($scene['user']->id);
+        $this->addDefaultPlanningSchedule($scene['user'], $scene['group']);
 
         $request = app(StartPlanningExperiment::class)->execute(
             $scene['user'],
