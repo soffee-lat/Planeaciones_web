@@ -2,9 +2,12 @@
 
 namespace App\Actions\Planning;
 
+use App\Actions\Notifications\QueueOperationalNotification;
 use App\Enums\CorrectionRequestStatus;
 use App\Enums\CorrectionRequestType;
+use App\Enums\OperationalNotificationType;
 use App\Enums\PlanningRequestStatus;
+use App\Enums\RoleCode;
 use App\Exceptions\ClientCorrectionException;
 use App\Models\CorrectionRequest;
 use App\Models\PlanningDelivery;
@@ -15,12 +18,14 @@ use App\Services\Planning\PlanningRequestStateMachine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Throwable;
 
 final class RequestClientCorrection
 {
     public function __construct(
         private ClientCorrectionPolicy $policy,
         private PlanningRequestStateMachine $stateMachine,
+        private QueueOperationalNotification $notifications,
     ) {}
 
     /** @param list<string> $sectionKeys */
@@ -40,7 +45,7 @@ final class RequestClientCorrection
         }
         $correlationId = strtolower($correlationId);
 
-        return DB::transaction(function () use ($actor, $requestId, $normalized, $correlationId): CorrectionRequest {
+        $correction = DB::transaction(function () use ($actor, $requestId, $normalized, $correlationId): CorrectionRequest {
             $locked = PlanningRequest::query()->whereKey($requestId)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('requestCorrection', $locked);
 
@@ -111,7 +116,49 @@ final class RequestClientCorrection
                 'correlation_id' => $correlationId,
             ]);
 
-            return $correction->fresh(['request', 'sourceVersion']);
+            return $correction->fresh(['request', 'sourceVersion', 'requester']);
         }, attempts: 3);
+
+        $this->notifyAdministrators($correction);
+
+        return $correction;
+    }
+
+    private function notifyAdministrators(CorrectionRequest $correction): void
+    {
+        $correction->loadMissing(['request.owner', 'requester']);
+        $request = $correction->request;
+        $requester = $correction->requester;
+
+        $administrators = User::query()
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($query) => $query->where('code', RoleCode::Administrator->value))
+            ->get();
+
+        foreach ($administrators as $administrator) {
+            try {
+                $this->notifications->execute(
+                    OperationalNotificationType::ClientCorrectionRequested,
+                    $administrator,
+                    sprintf('client-correction:%d:requested:admin:%d', $correction->id, $administrator->id),
+                    'correction_request',
+                    (int) $correction->id,
+                    [
+                        'title' => 'Nueva revisión solicitada por un cliente',
+                        'body' => sprintf(
+                            '%s solicitó revisar la planeación #%d%s. Revisa el motivo y decide si se procesa o se rechaza.',
+                            $requester?->name ?: 'Un cliente',
+                            (int) $correction->request_id,
+                            $request?->project ? ' · ' . $request->project : '',
+                        ),
+                        'url' => '/admin/client-corrections',
+                    ],
+                );
+            } catch (Throwable $error) {
+                // La solicitud del cliente ya quedó registrada. Una falla al
+                // generar el aviso no debe hacerle creer que la operación falló.
+                report($error);
+            }
+        }
     }
 }
