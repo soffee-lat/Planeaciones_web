@@ -144,6 +144,11 @@ class ClientCorrectionTest extends PedagogyTestCase
             ->assertSee('Esperando tu decisión')
             ->assertSee('Necesito instrucciones más claras')
             ->assertSee('Revisar y decidir');
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.ai-operations.summary'))
+            ->assertOk()
+            ->assertJsonPath('client_reviews.count', 1);
     }
 
     public function test_reintento_identico_es_idempotente_y_segunda_solicitud_distinta_conflicta(): void
