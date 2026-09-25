@@ -5,185 +5,255 @@
         $pendingOutbox = $this->pendingOutboxCount();
     @endphp
 
-    @if (session('success'))
+    @if (session('success') || session('warning') || session('error'))
         <x-filament::section>
-            <div class="text-sm font-medium text-success-600 dark:text-success-400">
-                {{ session('success') }}
-            </div>
-            @if (session('info'))
-                <div class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ session('info') }}</div>
+            @if (session('success'))
+                <div class="text-sm font-semibold text-success-600 dark:text-success-400">{{ session('success') }}</div>
             @endif
-        </x-filament::section>
-    @endif
-
-    @if (session('warning'))
-        <x-filament::section>
-            <div class="text-sm font-medium text-warning-600 dark:text-warning-400">
-                {{ session('warning') }}
-            </div>
-        </x-filament::section>
-    @endif
-
-    @if (session('error'))
-        <x-filament::section>
-            <div class="text-sm font-medium text-danger-600 dark:text-danger-400">
-                {{ session('error') }}
-            </div>
+            @if (session('warning'))
+                <div class="text-sm font-semibold text-warning-600 dark:text-warning-400">{{ session('warning') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="text-sm font-semibold text-danger-600 dark:text-danger-400">{{ session('error') }}</div>
+            @endif
+            @if (session('info'))
+                <div class="mt-2 rounded-lg bg-primary-50 p-3 text-sm text-primary-800 dark:bg-primary-950/40 dark:text-primary-200">
+                    {{ session('info') }}
+                </div>
+            @endif
         </x-filament::section>
     @endif
 
     @if ($errors->any())
         <x-filament::section>
-            <div class="text-sm font-medium text-danger-600 dark:text-danger-400">
-                {{ $errors->first() }}
-            </div>
+            <div class="text-sm font-medium text-danger-600 dark:text-danger-400">{{ $errors->first() }}</div>
         </x-filament::section>
     @endif
 
     <x-filament::section>
-        <x-slot name="heading">Alertas del operador</x-slot>
-        <p class="text-sm text-gray-600 dark:text-gray-300">
-            En este navegador pulsa <strong>Activar alertas IA</strong> una vez. El panel revisa pendientes cada 15 segundos,
-            muestra aviso persistente, cambia el título de la pestaña y repite sonido/notificación hasta que marques el trabajo como visto.
-        </p>
-        <p class="mt-2 text-xs text-gray-500">
-            Para recibir estos avisos esta versión requiere mantener abierta alguna pestaña del panel de administración.
+        <x-slot name="heading">Cómo operar una planeación con IA manual</x-slot>
+        <x-slot name="description">
+            No necesitas memorizar el flujo. La tarjeta pendiente te indica qué paquete descargar, qué pedirle a la IA y qué resultado volver a subir.
+        </x-slot>
+
+        <div class="grid gap-3 md:grid-cols-4">
+            <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div class="text-xs font-bold uppercase tracking-wide text-gray-500">1 · Generación</div>
+                <p class="mt-1 text-sm">La IA crea la primera versión de la planeación.</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div class="text-xs font-bold uppercase tracking-wide text-gray-500">2 · Auditoría</div>
+                <p class="mt-1 text-sm">Otra ejecución valida currículo, PDA, horario y calidad.</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div class="text-xs font-bold uppercase tracking-wide text-gray-500">3 · Corrección</div>
+                <p class="mt-1 text-sm">Sólo aparece si la auditoría encuentra algo corregible.</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div class="text-xs font-bold uppercase tracking-wide text-gray-500">4 · Reauditoría</div>
+                <p class="mt-1 text-sm">Comprueba la versión corregida antes de aprobarla.</p>
+            </div>
+        </div>
+
+        <p class="mt-4 text-sm text-gray-600 dark:text-gray-300">
+            Las alertas del operador revisan pendientes cada 15 segundos. Actívalas una vez en este navegador para recibir sonido y notificación.
         </p>
     </x-filament::section>
 
     <div class="grid gap-4 md:grid-cols-3">
         <x-filament::section>
-            <x-slot name="heading">Esperando proveedor</x-slot>
+            <x-slot name="heading">Requieren tu acción</x-slot>
             <div class="text-3xl font-semibold">{{ $pendingExecutions->count() }}</div>
-            <p class="mt-1 text-sm text-gray-500">Paquetes listos para descargar y procesar.</p>
+            <p class="mt-1 text-sm text-gray-500">Paquetes IA listos para procesar.</p>
         </x-filament::section>
 
         <x-filament::section>
-            <x-slot name="heading">Outbox pendiente</x-slot>
+            <x-slot name="heading">Preparándose</x-slot>
             <div class="text-3xl font-semibold">{{ $pendingOutbox }}</div>
-            <p class="mt-1 text-sm text-gray-500">El scheduler los prepara cada minuto.</p>
+            <p class="mt-1 text-sm text-gray-500">El scheduler los convierte en paquetes cada minuto.</p>
         </x-filament::section>
 
         <x-filament::section>
-            <x-slot name="heading">Acción de respaldo</x-slot>
+            <x-slot name="heading">Si no quieres esperar</x-slot>
             <form method="POST" action="{{ route('admin.ai-operations.prepare') }}">
                 @csrf
-                <x-filament::button type="submit" color="gray">
-                    Preparar pendientes ahora
-                </x-filament::button>
+                <x-filament::button type="submit" color="gray">Preparar pendientes ahora</x-filament::button>
             </form>
-            <p class="mt-2 text-xs text-gray-500">Úsalo solo si no quieres esperar al scheduler.</p>
+            <p class="mt-2 text-xs text-gray-500">Normalmente no necesitas usar este botón.</p>
         </x-filament::section>
     </div>
 
     <x-filament::section>
-        <x-slot name="heading">Trabajo pendiente</x-slot>
+        <x-slot name="heading">Acción pendiente</x-slot>
         <x-slot name="description">
-            Descarga el paquete, súbelo al proveedor de IA y carga aquí el JSON resultante.
+            Sigue los tres pasos de la tarjeta activa. Cuando importes un resultado, la siguiente etapa aparecerá con instrucciones nuevas.
         </x-slot>
 
         @if ($pendingExecutions->isEmpty())
             <div class="rounded-xl border border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
                 <div class="text-base font-medium">No hay trabajo manual pendiente.</div>
-                <p class="mt-1 text-sm text-gray-500">Cuando una planeación requiera tu intervención aparecerá aquí y recibirás una alerta.</p>
+                <p class="mt-1 text-sm text-gray-500">Cuando una planeación requiera intervención aparecerá aquí automáticamente.</p>
             </div>
         @else
-            <div class="space-y-5">
+            <div class="space-y-6">
                 @foreach ($pendingExecutions as $execution)
                     @php
                         $planningRequest = $execution->request;
-                        $stage = $execution->stage;
+                        $guide = $this->actionGuide($execution);
+                        $steps = $this->workflowSteps($execution);
+                        $history = $this->historyForRequest((int) $execution->request_id);
                     @endphp
 
-                    <div class="rounded-xl border border-gray-200 p-5 dark:border-gray-700">
-                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="text-lg font-semibold">
-                                        Solicitud #{{ $execution->request_id }}
-                                    </span>
-                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold dark:bg-gray-800">
-                                        {{ $this->stageLabel($stage) }}
-                                    </span>
-                                    <span class="rounded-full bg-warning-50 px-2.5 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-950 dark:text-warning-300">
-                                        Esperando procesamiento
-                                    </span>
+                    <div class="overflow-hidden rounded-2xl border-2 border-primary-200 bg-white shadow-sm dark:border-primary-800 dark:bg-gray-900">
+                        <div class="border-b border-gray-200 bg-primary-50/60 p-5 dark:border-gray-700 dark:bg-primary-950/20">
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-lg font-semibold">Solicitud #{{ $execution->request_id }}</span>
+                                        <span class="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-bold text-primary-800 dark:bg-primary-900 dark:text-primary-200">
+                                            {{ $this->executionLabel($execution) }}
+                                        </span>
+                                        <span class="rounded-full bg-warning-100 px-2.5 py-1 text-xs font-semibold text-warning-800 dark:bg-warning-900 dark:text-warning-200">
+                                            Requiere tu acción
+                                        </span>
+                                    </div>
+                                    <div class="mt-2 text-xl font-semibold">{{ $guide['headline'] }}</div>
+                                    <p class="mt-1 max-w-3xl text-sm text-gray-600 dark:text-gray-300">{{ $guide['description'] }}</p>
                                 </div>
 
-                                <div class="mt-2 grid gap-x-6 gap-y-1 text-sm text-gray-600 sm:grid-cols-2 dark:text-gray-300">
-                                    <div><span class="font-medium">Execution:</span> #{{ $execution->id }}</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-300">
                                     <div><span class="font-medium">Cliente:</span> {{ $planningRequest?->owner?->name ?? '—' }}</div>
                                     <div><span class="font-medium">Grupo:</span> {{ $planningRequest?->group?->name ?? '—' }}</div>
                                     <div><span class="font-medium">Periodo:</span> {{ $planningRequest?->period_label ?? '—' }}</div>
-                                    <div><span class="font-medium">Creada:</span> {{ $execution->created_at?->format('d/m/Y H:i') }}</div>
-                                    <div><span class="font-medium">Paquete:</span> {{ number_format(($execution->manualPackage?->size_bytes ?? 0) / 1024, 1) }} KB</div>
+                                    <div><span class="font-medium">Execution:</span> #{{ $execution->id }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-5">
+                            <div class="mb-6">
+                                <div class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Avance de esta planeación</div>
+                                <div class="grid gap-2 md:grid-cols-5">
+                                    @foreach ($steps as $index => $step)
+                                        @php
+                                            $stepClass = match ($step['status']) {
+                                                'done' => 'border-success-200 bg-success-50 text-success-800 dark:border-success-800 dark:bg-success-950/30 dark:text-success-200',
+                                                'current' => 'border-primary-300 bg-primary-50 text-primary-900 ring-2 ring-primary-200 dark:border-primary-700 dark:bg-primary-950/40 dark:text-primary-100',
+                                                default => 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-400',
+                                            };
+                                        @endphp
+                                        <div class="rounded-xl border p-3 {{ $stepClass }}">
+                                            <div class="text-xs font-bold">{{ $index + 1 }}. {{ $step['label'] }}</div>
+                                            @if ($step['status'] === 'current')
+                                                <div class="mt-1 text-xs font-semibold">Estás aquí</div>
+                                            @elseif ($step['status'] === 'done')
+                                                <div class="mt-1 text-xs">Completado</div>
+                                            @elseif ($step['detail'])
+                                                <div class="mt-1 text-xs">{{ $step['detail'] }}</div>
+                                            @endif
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
 
-                            <x-filament::button
-                                tag="a"
-                                color="primary"
-                                href="{{ route('admin.ai-operations.download', $execution) }}"
-                            >
-                                Descargar paquete
-                            </x-filament::button>
-                        </div>
-
-                        <form
-                            method="POST"
-                            enctype="multipart/form-data"
-                            action="{{ route('admin.ai-operations.result', $execution) }}"
-                            class="mt-5 border-t border-gray-200 pt-5 dark:border-gray-700"
-                        >
-                            @csrf
-
                             <div class="grid gap-4 lg:grid-cols-3">
-                                <label class="block lg:col-span-1">
-                                    <span class="text-sm font-medium">Resultado JSON</span>
-                                    <input
-                                        type="file"
-                                        name="result_file"
-                                        accept=".json,application/json"
-                                        required
-                                        class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                                <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                    <div class="text-xs font-bold uppercase tracking-wide text-primary-600">Paso 1</div>
+                                    <div class="mt-1 font-semibold">Descargar entrada</div>
+                                    <p class="mt-1 text-sm text-gray-500">
+                                        Paquete de {{ number_format(($execution->manualPackage?->size_bytes ?? 0) / 1024, 1) }} KB preparado por Soffee.
+                                    </p>
+                                    <x-filament::button
+                                        tag="a"
+                                        color="primary"
+                                        class="mt-4"
+                                        href="{{ route('admin.ai-operations.download', $execution) }}"
                                     >
-                                </label>
+                                        {{ $guide['download'] }}
+                                    </x-filament::button>
+                                </div>
 
-                                <label class="block">
-                                    <span class="text-sm font-medium">Proveedor <span class="font-normal text-gray-500">(opcional)</span></span>
-                                    <select
-                                        name="provider"
-                                        class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                                    >
-                                        <option value="">No registrar</option>
-                                        <option value="OpenAI / ChatGPT">OpenAI / ChatGPT</option>
-                                        <option value="Google / Gemini">Google / Gemini</option>
-                                        <option value="Anthropic / Claude">Anthropic / Claude</option>
-                                        <option value="Otro">Otro</option>
-                                    </select>
-                                </label>
+                                <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                    <div class="text-xs font-bold uppercase tracking-wide text-primary-600">Paso 2</div>
+                                    <div class="mt-1 font-semibold">Procesar con IA</div>
+                                    <p class="mt-2 text-sm text-gray-700 dark:text-gray-200">{{ $guide['process'] }}</p>
+                                    <div class="mt-3 rounded-lg bg-warning-50 p-3 text-xs text-warning-800 dark:bg-warning-950/30 dark:text-warning-200">
+                                        El archivo descargado es la <strong>entrada</strong>. Aquí debes volver con un archivo de <strong>resultado</strong> distinto.
+                                    </div>
+                                </div>
 
-                                <label class="block">
-                                    <span class="text-sm font-medium">Modelo <span class="font-normal text-gray-500">(si registras proveedor)</span></span>
-                                    <input
-                                        type="text"
-                                        name="model"
-                                        maxlength="128"
-                                        placeholder="Ej. GPT-5.6 Sol"
-                                        class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                                <div class="rounded-xl border border-success-200 bg-success-50/40 p-4 dark:border-success-800 dark:bg-success-950/20">
+                                    <div class="text-xs font-bold uppercase tracking-wide text-success-700 dark:text-success-300">Paso 3</div>
+                                    <div class="mt-1 font-semibold">{{ $guide['upload'] }}</div>
+
+                                    <form
+                                        method="POST"
+                                        enctype="multipart/form-data"
+                                        action="{{ route('admin.ai-operations.result', $execution) }}"
+                                        class="mt-3"
                                     >
-                                </label>
+                                        @csrf
+
+                                        <input
+                                            type="file"
+                                            name="result_file"
+                                            accept=".json,application/json"
+                                            required
+                                            class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                                        >
+
+                                        <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                            <summary class="cursor-pointer text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                                Registrar proveedor/modelo (opcional)
+                                            </summary>
+                                            <div class="mt-3 space-y-3">
+                                                <label class="block">
+                                                    <span class="text-xs font-medium">Proveedor</span>
+                                                    <select name="provider" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                                        <option value="">No registrar</option>
+                                                        <option value="OpenAI / ChatGPT">OpenAI / ChatGPT</option>
+                                                        <option value="Google / Gemini">Google / Gemini</option>
+                                                        <option value="Anthropic / Claude">Anthropic / Claude</option>
+                                                        <option value="Otro">Otro</option>
+                                                    </select>
+                                                </label>
+                                                <label class="block">
+                                                    <span class="text-xs font-medium">Modelo</span>
+                                                    <input
+                                                        type="text"
+                                                        name="model"
+                                                        maxlength="128"
+                                                        placeholder="Ej. GPT-5.6 Sol"
+                                                        class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                                                    >
+                                                </label>
+                                            </div>
+                                        </details>
+
+                                        <x-filament::button type="submit" color="success" class="mt-4 w-full">
+                                            {{ $guide['submit'] }}
+                                        </x-filament::button>
+                                    </form>
+                                </div>
                             </div>
 
-                            <div class="mt-4 flex items-center gap-3">
-                                <x-filament::button type="submit" color="success">
-                                    Importar, validar y continuar
-                                </x-filament::button>
-                                <span class="text-xs text-gray-500">
-                                    El sistema aplicará el mismo schema, snapshot, currículo e idempotencia que el flujo por API.
-                                </span>
+                            <div class="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-950/30 dark:text-primary-100">
+                                <strong>Qué ocurrirá después:</strong> {{ $guide['next'] }}
                             </div>
-                        </form>
+
+                            <details class="mt-4">
+                                <summary class="cursor-pointer text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                    Ver historial técnico de esta solicitud ({{ $history->count() }} ejecuciones)
+                                </summary>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    @foreach ($history as $item)
+                                        <span class="rounded-full border border-gray-200 px-3 py-1 text-xs dark:border-gray-700">
+                                            #{{ $item->id }} · {{ $this->executionLabel($item) }} · {{ $item->status->value }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </details>
+                        </div>
                     </div>
                 @endforeach
             </div>
@@ -191,7 +261,8 @@
     </x-filament::section>
 
     <x-filament::section>
-        <x-slot name="heading">Procesadas recientemente</x-slot>
+        <x-slot name="heading">Historial reciente del pipeline</x-slot>
+        <x-slot name="description">Registro para trazabilidad; la acción pendiente siempre aparece arriba con instrucciones.</x-slot>
 
         @if ($recentExecutions->isEmpty())
             <p class="text-sm text-gray-500">Todavía no hay ejecuciones manuales completadas.</p>
@@ -203,6 +274,7 @@
                             <th class="px-3 py-2">Execution</th>
                             <th class="px-3 py-2">Solicitud</th>
                             <th class="px-3 py-2">Etapa</th>
+                            <th class="px-3 py-2">Resultado</th>
                             <th class="px-3 py-2">Proveedor</th>
                             <th class="px-3 py-2">Finalizada</th>
                         </tr>
@@ -212,7 +284,8 @@
                             <tr class="border-b border-gray-100 dark:border-gray-800">
                                 <td class="px-3 py-3">#{{ $execution->id }}</td>
                                 <td class="px-3 py-3">#{{ $execution->request_id }} · {{ $execution->request?->owner?->name ?? '—' }}</td>
-                                <td class="px-3 py-3">{{ $this->stageLabel($execution->stage) }}</td>
+                                <td class="px-3 py-3">{{ $this->executionLabel($execution) }}</td>
+                                <td class="px-3 py-3 font-medium">{{ $this->resultLabel($execution) }}</td>
                                 <td class="px-3 py-3">
                                     {{ $execution->provider ?: 'No registrado' }}
                                     @if ($execution->model)

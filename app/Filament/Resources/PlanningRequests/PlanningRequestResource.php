@@ -32,6 +32,9 @@ class PlanningRequestResource extends Resource
         return $table->columns([
             TextColumn::make('owner.name')->label('Cliente')->searchable(),
             TextColumn::make('project')->label('Proyecto')->wrap(),
+            TextColumn::make('status')->label('Estado')
+                ->formatStateUsing(fn ($state): string => str_replace('_', ' ', $state->value))
+                ->badge(),
             TextColumn::make('planning_days')->label('Días'),
             TextColumn::make('planning_units')->label('Unidades'),
             TextColumn::make('commercial_authorized_at')->label('Autorizada')->dateTime(),

@@ -22,10 +22,10 @@ class ViewPlanningRequest extends ViewRecord
     {
         return [
             Action::make('startClientCorrection')
-                ->label('Aceptar y procesar corrección')
+                ->label('Aceptar revisión y enviar a Corrección IA')
                 ->color('warning')
                 ->requiresConfirmation()
-                ->modalDescription('Se reservará y consumirá una ronda de corrección de esta solicitud y el ajuste entrará al pipeline de IA con reauditoría obligatoria.')
+                ->modalDescription('Al confirmar, se consumirá una ronda de corrección incluida y Soffee preparará un paquete de Corrección IA. Después de aplicar el cambio, la nueva versión deberá pasar una reauditoría antes de entregarse.')
                 ->visible(fn (): bool => $this->pendingClientCorrection() !== null)
                 ->action(function (): void {
                     try {
@@ -35,7 +35,7 @@ class ViewPlanningRequest extends ViewRecord
                         }
                         app(StartClientCorrection::class)->execute($correction, auth()->user());
                         $this->record = $this->getRecord()->fresh();
-                        Notification::make()->success()->title('Corrección en proceso')->body('La nueva versión deberá auditarse antes de poder entregarse.')->send();
+                        Notification::make()->success()->title('Revisión aceptada')->body('La solicitud ya pasó a Corrección IA. Operación IA te avisará cuando el paquete esté listo para descargar.')->send();
                     } catch (ClientCorrectionException $error) {
                         Notification::make()->warning()->title('No se pudo iniciar la corrección')->body($error->userMessage())->send();
                     } catch (\Throwable $error) {
@@ -44,7 +44,7 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
             Action::make('rejectClientCorrection')
-                ->label('Rechazar corrección')
+                ->label('Rechazar solicitud de revisión')
                 ->color('danger')
                 ->schema([
                     Textarea::make('resolution')

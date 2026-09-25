@@ -11,6 +11,7 @@ class AdminPanelProvider extends BasePanelProvider {
             ->pages([
                 \App\Filament\Admin\Pages\Dashboard::class,
                 \App\Filament\Admin\Pages\AiOperations::class,
+                \App\Filament\Admin\Pages\ClientCorrections::class,
             ])
             ->renderHook(
                 PanelsRenderHook::BODY_END,

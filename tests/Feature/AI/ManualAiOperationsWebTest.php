@@ -42,6 +42,22 @@ class ManualAiOperationsWebTest extends PedagogyTestCase
         $this->assertSame(AiExecutionStatus::WaitingManual, $scene['audit']->fresh()->status);
     }
 
+    public function test_console_explains_current_manual_stage_with_specific_actions(): void
+    {
+        $scene = $this->waitingManualAuditScenario();
+
+        $this->actingAs($this->admin())
+            ->get('/admin/ai-operations')
+            ->assertOk()
+            ->assertSee('Cómo operar una planeación con IA manual')
+            ->assertSee('Estás aquí')
+            ->assertSee('1. Descargar paquete de auditoría')
+            ->assertSee('3. Subir resultado de auditoría')
+            ->assertSee('Importar auditoría y continuar');
+
+        $this->assertSame(AiExecutionStatus::WaitingManual, $scene['audit']->fresh()->status);
+    }
+
     public function test_admin_can_download_exact_manual_package(): void
     {
         $scene = $this->waitingManualAuditScenario();
