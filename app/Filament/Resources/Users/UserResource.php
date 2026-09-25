@@ -151,7 +151,7 @@ class UserResource extends Resource
                 EditAction::make(),
                 Action::make('grantUnlimited')
                     ->label('Dar ilimitada')
-                    ->icon('heroicon-o-infinity')
+                    ->icon('heroicon-o-sparkles')
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Otorgar membresía interna ilimitada')
@@ -199,6 +199,42 @@ class UserResource extends Resource
                     ->action(function (User $record): void {
                         $record->forceFill(['status' => 'active'])->save();
                         Notification::make()->success()->title('Usuario activado')->send();
+                    }),
+                Action::make('verifyEmail')
+                    ->label('Verificar correo')
+                    ->icon('heroicon-o-envelope')
+                    ->visible(fn (User $record): bool => $record->email_verified_at === null)
+                    ->action(function (User $record): void {
+                        $record->forceFill(['email_verified_at' => now()])->save();
+                        Notification::make()->success()->title('Correo marcado como verificado')->send();
+                    }),
+                Action::make('unverifyEmail')
+                    ->label('Quitar verificación')
+                    ->icon('heroicon-o-envelope-open')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (User $record): bool => $record->email_verified_at !== null && $record->id !== auth()->id())
+                    ->action(function (User $record): void {
+                        $record->forceFill(['email_verified_at' => null])->save();
+                        Notification::make()->success()->title('Verificación retirada')->send();
+                    }),
+                Action::make('completeOnboarding')
+                    ->label('Marcar onboarding completo')
+                    ->icon('heroicon-o-check-circle')
+                    ->visible(fn (User $record): bool => $record->onboarding_completed_at === null)
+                    ->action(function (User $record): void {
+                        $record->forceFill(['onboarding_completed_at' => now()])->save();
+                        Notification::make()->success()->title('Onboarding marcado como completo')->send();
+                    }),
+                Action::make('resetOnboarding')
+                    ->label('Reiniciar onboarding')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->visible(fn (User $record): bool => $record->onboarding_completed_at !== null)
+                    ->action(function (User $record): void {
+                        $record->forceFill(['onboarding_completed_at' => null])->save();
+                        Notification::make()->success()->title('Onboarding reiniciado')->send();
                     }),
             ]);
     }
