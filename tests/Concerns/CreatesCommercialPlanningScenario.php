@@ -31,6 +31,8 @@ trait CreatesCommercialPlanningScenario
         $this->freezeTime();
         $scene = $this->seedFullTeacher();
         $scene['profile']->update(['student_count' => 25, 'general_level' => 'medio', 'session_minutes' => 50, 'characteristics' => 'Grupo ficticio participativo.']);
+        $this->addDefaultPlanningSchedule($scene['user'], $scene['group']);
+
         $request = PlanningRequest::factory()->create([
             'creation_mode' => 'advanced',
             'owner_id' => $scene['user']->id, 'group_id' => $scene['group']->id,
