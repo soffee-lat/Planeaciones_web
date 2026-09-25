@@ -16,6 +16,27 @@ class EditGroup extends EditRecord
 {
     protected static string $resource = GroupResource::class;
 
+    protected function getRedirectUrl(): ?string
+    {
+        return static::getResource()::getUrl('index');
+    }
+
+    protected function getSavedNotificationTitle(): ?string
+    {
+        return 'Cambios guardados correctamente';
+    }
+
+    protected function onValidationError(ValidationException $exception): void
+    {
+        parent::onValidationError($exception);
+
+        Notification::make()
+            ->danger()
+            ->title('Faltan campos obligatorios')
+            ->body('Revisa los campos marcados antes de guardar.')
+            ->send();
+    }
+
     protected function getHeaderActions(): array
     {
         return [
