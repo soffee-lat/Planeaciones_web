@@ -15,18 +15,46 @@ trait BuildsGeneratedPlanDraft
         $contentCode = $curriculum['contents'][0]['code'];
         $pdaCode = $curriculum['pdas'][0]['code'];
         $axisCodes = array_values(array_map(fn (array $axis) => $axis['code'], $curriculum['axes'] ?? []));
-        $minutes = (int) ($snapshot['group']['profile']['session_minutes'] ?? 50);
-        $inicio = max(1, min(10, $minutes - 2));
-        $cierre = max(1, min(10, $minutes - $inicio - 1));
-        $desarrollo = $minutes - $inicio - $cierre;
+        $profileMinutes = (int) ($snapshot['group']['profile']['session_minutes'] ?? 50);
+        $calendar = is_array($snapshot['group']['planning_calendar'] ?? null)
+            ? $snapshot['group']['planning_calendar']
+            : [];
+
+        $scheduleSlots = [];
+        foreach ($calendar as $day) {
+            $date = (string) ($day['date'] ?? '');
+            foreach ((array) ($day['blocks'] ?? []) as $block) {
+                if (! (bool) ($block['include_in_planning'] ?? false)) {
+                    continue;
+                }
+
+                $scheduleSlots[] = [
+                    'date' => $date !== '' ? $date : null,
+                    'minutes' => max(1, (int) ($block['minutes'] ?? $profileMinutes)),
+                ];
+            }
+        }
+
+        if ($scheduleSlots === []) {
+            $scheduleSlots = array_fill(0, $sessionCount, [
+                'date' => null,
+                'minutes' => $profileMinutes,
+            ]);
+        }
 
         $sessions = [];
-        for ($i = 1; $i <= $sessionCount; $i++) {
+        foreach ($scheduleSlots as $index => $slot) {
+            $i = $index + 1;
             $id = 'S' . str_pad((string) $i, 2, '0', STR_PAD_LEFT);
+            $minutes = (int) $slot['minutes'];
+            $inicio = max(1, min(10, $minutes - 2));
+            $cierre = max(1, min(10, $minutes - $inicio - 1));
+            $desarrollo = $minutes - $inicio - $cierre;
+
             $sessions[] = [
                 'id' => $id,
                 'sequence' => $i,
-                'date' => null,
+                'date' => $slot['date'],
                 'title' => "Sesión {$i}",
                 'estimated_minutes' => $minutes,
                 'methodology_phase' => null,
