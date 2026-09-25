@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Planning\ConfirmPlanningRequest;
 use App\Actions\Planning\SyncPlanningRequestSelections;
 use App\Actions\Planning\UpdatePlanningRequestDraft;
+use App\Actions\Schedules\SaveGroupSchedule;
 use App\Enums\PlanningRequestStatus;
 use App\Filament\App\Pages\StartPlanning;
 use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
@@ -49,14 +50,33 @@ class NewPlanningWizardTest extends PedagogyTestCase
     {
         $ctx = $this->seedFullTeacher();
         $this->actingAs($ctx['user']);
-        // Perfil completo → aparece.
+        // Perfil completo sin minutos aproximados, pero sin horario → no aparece.
         $ctx['profile']->fill([
             'student_count' => 25, 'general_level' => 'medio',
-            'session_minutes' => 50, 'characteristics' => 'Grupo activo.',
+            'session_minutes' => null, 'characteristics' => 'Grupo activo.',
         ])->save();
+        $this->assertArrayNotHasKey($ctx['group']->id, PlanningRequestResource::eligibleGroupOptions());
+
+        app(SaveGroupSchedule::class)->execute($ctx['user'], $ctx['group'], [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '12:30',
+            'blocks' => [[
+                'day_of_week' => 1,
+                'sequence' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '08:50',
+                'label' => 'Lenguajes',
+                'block_type' => 'class',
+                'responsibility' => 'main_teacher',
+                'include_in_planning' => true,
+                'is_flexible' => false,
+                'field_codes' => [],
+                'notes' => null,
+            ]],
+        ]);
         $this->assertArrayHasKey($ctx['group']->id, PlanningRequestResource::eligibleGroupOptions());
 
-        // Perfil incompleto → desaparece.
+        // Perfil incompleto → desaparece aunque tenga horario.
         GroupProfile::where('id', $ctx['profile']->id)->update(['student_count' => null]);
         $this->assertArrayNotHasKey($ctx['group']->id, PlanningRequestResource::eligibleGroupOptions());
     }
