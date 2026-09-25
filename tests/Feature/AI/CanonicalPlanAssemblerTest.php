@@ -40,6 +40,15 @@ class CanonicalPlanAssemblerTest extends PedagogyTestCase
     {
         $request = $this->draft(3);
 
+        // Este escenario necesita probar un horario creado desde revisión 1.
+        // draft() agrega un horario mínimo para que los escenarios comerciales
+        // sean elegibles, así que lo retiramos antes de guardar el fixture específico.
+        $request->group->schedules()->with('blocks')->get()->each(function ($schedule): void {
+            $schedule->blocks()->delete();
+            $schedule->delete();
+        });
+        $request->group->unsetRelation('activeSchedule');
+
         app(SaveGroupSchedule::class)->execute($request->owner, $request->group, [
             'day_starts_at' => '08:00',
             'day_ends_at' => '12:30',
