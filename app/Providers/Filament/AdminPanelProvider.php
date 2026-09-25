@@ -17,6 +17,7 @@ class AdminPanelProvider extends BasePanelProvider {
                 fn () => view('filament.admin.partials.manual-ai-alerts'),
             )
             ->resources([
+                \App\Filament\Resources\Users\UserResource::class,
                 \App\Filament\Resources\PlanningRequests\PlanningRequestResource::class,
                 \App\Filament\Resources\Curricula\CurriculumResource::class,
                 \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::class,
