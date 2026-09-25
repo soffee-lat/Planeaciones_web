@@ -51,6 +51,8 @@ final class EnsureStandardFormat
                     'approved_by' => null,
                     'published_at' => now(),
                 ]);
+            } elseif ($version->published_at === null) {
+                $version->forceFill(['published_at' => now()])->save();
             }
 
             return ['format' => $format->fresh(), 'version' => $version->fresh()];
