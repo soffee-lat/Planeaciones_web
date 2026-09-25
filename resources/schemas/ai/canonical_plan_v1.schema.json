@@ -111,7 +111,10 @@
           "format": "date"
         },
         "session_minutes": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
           "maximum": 480
         },
