@@ -45,6 +45,9 @@ final class StartPlanningExperiment
                 }
             })
             ->whereHas('curriculumVersion', fn ($query) => $query->whereNotNull('published_at'))
+            ->whereHas('activeSchedule.blocks', fn ($query) => $query
+                ->where('include_in_planning', true)
+                ->whereNotIn('block_type', ['break', 'unavailable']))
             ->find($groupId);
 
         if (! $group) {
