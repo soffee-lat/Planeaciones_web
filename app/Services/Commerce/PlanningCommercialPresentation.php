@@ -2,6 +2,7 @@
 
 namespace App\Services\Commerce;
 
+use App\Actions\Commerce\EnsureInternalUnlimitedPlan;
 use App\Actions\Planning\CalculatePlanningCommercialRequirements;
 use App\Enums\PlanningRequestStatus;
 use App\Models\PlanningRequest;
@@ -14,7 +15,7 @@ class PlanningCommercialPresentation
     {
         $period = app(CurrentCommercialRights::class)->forCustomer($customer);
         if (! $period) {
-            return ['has_plan' => false];
+            return ['has_plan' => false, 'is_unlimited' => false];
         }
         $balance = app(SubscriptionBalance::class)->forPeriod($period);
         $calculation = null;
@@ -28,6 +29,7 @@ class PlanningCommercialPresentation
 
         return [
             'has_plan' => true,
+            'is_unlimited' => $period->planVersion->plan->code === EnsureInternalUnlimitedPlan::PLAN_CODE,
             'plan_name' => $period->planVersion->plan->name,
             'period_start' => $period->starts_at->format('d/m/Y'),
             'period_end' => $period->ends_at->format('d/m/Y'),
@@ -50,7 +52,7 @@ class PlanningCommercialPresentation
 
         return match ($request->status) {
             PlanningRequestStatus::BORRADOR => 'Borrador',
-            PlanningRequestStatus::ESPERANDO_PAGO => 'Pendiente de activar',
+            PlanningRequestStatus::ESPERANDO_PAGO => 'Pendiente de plan o saldo',
             PlanningRequestStatus::LISTA_PARA_PROCESAR,
             PlanningRequestStatus::GENERACION_IA,
             PlanningRequestStatus::AUDITORIA_IA,
