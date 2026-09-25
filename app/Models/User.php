@@ -6,6 +6,7 @@ use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable implements FilamentUser, MustVerifyEmail
@@ -29,6 +30,12 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
     }
     public function groups(): \Illuminate\Database\Eloquent\Relations\HasMany {
         return $this->hasMany(Group::class, 'owner_id');
+    }
+    public function planningRequests(): HasMany {
+        return $this->hasMany(PlanningRequest::class, 'owner_id');
+    }
+    public function subscriptions(): HasMany {
+        return $this->hasMany(Subscription::class, 'customer_id');
     }
     public function reviewerProfile(): \Illuminate\Database\Eloquent\Relations\HasOne {
         return $this->hasOne(ReviewerProfile::class, 'user_id');
