@@ -25,10 +25,19 @@ class EditSchool extends EditRecord
     {
         parent::onValidationError($exception);
 
+        $messages = collect($exception->validator->errors()->all())
+            ->map(fn (string $message): string => trim($message))
+            ->filter()
+            ->unique()
+            ->take(5)
+            ->values();
+
         Notification::make()
             ->danger()
-            ->title('Faltan campos obligatorios')
-            ->body('Revisa los campos marcados antes de guardar.')
+            ->title('Te faltan datos para guardar')
+            ->body($messages->isEmpty()
+                ? 'Revisa los campos marcados antes de guardar.'
+                : $messages->implode(' '))
             ->send();
     }
 
