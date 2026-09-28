@@ -12,6 +12,7 @@ use App\Actions\Planning\WithdrawClientCorrection;
 use App\Actions\Validation\SubmitPilotFeedback;
 use App\Enums\CorrectionRequestStatus;
 use App\Enums\PlanningRequestStatus;
+use App\Exceptions\AiPipelineException;
 use App\Exceptions\ClientCorrectionException;
 use App\Exceptions\PlanningCommercialException;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
@@ -76,6 +77,15 @@ class ViewPlanningRequest extends ViewRecord
                     ->visible(fn () => $this->getRecord()->deliveries()->exists() && (int) $this->getRecord()->correction_limit_snapshot > 0),
                 TextEntry::make('human_review_required_snapshot')->label('Revisión humana incluida')->formatStateUsing(fn ($state) => $state ? 'Sí' : 'No')->visible(fn () => $this->getRecord()->commercial_authorized_at !== null),
             ])->columns(2)->columnSpanFull(),
+
+            Section::make('¿Qué sigue?')
+                ->schema([
+                    TextEntry::make('teacher_next_step')
+                        ->hiddenLabel()
+                        ->state(fn (): string => $this->teacherGuidance()['body']),
+                ])
+                ->description(fn (): string => $this->teacherGuidance()['title'])
+                ->columnSpanFull(),
 
             Section::make('Se necesita una revisión antes de continuar')
                 ->description('La planeación sí tiene una versión generada, pero la auditoría detectó que algunos temas no están suficientemente respaldados por los contenidos/PDA seleccionados. No seguiremos corrigiendo automáticamente porque eso podría cambiar lo que pediste o inventar referencias curriculares.')
@@ -176,10 +186,22 @@ class ViewPlanningRequest extends ViewRecord
                         $this->record = $this->getRecord()->fresh();
                         Notification::make()->success()->title('Generación iniciada')
                             ->body('Generaremos primero el contenido pedagógico. El formato elegido se aplicará después de la aprobación y podrás confirmarlo o cambiarlo antes de exportar.')->send();
+                    } catch (AiPipelineException $error) {
+                        report($error);
+                        $message = $this->generationFailureCopy($error);
+
+                        Notification::make()
+                            ->danger()
+                            ->title($message['title'])
+                            ->body($message['body'])
+                            ->send();
                     } catch (\Throwable $error) {
                         report($error);
-                        Notification::make()->danger()->title('No se pudo iniciar la generación')
-                            ->body('La solicitud se conserva sin cambios irreversibles. Revisa la configuración del pipeline y vuelve a intentarlo.')->send();
+                        Notification::make()
+                            ->danger()
+                            ->title('Tu planeación está guardada')
+                            ->body('No pudimos iniciar la generación en este momento. No necesitas volver a capturar nada. Inténtalo nuevamente en unos minutos.')
+                            ->send();
                     }
                 }),
 
@@ -305,6 +327,90 @@ class ViewPlanningRequest extends ViewRecord
                     }
                 }),
         ];
+    }
+
+    /** @return array{title:string,body:string} */
+    private function teacherGuidance(): array
+    {
+        $request = $this->getRecord();
+
+        return match ($request->status) {
+            PlanningRequestStatus::BORRADOR,
+            PlanningRequestStatus::ESPERANDO_INFORMACION => [
+                'title' => 'Completa los datos de tu planeación',
+                'body' => 'Continúa con los datos que estén pendientes. El sistema conservará lo que ya capturaste y te indicará cualquier campo obligatorio que falte.',
+            ],
+            PlanningRequestStatus::ESPERANDO_PAGO => $this->hasCurrentCommercialRights()
+                ? [
+                    'title' => 'Tu planeación ya está confirmada',
+                    'body' => 'Pulsa “Usar mi plan y continuar”. Después quedará lista para generar; no necesitas configurar nada técnico.',
+                ]
+                : [
+                    'title' => 'Falta activar un plan',
+                    'body' => 'Tu planeación está guardada. Entra a “Mi plan” para revisar la disponibilidad y después vuelve aquí para continuar.',
+                ],
+            PlanningRequestStatus::LISTA_PARA_PROCESAR => [
+                'title' => 'Todo está listo para generar',
+                'body' => 'Ya completaste la información necesaria. Pulsa “Generar planeación”. A partir de aquí el sistema se encarga del procesamiento.',
+            ],
+            PlanningRequestStatus::GENERACION_IA => [
+                'title' => 'Estamos preparando tu planeación',
+                'body' => 'No necesitas hacer nada más. Puedes cerrar esta página y volver después; tu solicitud continuará guardada.',
+            ],
+            PlanningRequestStatus::AUDITORIA_IA => [
+                'title' => 'Estamos revisando la planeación',
+                'body' => 'El contenido ya fue generado y está pasando una revisión automática antes de mostrártelo.',
+            ],
+            PlanningRequestStatus::CORRECCION_IA => [
+                'title' => 'Estamos ajustando la planeación',
+                'body' => 'Detectamos detalles que pueden mejorarse y el sistema está preparando una versión corregida. No necesitas capturar nada de nuevo.',
+            ],
+            PlanningRequestStatus::REVISION_HUMANA => [
+                'title' => 'La planeación está en revisión',
+                'body' => 'Un revisor está verificando el contenido. Te mostraremos el siguiente paso cuando termine.',
+            ],
+            PlanningRequestStatus::APROBADA => [
+                'title' => 'Contenido aprobado',
+                'body' => 'La planeación ya está aprobada. Pulsa “Exportar planeación” para elegir o confirmar el formato del documento.',
+            ],
+            PlanningRequestStatus::GENERANDO_DOCUMENTO => [
+                'title' => 'Estamos preparando tus archivos',
+                'body' => 'Estamos aplicando el formato y preparando los documentos. No necesitas hacer nada mientras termina.',
+            ],
+            PlanningRequestStatus::LISTA_PARA_ENTREGAR => [
+                'title' => 'Los documentos están listos',
+                'body' => 'La planeación ya puede publicarse para que tengas disponibles los archivos finales.',
+            ],
+            PlanningRequestStatus::ENTREGADA,
+            PlanningRequestStatus::COMPLETADA => [
+                'title' => 'Planeación terminada',
+                'body' => 'Ya puedes consultar y descargar tus archivos. Si tu plan incluye correcciones, puedes solicitarlas desde esta misma página.',
+            ],
+            PlanningRequestStatus::CORRECCION_SOLICITADA => [
+                'title' => 'Corrección solicitada',
+                'body' => 'Tu entrega anterior se conserva mientras procesamos los cambios que pediste.',
+            ],
+            PlanningRequestStatus::CANCELADA => [
+                'title' => 'Planeación cancelada',
+                'body' => 'Esta solicitud ya no continuará procesándose. Tus registros anteriores se conservan para consulta.',
+            ],
+        };
+    }
+
+    /** @return array{title:string,body:string} */
+    private function generationFailureCopy(AiPipelineException $error): array
+    {
+        return match ($error->errorCode) {
+            'AI_GENERATION_REQUEST_NOT_READY',
+            'AI_GENERATION_PLANNING_RESERVATION_INVALID' => [
+                'title' => 'Aún falta validar un paso',
+                'body' => 'Tu planeación está guardada. Recarga la página y revisa la indicación de “¿Qué sigue?”. Si el mensaje continúa, solicita ayuda; no necesitas volver a capturar tus datos.',
+            ],
+            default => [
+                'title' => 'Tu planeación está guardada',
+                'body' => 'El servicio de generación no está disponible en este momento. No necesitas cambiar tu planeación ni configurar nada técnico. Inténtalo nuevamente más tarde.',
+            ],
+        };
     }
 
     private function hasCurrentCommercialRights(): bool
