@@ -4,7 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="color-scheme" content="light dark">
+    <script>
+        (() => {
+            const savedTheme = localStorage.getItem('theme');
+            const resolvedTheme = savedTheme === 'dark' || savedTheme === 'light'
+                ? savedTheme
+                : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+            document.documentElement.dataset.theme = resolvedTheme;
+            document.documentElement.style.colorScheme = resolvedTheme;
+        })();
+    </script>
     <title>Resumen de planeación · Planeaciones</title>
     <style>
         :root{
@@ -14,13 +24,11 @@
             --warn:#92400e;--warn-bg:#fffbeb;--warn-border:#fde68a;--danger:#991b1b;--danger-bg:#fff1f2;--danger-border:#fecaca;
             --shadow:0 12px 35px rgba(15,23,42,.06)
         }
-        @media(prefers-color-scheme:dark){
-            :root{
+        :root[data-theme="dark"]{
                 --bg:#09090b;--panel:#18181b;--panel-2:#202024;--text:#fafafa;--muted:#a1a1aa;--border:#2f2f35;
                 --accent:#14b8a6;--accent-soft:#0d2e2b;--ok:#86efac;--ok-bg:#10251a;--ok-border:#235d3a;
-                --warn:#fcd34d;--warn-bg:#2a2111;--warn-border:#6b5520;--danger:#fca5a5;--danger-bg:#2b1719;--danger-border:#6b2a31;
-                --shadow:0 18px 50px rgba(0,0,0,.28)
-            }
+            --warn:#fcd34d;--warn-bg:#2a2111;--warn-border:#6b5520;--danger:#fca5a5;--danger-bg:#2b1719;--danger-border:#6b2a31;
+            --shadow:0 18px 50px rgba(0,0,0,.28)
         }
         *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}a{color:inherit}.top{border-bottom:1px solid var(--border);background:var(--panel);padding:15px 22px;display:flex;justify-content:space-between;gap:18px;align-items:center;position:sticky;top:0;z-index:20}.brand{font-weight:800}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.wrap{max-width:1120px;margin:0 auto;padding:24px}.progress{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}.step{border:1px solid var(--border);background:var(--panel);border-radius:12px;padding:11px 13px;display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}.step strong{color:var(--text)}.step.done .num,.step.active .num{background:var(--accent);color:#fff}.step.active{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:color-mix(in srgb,var(--accent-soft) 70%,var(--panel))}.num{width:26px;height:26px;border-radius:999px;background:var(--panel-2);display:grid;place-items:center;font-weight:800;flex:0 0 auto}.hero,.section{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}.hero{padding:22px;margin-bottom:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent-soft) 68%,var(--panel)),var(--panel))}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}h1{font-size:25px;margin:5px 0 7px}.muted{color:var(--muted);font-size:13px;line-height:1.5}.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px}.section{padding:18px;margin-bottom:16px}.section h2{margin:0 0 12px;font-size:18px}.row{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}.row:last-child{border-bottom:0}.label{color:var(--muted);font-weight:700}.value{font-weight:650}.week{padding:12px 0;border-top:1px solid var(--border)}.week:first-of-type{border-top:0}.week-title{font-weight:800;font-size:13px}.topic{margin-top:6px;font-size:13px;color:var(--muted)}.topic strong{color:var(--text)}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border:1px solid var(--border);border-radius:11px;background:var(--panel-2);padding:12px;text-align:center}.stat strong{display:block;font-size:22px}.stat span{font-size:11px;color:var(--muted)}.coverage{display:grid;gap:8px}.coverage-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}.coverage-row:last-child{border-bottom:0}.ok{color:var(--ok);font-weight:800}.warn{color:var(--warn);font-weight:800}.details{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}.details summary{cursor:pointer;font-weight:800;font-size:13px}.detail-item{margin-top:9px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2);font-size:12px;line-height:1.45}.code{font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase}.aside{position:sticky;top:82px;align-self:start}.actions{display:grid;gap:9px}.btn{border:0;border-radius:9px;padding:11px 13px;font-weight:800;cursor:pointer;text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center}.primary{background:var(--accent);color:#fff}.outline{background:transparent;border:1px solid var(--border);color:var(--text)}.notice{padding:12px 14px;border-radius:11px;margin-bottom:15px;font-size:13px;line-height:1.5}.notice.error{background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--danger)}.notice.ok{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok)}.confirm-note{margin-top:10px;padding:10px;border:1px solid var(--warn-border);background:var(--warn-bg);border-radius:10px;color:var(--warn);font-size:12px;line-height:1.45}.commercial{font-size:13px;line-height:1.5}.commercial p{margin:7px 0}@media(max-width:900px){.grid{grid-template-columns:1fr}.aside{position:static}.progress{grid-template-columns:1fr}.wrap{padding:14px}.top{align-items:flex-start}.top-actions{display:none}.stats{grid-template-columns:1fr}.row{grid-template-columns:1fr;gap:4px}}
     </style>
@@ -30,11 +38,6 @@
     <div>
         <div class="brand">Planeaciones · Docentes</div>
         <div class="muted">{{ $request->group?->name ?? 'Grupo' }} · Resumen final</div>
-    </div>
-    <div class="top-actions">
-        <a class="btn outline" href="{{ $edit_structure_url }}">Editar periodo y temas</a>
-        <a class="btn outline" href="{{ $edit_curriculum_url }}">Editar conexiones curriculares</a>
-        <a class="btn outline" href="{{ \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl() }}">Mis planeaciones</a>
     </div>
 </header>
 
