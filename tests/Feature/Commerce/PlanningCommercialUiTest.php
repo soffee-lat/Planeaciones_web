@@ -49,6 +49,12 @@ class PlanningCommercialUiTest extends PedagogyTestCase
         Livewire::test(ViewPlanningRequest::class, ['record' => $request->id])->callAction('activateProcessing')->assertHasNoErrors();
         $this->assertSame($period->id, $request->fresh()->subscription_period_id);
         $this->assertSame(PlanningRequestStatus::LISTA_PARA_PROCESAR, $request->fresh()->status);
+
+        $this->get('/app/planning-requests/'.$request->id)
+            ->assertOk()
+            ->assertSee('¿Qué sigue?')
+            ->assertSee('Todo está listo para generar')
+            ->assertSee('Generar planeación');
     }
 
     public function test_filament_confirm_immediately_reserves_and_shows_friendly_state(): void
