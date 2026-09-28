@@ -4,7 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="color-scheme" content="light dark">
+    <script>
+        (() => {
+            const savedTheme = localStorage.getItem('theme');
+            const resolvedTheme = savedTheme === 'dark' || savedTheme === 'light'
+                ? savedTheme
+                : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+            document.documentElement.dataset.theme = resolvedTheme;
+            document.documentElement.style.colorScheme = resolvedTheme;
+        })();
+    </script>
     <title>Conexiones curriculares · Planeaciones</title>
     <style>
         :root{
@@ -14,13 +24,11 @@
             --ok:#166534;--ok-bg:#f0fdf4;--ok-border:#86efac;--danger:#991b1b;--danger-bg:#fff1f2;--danger-border:#fecaca;
             --warn:#92400e;--warn-bg:#fffbeb;--warn-border:#fde68a;--shadow:0 12px 35px rgba(15,23,42,.06)
         }
-        @media (prefers-color-scheme: dark){
-            :root{
+        :root[data-theme="dark"]{
                 --bg:#09090b;--panel:#18181b;--panel-2:#202024;--text:#fafafa;--muted:#a1a1aa;
                 --border:#2f2f35;--border-strong:#45454d;--accent:#14b8a6;--accent-soft:#0d2e2b;
                 --ok:#86efac;--ok-bg:#10251a;--ok-border:#235d3a;--danger:#fca5a5;--danger-bg:#2b1719;--danger-border:#6b2a31;
-                --warn:#fcd34d;--warn-bg:#2a2111;--warn-border:#6b5520;--shadow:0 18px 50px rgba(0,0,0,.28)
-            }
+            --warn:#fcd34d;--warn-bg:#2a2111;--warn-border:#6b5520;--shadow:0 18px 50px rgba(0,0,0,.28)
         }
         *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)}
         button,input{font:inherit} a{color:inherit}
@@ -64,13 +72,6 @@
     <div>
         <div class="brand">Planeaciones · Docentes</div>
         <div class="muted">{{ $request->group?->name ?? 'Grupo' }} · {{ $educationalLevelLabel }} · {{ $request->group?->grade?->name ?? 'Grado' }}</div>
-    </div>
-    <div class="top-actions">
-        @if($request->planningWeeks->isNotEmpty())
-            <a class="btn outline" href="{{ \App\Filament\App\Pages\StartPlanning::getUrl() }}?draft={{ $request->id }}">Editar periodo y temas</a>
-        @endif
-        <a class="btn outline" href="{{ \App\Filament\App\Pages\StartPlanning::getUrl() }}">Nueva planeación</a>
-        <a class="btn secondary" href="{{ \App\Filament\App\Resources\PlanningRequests\PlanningRequestResource::getUrl() }}">Mis planeaciones</a>
     </div>
 </header>
 
