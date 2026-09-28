@@ -124,10 +124,19 @@ class ManageSchedule extends Page
                 'blocks' => $this->blocks,
             ]);
         } catch (ValidationException $exception) {
+            $messages = collect($exception->validator->errors()->all())
+                ->map(fn (string $message): string => trim($message))
+                ->filter()
+                ->unique()
+                ->take(6)
+                ->values();
+
             Notification::make()
                 ->danger()
-                ->title('Revisa el horario')
-                ->body('Hay campos obligatorios o bloques inválidos. Corrige los elementos marcados antes de guardar.')
+                ->title('Te faltan datos en el horario')
+                ->body($messages->isEmpty()
+                    ? 'Revisa los bloques marcados antes de guardar.'
+                    : $messages->implode(' '))
                 ->send();
 
             throw $exception;
