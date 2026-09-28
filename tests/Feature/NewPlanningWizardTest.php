@@ -32,10 +32,47 @@ class NewPlanningWizardTest extends PedagogyTestCase
             'student_count' => 25, 'general_level' => 'medio',
             'session_minutes' => 50, 'characteristics' => 'Grupo activo.',
         ])->save();
+        app(SaveGroupSchedule::class)->execute($ctx['user'], $ctx['group'], [
+            'day_starts_at' => '08:00',
+            'day_ends_at' => '12:30',
+            'blocks' => [[
+                'day_of_week' => 1,
+                'sequence' => 1,
+                'starts_at' => '08:00',
+                'ends_at' => '08:50',
+                'label' => 'Lenguajes',
+                'block_type' => 'class',
+                'responsibility' => 'main_teacher',
+                'include_in_planning' => true,
+                'is_flexible' => false,
+                'field_codes' => [],
+                'notes' => null,
+            ]],
+        ]);
         $this->actingAs($ctx['user']->refresh());
         $res = $this->get('/app/inicio');
         $res->assertOk();
+        $res->assertSee('Todo listo para crear una planeación.');
         $res->assertSee('Nueva planeación');
+    }
+
+    public function test_dashboard_explains_when_profile_is_complete_but_schedule_is_missing(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $ctx['user']->forceFill(['onboarding_completed_at' => now()])->save();
+        $ctx['profile']->fill([
+            'student_count' => 25,
+            'general_level' => 'medio',
+            'characteristics' => 'Grupo activo.',
+        ])->save();
+
+        $this->actingAs($ctx['user']->refresh());
+
+        $this->get('/app/inicio')
+            ->assertOk()
+            ->assertSee('todavía falta dejar un grupo listo para planear')
+            ->assertSee('Ver qué me falta')
+            ->assertDontSee('Todo listo para crear una planeación.');
     }
 
     public function test_legacy_create_page_redirects_to_the_current_planning_flow(): void
