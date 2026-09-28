@@ -8,6 +8,7 @@ use App\Actions\Planning\UpdatePlanningRequestDraft;
 use App\Actions\Schedules\SaveGroupSchedule;
 use App\Enums\PlanningRequestStatus;
 use App\Filament\App\Pages\StartPlanning;
+use App\Filament\App\Resources\Groups\GroupResource;
 use App\Filament\App\Resources\PlanningRequests\Pages\CreatePlanningRequest;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
 use App\Models\CurricularContent;
@@ -79,6 +80,39 @@ class NewPlanningWizardTest extends PedagogyTestCase
         // Perfil incompleto → desaparece aunque tenga horario.
         GroupProfile::where('id', $ctx['profile']->id)->update(['student_count' => null]);
         $this->assertArrayNotHasKey($ctx['group']->id, PlanningRequestResource::eligibleGroupOptions());
+    }
+
+    public function test_start_planning_explains_why_a_group_is_not_ready(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $ctx['profile']->forceFill([
+            'student_count' => null,
+            'general_level' => null,
+            'characteristics' => null,
+        ])->save();
+
+        $this->actingAs($ctx['user']);
+
+        Livewire::test(StartPlanning::class)
+            ->assertSee('Antes de crear tu planeación')
+            ->assertSee('Completa cantidad de alumnos, nivel general, características del grupo.')
+            ->assertSee('Configura el horario y deja al menos una materia incluida en la planeación.');
+
+        $readiness = GroupResource::planningReadiness($ctx['group']->fresh());
+
+        $this->assertSame('profile', $readiness['code']);
+        $this->assertSame('Falta completar grupo', $readiness['label']);
+    }
+
+    public function test_start_planning_marks_missing_required_fields_without_losing_the_page(): void
+    {
+        $ctx = $this->seedFullTeacher();
+        $this->actingAs($ctx['user']);
+
+        Livewire::test(StartPlanning::class)
+            ->call('start')
+            ->assertHasErrors(['group_id', 'period_key', 'weeks'])
+            ->assertSee('Tu avance para continuar');
     }
 
     public function test_content_and_pda_options_are_scoped_by_version_and_grade(): void
