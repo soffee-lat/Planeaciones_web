@@ -69,7 +69,9 @@ class GroupResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Datos del grupo')->schema([
+            Section::make('Datos del grupo')
+                ->description('Completa los campos marcados como obligatorios. Esta información se reutiliza automáticamente en tus planeaciones.')
+                ->schema([
                 Select::make('school_id')
                     ->label('Escuela')
                     ->options(fn () => School::query()
@@ -167,7 +169,7 @@ class GroupResource extends Resource
             ])->columns(2),
 
             Section::make('Perfil pedagógico del grupo')
-                ->description('Guía la personalización de futuras planeaciones. No incluyas nombres de alumnos, CURP, teléfonos, direcciones ni diagnósticos identificables.')
+                ->description('Para poder planear sólo son obligatorios: cantidad de alumnos, nivel general y características del grupo. Los demás campos son opcionales y ayudan a personalizar mejor las actividades. No incluyas datos personales de alumnos.')
                 ->relationship('profile')
                 ->schema([
                     Placeholder::make('privacy_notice')
@@ -179,7 +181,8 @@ class GroupResource extends Resource
                         ->numeric()
                         ->required()
                         ->minValue(1)
-                        ->maxValue(200),
+                        ->maxValue(200)
+                        ->helperText('Puede ser un aproximado; se usa para proponer dinámicas y materiales adecuados al tamaño del grupo.'),
                     Select::make('general_level')
                         ->label('Nivel general')
                         ->options([
@@ -190,7 +193,8 @@ class GroupResource extends Resource
                             'heterogeneo' => 'Heterogéneo',
                         ])
                         ->required()
-                        ->native(false),
+                        ->native(false)
+                        ->helperText('Elige la opción que mejor describa al grupo en general. Si hay mucha diferencia entre alumnos, selecciona “Heterogéneo”.'),
                     TextInput::make('session_minutes')
                         ->label('Minutos aprox. por materia')
                         ->helperText('Opcional. Sirve como referencia inicial al crear bloques; la planeación usa la duración real de tu horario.')
@@ -201,6 +205,8 @@ class GroupResource extends Resource
                         ->label('Características del grupo')
                         ->required()
                         ->rows(3)
+                        ->placeholder('Ej. Grupo participativo, aprende mejor con actividades visuales y trabajo en equipos pequeños.')
+                        ->helperText('Describe al grupo de forma general. No escribas nombres ni datos personales de alumnos.')
                         ->columnSpanFull(),
                     Textarea::make('difficulties')->label('Dificultades observadas')->rows(3)->columnSpanFull(),
                     Textarea::make('educational_needs')->label('Necesidades educativas')->rows(3)->columnSpanFull(),
