@@ -6,8 +6,11 @@ use App\Actions\Planning\StartPlanningExperiment;
 use App\Actions\Schedules\EnsureDefaultGroupSubjects;
 use App\Enums\PlanningRequestStatus;
 use App\Enums\RoleCode;
+use App\Filament\App\Resources\Groups\GroupResource;
 use App\Filament\App\Resources\PlanningRequests\PlanningRequestResource;
+use App\Filament\App\Resources\Schools\SchoolResource;
 use App\Models\Group;
+use App\Models\School;
 use App\Models\PlanningRequest;
 use App\Services\Planning\PlanningPeriodService;
 use Carbon\CarbonImmutable;
@@ -111,6 +114,139 @@ class StartPlanning extends Page
         return [
             'groups' => PlanningRequestResource::eligibleGroupOptions(),
             'formats' => PlanningRequestResource::formatVersionOptions(),
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    public function preparationGuide(): array
+    {
+        $groups = Group::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->with(['profile', 'grade', 'curriculumVersion.curriculum', 'activeSchedule.blocks'])
+            ->orderBy('name')
+            ->get();
+
+        $groupItems = $groups->map(function (Group $group): array {
+            $issues = [];
+            $profileMissing = [];
+
+            if (! $group->profile || blank($group->profile->student_count)) {
+                $profileMissing[] = 'cantidad de alumnos';
+            }
+            if (! $group->profile || blank($group->profile->general_level)) {
+                $profileMissing[] = 'nivel general';
+            }
+            if (! $group->profile || blank($group->profile->characteristics)) {
+                $profileMissing[] = 'características del grupo';
+            }
+            if ($profileMissing !== []) {
+                $issues[] = 'Completa ' . implode(', ', $profileMissing) . '.';
+            }
+
+            if (! $group->curriculumVersion || $group->curriculumVersion->published_at === null || ! $group->grade) {
+                $issues[] = 'Revisa el nivel, currículo y grado del grupo.';
+            }
+
+            $hasUsableSchedule = $group->activeSchedule?->blocks?->contains(
+                fn ($block): bool => (bool) $block->include_in_planning
+                    && ! in_array((string) $block->block_type, ['break', 'unavailable'], true),
+            ) ?? false;
+
+            if (! $hasUsableSchedule) {
+                $issues[] = 'Configura el horario y deja al menos una materia incluida en la planeación.';
+            }
+
+            $needsProfile = $profileMissing !== []
+                || ! $group->curriculumVersion
+                || $group->curriculumVersion->published_at === null
+                || ! $group->grade;
+
+            return [
+                'id' => (int) $group->id,
+                'name' => (string) $group->name,
+                'ready' => $issues === [],
+                'issues' => $issues,
+                'action_label' => $needsProfile ? 'Completar grupo' : 'Configurar horario',
+                'action_url' => $needsProfile
+                    ? GroupResource::getUrl('edit', ['record' => $group->id])
+                    : GroupResource::getUrl('schedule', ['record' => $group->id]),
+            ];
+        })->values()->all();
+
+        return [
+            'schools_count' => School::query()->where('owner_id', auth()->id())->count(),
+            'groups_count' => count($groupItems),
+            'ready_count' => collect($groupItems)->where('ready', true)->count(),
+            'groups' => $groupItems,
+            'create_school_url' => SchoolResource::getUrl('create'),
+            'create_group_url' => GroupResource::getUrl('create'),
+        ];
+    }
+
+    /** @return array{items:list<array{label:string,done:bool,hint:string}>,done_count:int,total:int,ready:bool,missing_count:int} */
+    public function formProgress(): array
+    {
+        $groupDone = (int) ($this->group_id ?? 0) > 0;
+        $periodDone = trim($this->period_key) !== '' && $this->weeks !== [];
+
+        $topicRows = 0;
+        $completeTopicRows = 0;
+        $eachWeekHasTopic = $this->weeks !== [];
+
+        foreach ($this->weeks as $week) {
+            $topics = $week['topics'] ?? [];
+            if ($topics === []) {
+                $eachWeekHasTopic = false;
+                continue;
+            }
+
+            foreach ($topics as $topic) {
+                $topicRows++;
+                $name = trim((string) ($topic['topic'] ?? ''));
+                $subjectId = (int) ($topic['group_subject_id'] ?? 0);
+
+                if (mb_strlen($name) >= 2 && $subjectId > 0) {
+                    $completeTopicRows++;
+                }
+            }
+        }
+
+        $topicsDone = $periodDone
+            && $eachWeekHasTopic
+            && $topicRows > 0
+            && $topicRows === $completeTopicRows;
+
+        $items = [
+            [
+                'label' => 'Grupo listo',
+                'done' => $groupDone,
+                'hint' => $groupDone ? 'Usaremos su perfil, currículo y horario.' : 'Selecciona el grupo que vas a planear.',
+            ],
+            [
+                'label' => 'Periodo seleccionado',
+                'done' => $periodDone,
+                'hint' => $periodDone ? 'Las semanas ya están definidas.' : 'Elige una semana o un mes.',
+            ],
+            [
+                'label' => 'Temas y materias completos',
+                'done' => $topicsDone,
+                'hint' => $topicsDone
+                    ? "{$completeTopicRows} tema(s) listos para revisar."
+                    : ($periodDone
+                        ? 'Escribe cada tema y selecciona su materia o área principal.'
+                        : 'Aparecerán después de elegir el periodo.'),
+            ],
+        ];
+
+        $done = collect($items)->where('done', true)->count();
+
+        return [
+            'items' => $items,
+            'done_count' => $done,
+            'total' => count($items),
+            'ready' => $done === count($items),
+            'missing_count' => count($items) - $done,
         ];
     }
 
@@ -389,26 +525,50 @@ class StartPlanning extends Page
 
     public function start(): void
     {
-        $data = $this->validate([
-            'group_id' => ['required', 'integer'],
-            'format_version_id' => ['nullable', 'integer'],
-            'period_type' => ['required', 'string', 'in:week,month'],
-            'period_key' => ['required', 'string', 'max:32'],
-            'integrative_project' => ['nullable', 'string', 'max:255'],
-            'integrative_project_purpose' => ['nullable', 'string', 'max:8000'],
-            'context_note' => ['nullable', 'string', 'max:8000'],
-            'weeks' => ['required', 'array', 'min:1'],
-            'weeks.*.sequence' => ['required', 'integer', 'min:1'],
-            'weeks.*.topics' => ['required', 'array', 'min:1'],
-            'weeks.*.topics.*.topic' => ['required', 'string', 'min:2', 'max:255'],
-            'weeks.*.topics.*.group_subject_id' => ['required', 'integer', 'min:1'],
-            'weeks.*.topics.*.notes' => ['nullable', 'string', 'max:4000'],
-        ], [
-            'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
-            'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
-            'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
-            'weeks.*.topics.*.group_subject_id.required' => 'Selecciona el área o materia principal del tema.',
-        ]);
+        try {
+            $data = $this->validate([
+                'group_id' => ['required', 'integer'],
+                'format_version_id' => ['nullable', 'integer'],
+                'period_type' => ['required', 'string', 'in:week,month'],
+                'period_key' => ['required', 'string', 'max:32'],
+                'integrative_project' => ['nullable', 'string', 'max:255'],
+                'integrative_project_purpose' => ['nullable', 'string', 'max:8000'],
+                'context_note' => ['nullable', 'string', 'max:8000'],
+                'weeks' => ['required', 'array', 'min:1'],
+                'weeks.*.sequence' => ['required', 'integer', 'min:1'],
+                'weeks.*.topics' => ['required', 'array', 'min:1'],
+                'weeks.*.topics.*.topic' => ['required', 'string', 'min:2', 'max:255'],
+                'weeks.*.topics.*.group_subject_id' => ['required', 'integer', 'min:1'],
+                'weeks.*.topics.*.notes' => ['nullable', 'string', 'max:4000'],
+            ], [
+                'group_id.required' => 'Selecciona el grupo con el que vas a trabajar.',
+                'period_key.required' => 'Selecciona la semana o el mes que vas a planear.',
+                'weeks.required' => 'Selecciona primero el periodo que vas a planear.',
+                'weeks.min' => 'Selecciona un periodo válido para cargar sus semanas.',
+                'weeks.*.topics.required' => 'Agrega al menos un tema en cada semana.',
+                'weeks.*.topics.min' => 'Agrega al menos un tema en cada semana.',
+                'weeks.*.topics.*.topic.required' => 'Escribe el tema que se trabajará.',
+                'weeks.*.topics.*.topic.min' => 'El tema debe tener al menos 2 caracteres.',
+                'weeks.*.topics.*.group_subject_id.required' => 'Selecciona el área o materia principal de cada tema.',
+            ]);
+        } catch (ValidationException $exception) {
+            $this->setErrorBag($exception->validator->errors());
+
+            $messages = collect($exception->validator->errors()->all())
+                ->map(fn (string $message): string => trim($message))
+                ->filter()
+                ->unique()
+                ->take(5)
+                ->values();
+
+            Notification::make()
+                ->danger()
+                ->title('Te faltan datos para continuar')
+                ->body($messages->implode(' '))
+                ->send();
+
+            return;
+        }
 
         $formatVersionId = isset($data['format_version_id']) && $data['format_version_id'] !== null
             ? (int) $data['format_version_id']
