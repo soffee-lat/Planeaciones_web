@@ -217,10 +217,55 @@ class GroupResource extends Resource
         ]);
     }
 
+    /** @return array{code:string,label:string,color:string,action_label:?string,action_page:?string} */
+    public static function planningReadiness(Group $group): array
+    {
+        $group->loadMissing(['profile', 'grade', 'curriculumVersion', 'activeSchedule.blocks']);
+
+        $profileReady = $group->profile?->isSufficient() ?? false;
+        $curriculumReady = $group->grade !== null
+            && $group->curriculumVersion !== null
+            && $group->curriculumVersion->published_at !== null;
+        $scheduleReady = $group->activeSchedule?->blocks?->contains(
+            fn ($block): bool => (bool) $block->include_in_planning
+                && ! in_array((string) $block->block_type, ['break', 'unavailable'], true),
+        ) ?? false;
+
+        if (! $profileReady || ! $curriculumReady) {
+            return [
+                'code' => 'profile',
+                'label' => 'Falta completar grupo',
+                'color' => 'warning',
+                'action_label' => 'Completar',
+                'action_page' => 'edit',
+            ];
+        }
+
+        if (! $scheduleReady) {
+            return [
+                'code' => 'schedule',
+                'label' => 'Falta horario',
+                'color' => 'warning',
+                'action_label' => 'Configurar horario',
+                'action_page' => 'schedule',
+            ];
+        }
+
+        return [
+            'code' => 'ready',
+            'label' => 'Listo para planear',
+            'color' => 'success',
+            'action_label' => null,
+            'action_page' => null,
+        ];
+    }
+
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->whereNull('archived_at'))
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->whereNull('archived_at')
+                ->with(['profile', 'grade', 'curriculumVersion', 'activeSchedule.blocks']))
             ->columns([
                 TextColumn::make('name')->label('Grupo')->searchable()->sortable(),
                 TextColumn::make('school.name')->label('Escuela')->searchable(),
@@ -231,6 +276,11 @@ class GroupResource extends Resource
                 TextColumn::make('grade.name')->label('Grado'),
                 TextColumn::make('curriculumVersion.curriculum.name')->label('Currículo')->toggleable(),
                 TextColumn::make('school_year')->label('Ciclo'),
+                TextColumn::make('planning_readiness')
+                    ->label('Para planear')
+                    ->state(fn (Group $record): string => self::planningReadiness($record)['label'])
+                    ->badge()
+                    ->color(fn (Group $record): string => self::planningReadiness($record)['color']),
                 IconColumn::make('archived_at')
                     ->label('Archivado')
                     ->boolean()
@@ -242,6 +292,19 @@ class GroupResource extends Resource
                     ->query(fn (Builder $query) => $query->withoutGlobalScopes()->whereNotNull('archived_at')),
             ])
             ->recordActions([
+                Action::make('completeSetup')
+                    ->label(fn (Group $record): string => self::planningReadiness($record)['action_label'] ?? 'Completar')
+                    ->icon(Heroicon::OutlinedExclamationTriangle)
+                    ->color('warning')
+                    ->visible(fn (Group $record): bool => self::planningReadiness($record)['code'] !== 'ready')
+                    ->url(function (Group $record): string {
+                        $readiness = self::planningReadiness($record);
+
+                        return static::getUrl(
+                            $readiness['action_page'] === 'schedule' ? 'schedule' : 'edit',
+                            ['record' => $record->getKey()],
+                        );
+                    }),
                 Action::make('schedule')
                     ->label('Horario')
                     ->icon(Heroicon::OutlinedCalendarDays)
