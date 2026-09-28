@@ -559,6 +559,120 @@
             font-size: .82rem;
         }
 
+        .planning-progress-card {
+            border: 1px solid var(--pf-accent-border);
+            border-radius: 16px;
+            background: linear-gradient(180deg, var(--pf-accent-soft), var(--pf-surface));
+            padding: 1rem;
+            box-shadow: var(--pf-shadow);
+        }
+
+        .planning-progress-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: .6rem;
+            margin-bottom: .8rem;
+        }
+
+        .planning-progress-title {
+            color: var(--pf-text);
+            font-size: .95rem;
+            font-weight: 800;
+        }
+
+        .planning-progress-count {
+            color: var(--pf-text-muted);
+            font-size: .75rem;
+            font-weight: 700;
+        }
+
+        .planning-progress-grid {
+            display: grid;
+            gap: .65rem;
+        }
+
+        @media (min-width: 768px) {
+            .planning-progress-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        .planning-progress-item {
+            display: flex;
+            gap: .65rem;
+            align-items: flex-start;
+            border: 1px solid var(--pf-border);
+            border-radius: 12px;
+            background: var(--pf-surface);
+            padding: .75rem;
+        }
+
+        .planning-progress-item.is-done {
+            border-color: var(--pf-accent-border);
+        }
+
+        .planning-progress-icon {
+            display: grid;
+            width: 24px;
+            height: 24px;
+            flex: 0 0 24px;
+            place-items: center;
+            border-radius: 999px;
+            background: var(--pf-surface-soft);
+            color: var(--pf-text-muted);
+            font-size: .75rem;
+            font-weight: 900;
+        }
+
+        .planning-progress-item.is-done .planning-progress-icon {
+            background: var(--pf-accent);
+            color: #fff;
+        }
+
+        .planning-progress-item strong {
+            display: block;
+            color: var(--pf-text);
+            font-size: .78rem;
+        }
+
+        .planning-progress-item span {
+            display: block;
+            margin-top: .2rem;
+            color: var(--pf-text-muted);
+            font-size: .7rem;
+            line-height: 1.15rem;
+        }
+
+        .planning-setup-list {
+            display: grid;
+            gap: .75rem;
+        }
+
+        .planning-setup-item {
+            border: 1px solid var(--pf-warning-border);
+            border-radius: 13px;
+            background: var(--pf-warning-bg);
+            padding: .9rem;
+        }
+
+        .planning-setup-item strong {
+            color: var(--pf-text);
+        }
+
+        .planning-setup-item ul {
+            margin: .45rem 0 .7rem 1.1rem;
+            color: var(--pf-text-soft);
+            font-size: .78rem;
+            line-height: 1.25rem;
+        }
+
+        .planning-required {
+            color: var(--pf-danger);
+            margin-left: .15rem;
+        }
+
         @media (max-width: 640px) {
             .planning-calendar-day {
                 min-height: 48px;
@@ -578,16 +692,83 @@
     @php($selectedGroup = $this->selectedGroup())
     @php($selectedLevel = $selectedGroup?->curriculumVersion?->curriculum?->educational_level)
     @php($selectedLevelLabel = \App\Enums\EducationalLevel::labelFor($selectedLevel))
+    @php($preparation = $this->preparationGuide())
+    @php($formProgress = $this->formProgress())
 
     <div class="planning-page mx-auto grid w-full max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div class="space-y-6">
+            @if ($preparation['ready_count'] === 0)
+                <x-filament::section>
+                    <x-slot name="heading">Antes de crear tu planeación</x-slot>
+                    <x-slot name="description">Te indicamos exactamente qué falta. Completa estos pasos una sola vez y después podrás reutilizar la información en tus planeaciones.</x-slot>
+
+                    @if ($preparation['schools_count'] === 0)
+                        <div class="planning-setup-item">
+                            <strong>1. Registra tu escuela</strong>
+                            <p class="planning-section-copy">Necesitamos saber en qué escuela trabajas para organizar tus grupos.</p>
+                            <div class="mt-3">
+                                <x-filament::button tag="a" :href="$preparation['create_school_url']" size="sm">
+                                    Registrar escuela
+                                </x-filament::button>
+                            </div>
+                        </div>
+                    @elseif ($preparation['groups_count'] === 0)
+                        <div class="planning-setup-item">
+                            <strong>2. Crea tu primer grupo</strong>
+                            <p class="planning-section-copy">Agrega el grado, perfil pedagógico y después su horario.</p>
+                            <div class="mt-3">
+                                <x-filament::button tag="a" :href="$preparation['create_group_url']" size="sm">
+                                    Crear grupo
+                                </x-filament::button>
+                            </div>
+                        </div>
+                    @else
+                        <div class="planning-setup-list">
+                            @foreach ($preparation['groups'] as $groupSetup)
+                                @unless ($groupSetup['ready'])
+                                    <div class="planning-setup-item">
+                                        <strong>{{ $groupSetup['name'] }}</strong>
+                                        <ul>
+                                            @foreach ($groupSetup['issues'] as $issue)
+                                                <li>{{ $issue }}</li>
+                                            @endforeach
+                                        </ul>
+                                        <x-filament::button tag="a" :href="$groupSetup['action_url']" size="sm">
+                                            {{ $groupSetup['action_label'] }}
+                                        </x-filament::button>
+                                    </div>
+                                @endunless
+                            @endforeach
+                        </div>
+                    @endif
+                </x-filament::section>
+            @endif
+
+            <div class="planning-progress-card">
+                <div class="planning-progress-head">
+                    <div class="planning-progress-title">Tu avance para continuar</div>
+                    <div class="planning-progress-count">{{ $formProgress['done_count'] }} de {{ $formProgress['total'] }} pasos listos</div>
+                </div>
+                <div class="planning-progress-grid">
+                    @foreach ($formProgress['items'] as $item)
+                        <div class="planning-progress-item {{ $item['done'] ? 'is-done' : '' }}">
+                            <span class="planning-progress-icon">{{ $item['done'] ? '✓' : '•' }}</span>
+                            <div>
+                                <strong>{{ $item['label'] }}</strong>
+                                <span>{{ $item['hint'] }}</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
             <x-filament::section>
                 <x-slot name="heading">¿Qué periodo vas a planear?</x-slot>
                 <x-slot name="description">Elige el grupo y después marca la semana en el calendario o selecciona un mes. Las fechas se calculan automáticamente.</x-slot>
 
                 <form wire:submit="start" class="planning-form space-y-6">
                     <div>
-                        <label class="planning-label">Grupo</label>
+                        <label class="planning-label">Grupo <span class="planning-required">*</span></label>
                         <select
                             wire:model.live="group_id"
                             @disabled($draft_id)
@@ -640,7 +821,7 @@
 
                     <div>
                         @if ($period_type === 'week')
-                            <label class="planning-label">Semana a planear</label>
+                            <label class="planning-label">Semana a planear <span class="planning-required">*</span></label>
 
                             @if(!$group_id)
                                 <div class="planning-calendar-empty">
@@ -722,7 +903,7 @@
                                 </div>
                             @endif
                         @else
-                            <label class="planning-label">Mes a planear</label>
+                            <label class="planning-label">Mes a planear <span class="planning-required">*</span></label>
                             <select
                                 wire:model.live="period_key"
                                 @disabled(!$group_id)
@@ -823,10 +1004,10 @@
                                                 class="planning-topic-card"
                                             >
                                                 <div>
-                                                    <label class="planning-mini-label">Tema</label>
+                                                    <label class="planning-mini-label">Tema <span class="planning-required">*</span></label>
                                                     <input
                                                         type="text"
-                                                        wire:model="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.topic"
+                                                        wire:model.blur="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.topic"
                                                         maxlength="255"
                                                         placeholder="Ej. Números hasta 10,000"
                                                         class="planning-control"
@@ -837,9 +1018,9 @@
                                                 </div>
 
                                                 <div>
-                                                    <label class="planning-mini-label">Área o materia principal</label>
+                                                    <label class="planning-mini-label">Área o materia principal <span class="planning-required">*</span></label>
                                                     <select
-                                                        wire:model="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.group_subject_id"
+                                                        wire:model.live="weeks.{{ $weekIndex }}.topics.{{ $topicIndex }}.group_subject_id"
                                                         class="planning-control"
                                                     >
                                                         <option value="">Selecciona…</option>
@@ -910,6 +1091,12 @@
                             >
                                 {{ $draft_id ? 'Guardar cambios y revisar conexiones' : 'Continuar a revisión curricular' }}
                             </x-filament::button>
+
+                            @if (!$formProgress['ready'])
+                                <span class="planning-loading">
+                                    Te falta {{ $formProgress['missing_count'] }} paso(s). Si intentas continuar, te diremos exactamente qué completar.
+                                </span>
+                            @endif
 
                             <span class="planning-loading" wire:loading>
                                 Preparando la estructura…
