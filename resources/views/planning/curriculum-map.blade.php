@@ -443,12 +443,43 @@
                 </section>
             @endif
 
+            @php
+                $continueBlockers = [];
+                if ($pending_count > 0) {
+                    $continueBlockers[] = $pending_count === 1
+                        ? 'Revisa la sugerencia curricular que sigue pendiente.'
+                        : "Revisa las {$pending_count} sugerencias curriculares que siguen pendientes.";
+                }
+                if (count($selected['pdas']) === 0) {
+                    $continueBlockers[] = 'Selecciona al menos un PDA relacionado con los contenidos de la planeación.';
+                }
+                foreach (($schedule_field_coverage['missing'] ?? []) as $missingField) {
+                    $continueBlockers[] = 'Agrega contenido y PDA para ' . ($missingField['name'] ?? $missingField['code'] ?? 'un campo formativo del horario') . '.';
+                }
+            @endphp
+
             <section class="section">
                 <h2>Continuar</h2>
+
+                @if($continueBlockers !== [])
+                    <div class="notice error" style="margin-top:10px">
+                        <strong>Antes de continuar te falta:</strong>
+                        <ul style="margin:.55rem 0 0 1.1rem;padding:0">
+                            @foreach($continueBlockers as $blocker)
+                                <li style="margin-top:.3rem">{{ $blocker }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @else
+                    <div class="notice ok" style="margin-top:10px">
+                        <strong>Todo listo.</strong> Ya revisaste las conexiones necesarias. Puedes continuar al resumen final.
+                    </div>
+                @endif
+
                 <form method="POST" action="{{ route('planning.curriculum-map.confirm', $request) }}">
                     @csrf
-                    <button class="btn primary confirm" type="submit" @disabled($pending_count > 0 || count($selected['pdas']) === 0 || count($schedule_field_coverage['missing'] ?? []) > 0)>
-                        Confirmar y continuar
+                    <button class="btn primary confirm" type="submit" @disabled($continueBlockers !== [])>
+                        {{ $continueBlockers === [] ? 'Confirmar y continuar' : 'Completa lo pendiente para continuar' }}
                     </button>
                 </form>
                 <div class="muted" style="margin-top:8px">Guardaremos estas conexiones y te mostraremos el resumen final antes de iniciar la generación.</div>
