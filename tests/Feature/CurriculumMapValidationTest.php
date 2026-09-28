@@ -24,7 +24,13 @@ class CurriculumMapValidationTest extends PedagogyTestCase
 
         $this->actingAs($ctx['user']);
         $url = route('planning.curriculum-map', $request);
-        $this->get($url)->assertOk()->assertSee('Conexiones curriculares')->assertSee('Estas son las conexiones que encontramos');
+        $this->get($url)
+            ->assertOk()
+            ->assertSee('Conexiones curriculares')
+            ->assertSee('Estas son las conexiones que encontramos')
+            ->assertSee("localStorage.getItem('theme')", false)
+            ->assertDontSee('Nueva planeación')
+            ->assertDontSee('Mis planeaciones');
         $this->get($url)->assertOk();
 
         $this->assertSame(1, ProductEvent::query()
@@ -159,6 +165,8 @@ class CurriculumMapValidationTest extends PedagogyTestCase
             ->assertSee('Resumen y confirmación')
             ->assertSee('Revisa tu planeación antes de confirmarla')
             ->assertSee('Confirmar planeación')
+            ->assertSee("localStorage.getItem('theme')", false)
+            ->assertDontSee('Mis planeaciones')
             ->assertDontSee('Grupo y modalidad')
             ->assertDontSee('Rápido · Te sugerimos alineación curricular');
     }
