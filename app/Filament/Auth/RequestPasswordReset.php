@@ -22,16 +22,20 @@ class RequestPasswordReset extends \Filament\Auth\Pages\PasswordReset\RequestPas
 
     public function getTitle(): string | Htmlable
     {
-        return filament()->getCurrentPanel()?->getId() === 'admin'
-            ? 'Recuperar acceso administrativo'
-            : 'Recupera tu acceso | Planeaciones Soffee';
+        return match (filament()->getCurrentPanel()?->getId()) {
+            'admin' => 'Recuperar acceso administrativo',
+            'review' => 'Recuperar acceso de revisión',
+            default => 'Recupera tu acceso | Planeaciones Soffee',
+        };
     }
 
     public function getHeading(): string | Htmlable | null
     {
-        return filament()->getCurrentPanel()?->getId() === 'admin'
-            ? 'Recuperar acceso'
-            : 'Vuelve a tu espacio docente';
+        return match (filament()->getCurrentPanel()?->getId()) {
+            'admin' => 'Recuperar acceso',
+            'review' => 'Recuperar acceso de revisión',
+            default => 'Vuelve a tu espacio docente',
+        };
     }
 
     protected function getFailureNotification(string $status): ?Notification
