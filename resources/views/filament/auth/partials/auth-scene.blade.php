@@ -31,7 +31,7 @@
 @endphp
 
 @if ($isAuth)
-    <div class="pd-auth-scene pd-auth-scene--{{ $isAdmin ? 'admin' : ($isReview ? 'review' : 'app') }}" aria-hidden="true">
+    <div class="pd-auth-scene pd-auth-scene--{{ $isAdmin ? 'admin' : ($isReview ? 'review' : 'app') }}">
         <div class="pd-auth-scene__mesh"></div>
         <div class="pd-auth-scene__orb pd-auth-scene__orb--one"></div>
         <div class="pd-auth-scene__orb pd-auth-scene__orb--two"></div>
