@@ -7,6 +7,9 @@ class AdminPanelProvider extends BasePanelProvider {
     public function panel(Panel $panel): Panel {
         return $this->base($panel)->id('admin')->path('admin')
             ->brandName('Planeaciones · Administración')
+            ->brandLogo(asset('branding/soffee-logo-brand.svg'))
+            ->darkModeBrandLogo(asset('branding/soffee-logo-white.webp'))
+            ->brandLogoHeight('2.35rem')
             ->colors(['primary' => Color::Amber])
             ->pages([
                 \App\Filament\Admin\Pages\Dashboard::class,
