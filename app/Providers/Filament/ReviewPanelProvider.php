@@ -6,6 +6,9 @@ class ReviewPanelProvider extends BasePanelProvider {
     public function panel(Panel $panel): Panel {
         return $this->base($panel)->id('review')->path('review')
             ->brandName('Planeaciones · Revisión')
+            ->brandLogo(asset('branding/soffee-logo-brand.svg'))
+            ->darkModeBrandLogo(asset('branding/soffee-logo-white.webp'))
+            ->brandLogoHeight('2.35rem')
             ->colors(['primary' => Color::Indigo])
             
             ->pages([\App\Filament\Review\Pages\Dashboard::class])
