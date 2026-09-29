@@ -30,8 +30,12 @@ class NewPlanningWizardTest extends PedagogyTestCase
             ->assertOk()
             ->assertSee('<meta name="color-scheme" content="light">', false)
             ->assertSee('Cómo funciona')
-            ->assertSee('Qué obtienes')
-            ->assertSee('Menos configuración, más claridad para planear.')
+            ->assertSee('Para docentes')
+            ->assertSee('Menos configuración técnica. Más claridad para decidir.')
+            ->assertSee('data-menu-toggle', false)
+            ->assertSee('data-demo-tab="periodo"', false)
+            ->assertSee('data-demo-tab="curriculo"', false)
+            ->assertSee('data-demo-tab="documento"', false)
             ->assertSee('Crear una cuenta');
     }
 
