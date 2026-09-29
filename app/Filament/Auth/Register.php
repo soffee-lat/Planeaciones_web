@@ -5,11 +5,22 @@ namespace App\Filament\Auth;
 use App\Actions\Identity\RegisterCustomer;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Password;
 
 class Register extends \Filament\Auth\Pages\Register
 {
+    public function getTitle(): string | Htmlable
+    {
+        return 'Crea tu cuenta | Planeaciones Soffee';
+    }
+
+    public function getHeading(): string | Htmlable | null
+    {
+        return 'Crea tu espacio docente';
+    }
+
     protected function handleRegistration(array $data): Model
     {
         return app(RegisterCustomer::class)->execute($data);
