@@ -14,9 +14,11 @@ use App\Models\School;
 use App\Models\PlanningRequest;
 use App\Services\Planning\PlanningPeriodService;
 use Carbon\CarbonImmutable;
+use BackedEnum;
 use Carbon\CarbonInterface;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Validation\ValidationException;
 
 class StartPlanning extends Page
@@ -24,7 +26,8 @@ class StartPlanning extends Page
     protected static ?string $title = 'Nueva planeación';
     protected static ?string $navigationLabel = 'Nueva planeación';
     protected static ?string $slug = 'nueva-planeacion';
-    protected static ?int $navigationSort = 25;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentPlus;
+    protected static ?int $navigationSort = 2;
     protected string $view = 'filament.app.pages.start-planning';
 
     public ?int $draft_id = null;
