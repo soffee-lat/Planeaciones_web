@@ -35,7 +35,7 @@ class IdentityAccessTest extends TestCase {
             ->assertSee('Planeaciones Soffee')
             ->assertSee('Inicio')
             ->assertSee('Iniciar sesión')
-            ->assertSee('Registrarse')
+            ->assertSee('Probar Soffee')
             ->assertSee(route('filament.app.auth.login'), false)
             ->assertSee(route('filament.app.auth.register'), false);
     }
