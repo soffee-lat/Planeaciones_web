@@ -16,9 +16,11 @@ class Login extends \Filament\Auth\Pages\Login
 
     public function getTitle(): string | Htmlable
     {
-        return filament()->getCurrentPanel()?->getId() === 'admin'
-            ? 'Acceso administrativo'
-            : 'Inicia sesión | Planeaciones Soffee';
+        return match (filament()->getCurrentPanel()?->getId()) {
+            'admin' => 'Acceso administrativo',
+            'review' => 'Acceso de revisión',
+            default => 'Inicia sesión | Planeaciones Soffee',
+        };
     }
 
     public function getHeading(): string | Htmlable | null
@@ -27,8 +29,10 @@ class Login extends \Filament\Auth\Pages\Login
             return parent::getHeading();
         }
 
-        return filament()->getCurrentPanel()?->getId() === 'admin'
-            ? 'Acceso administrativo'
-            : 'Accede a tu espacio docente';
+        return match (filament()->getCurrentPanel()?->getId()) {
+            'admin' => 'Acceso administrativo',
+            'review' => 'Acceso de revisión',
+            default => 'Accede a tu espacio docente',
+        };
     }
 }
