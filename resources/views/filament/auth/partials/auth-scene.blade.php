@@ -101,4 +101,9 @@
             <span>{{ $isAdmin ? 'Panel interno' : 'Preescolar y primaria · DOCX y PDF' }}</span>
         </div>
     </div>
+
+    <a class="pd-auth-back-link" href="{{ $isAdmin ? url('/app') : url('/app') }}">
+        <span aria-hidden="true">←</span>
+        {{ $isAdmin ? 'Volver al sitio' : 'Volver al inicio' }}
+    </a>
 @endif
