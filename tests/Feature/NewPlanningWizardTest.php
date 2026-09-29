@@ -52,8 +52,11 @@ class NewPlanningWizardTest extends PedagogyTestCase
         $this->actingAs($ctx['user']->refresh());
         $res = $this->get('/app/inicio');
         $res->assertOk();
-        $res->assertSee('Todo listo para crear una planeación.');
-        $res->assertSee('Nueva planeación');
+        $res->assertSee('Listo para planear');
+        $res->assertSee('Crear nueva planeación');
+        $res->assertSee('Accesos rápidos');
+        $res->assertSee('Planeaciones recientes');
+        $res->assertSee('Mis formatos');
     }
 
     public function test_dashboard_explains_when_profile_is_complete_but_schedule_is_missing(): void
@@ -70,9 +73,10 @@ class NewPlanningWizardTest extends PedagogyTestCase
 
         $this->get('/app/inicio')
             ->assertOk()
-            ->assertSee('todavía falta dejar un grupo listo para planear')
+            ->assertSee('sólo falta preparar un grupo')
             ->assertSee('Ver qué me falta')
-            ->assertDontSee('Todo listo para crear una planeación.');
+            ->assertSee('Preparar mis grupos')
+            ->assertDontSee('Listo para planear');
     }
 
     public function test_legacy_create_page_redirects_to_the_current_planning_flow(): void
