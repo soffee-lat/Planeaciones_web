@@ -1361,8 +1361,8 @@ textarea.planning-start__control {
 .pd-auth-scene {
     position: fixed;
     inset: 0 auto 0 0;
-    z-index: 0;
-    width: 50vw;
+    z-index: 4;
+    width: 54vw;
     min-width: 34rem;
     overflow: hidden;
     background:
@@ -1758,12 +1758,16 @@ textarea.planning-start__control {
 
 body:has(.pd-auth-scene) .fi-simple-layout {
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    width: 46vw;
+    min-width: 0;
     min-height: 100vh;
-    padding-left: 50vw;
+    margin-left: 54vw;
+    padding-left: 0;
     background:
-        radial-gradient(circle at 88% 10%, rgb(20 184 166 / .07), transparent 24rem),
-        linear-gradient(160deg, #f8fafc, #ffffff 58%);
+        radial-gradient(circle at 86% 8%, rgb(20 184 166 / .10), transparent 22rem),
+        radial-gradient(circle at 18% 92%, rgb(14 116 144 / .045), transparent 20rem),
+        linear-gradient(155deg, #f7fafb, #ffffff 58%);
 }
 
 body:has(.pd-auth-scene--admin) .fi-simple-layout {
@@ -1774,11 +1778,12 @@ body:has(.pd-auth-scene--admin) .fi-simple-layout {
 
 body:has(.pd-auth-scene) .fi-simple-main-ctn {
     width: 100%;
-    padding: 5rem clamp(1.25rem, 5vw, 4rem) 3rem;
+    min-width: 0;
+    padding: 4.25rem clamp(1.4rem, 4vw, 3.5rem) 3rem;
 }
 
 body:has(.pd-auth-scene) .fi-simple-main {
-    width: min(100%, 30rem);
+    width: min(100%, 33rem);
     margin-inline: auto;
     border: 1px solid #dfe6ec;
     border-radius: 1.35rem;
@@ -1800,6 +1805,11 @@ body:has(.pd-auth-scene) .fi-simple-header {
     gap: .55rem;
     margin-bottom: 1.7rem;
     text-align: left;
+}
+
+body:has(.pd-auth-scene) .fi-simple-header .fi-logo-ctn,
+body:has(.pd-auth-scene) .fi-simple-header > .fi-logo {
+    display: none;
 }
 
 body:has(.pd-auth-scene) .fi-simple-header .fi-logo {
@@ -1897,6 +1907,7 @@ body:has(.pd-auth-scene--app) .fi-btn.fi-color-primary,
 body:has(.pd-auth-scene--app) .fi-btn[data-color='primary'] {
     border-color: #0f8f82;
     background: linear-gradient(135deg, #15aa9d, #0d7f76);
+    color: #ffffff !important;
     box-shadow: 0 13px 28px rgb(13 127 118 / .22);
 }
 
@@ -1945,14 +1956,16 @@ body:has(.pd-auth-scene--admin) .fi-simple-main::before {
     content: "ACCESO INTERNO";
 }
 
-@media (max-width: 1050px) {
+@media (max-width: 1180px) {
     .pd-auth-scene {
-        width: 46vw;
+        width: 48vw;
         min-width: 28rem;
     }
 
     body:has(.pd-auth-scene) .fi-simple-layout {
-        padding-left: 46vw;
+        width: 52vw;
+        margin-left: 48vw;
+        padding-left: 0;
     }
 
     .pd-auth-scene__content {
@@ -2009,7 +2022,9 @@ body:has(.pd-auth-scene--admin) .fi-simple-main::before {
     }
 
     body:has(.pd-auth-scene) .fi-simple-layout {
+        width: 100%;
         min-height: auto;
+        margin-left: 0;
         padding-left: 0;
         background: #f8fafc;
     }
