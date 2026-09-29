@@ -66,6 +66,13 @@ class IdentityAccessTest extends TestCase {
             ->assertSee('Acceso administrativo')
             ->assertSee('Operación IA')
             ->assertSee('Acceso interno');
+
+        $this->get('/review/login')
+            ->assertOk()
+            ->assertSee('Revisión pedagógica, en un espacio separado.')
+            ->assertSee('Acceso de revisión')
+            ->assertSee('Asignaciones')
+            ->assertSee('Espacio de revisión');
     }
 
     public function test_guests_see_login_on_each_panel_and_internal_registration_is_absent(): void {
