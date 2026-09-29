@@ -1,11 +1,28 @@
 <?php
 namespace App\Providers\Filament;
+
 use Filament\Panel;
 use Filament\PanelProvider;
-abstract class BasePanelProvider extends PanelProvider {
-    protected function base(Panel $panel): Panel {
-        return $panel->login(\App\Filament\Auth\Login::class)->passwordReset(\App\Filament\Auth\RequestPasswordReset::class)->emailVerification()->emailChangeVerification()->profile(\App\Filament\Auth\EditProfile::class)
-            ->brandName('Planeaciones')->viteTheme('resources/css/filament/theme.css')->databaseNotifications()->databaseTransactions()
+use Filament\View\PanelsRenderHook;
+
+abstract class BasePanelProvider extends PanelProvider
+{
+    protected function base(Panel $panel): Panel
+    {
+        return $panel
+            ->login(\App\Filament\Auth\Login::class)
+            ->passwordReset(\App\Filament\Auth\RequestPasswordReset::class)
+            ->emailVerification()
+            ->emailChangeVerification()
+            ->profile(\App\Filament\Auth\EditProfile::class)
+            ->brandName('Planeaciones')
+            ->viteTheme('resources/css/filament/theme.css')
+            ->databaseNotifications()
+            ->databaseTransactions()
+            ->renderHook(
+                PanelsRenderHook::BODY_START,
+                fn () => view('filament.auth.partials.auth-scene'),
+            )
             ->middleware([
                 \Illuminate\Cookie\Middleware\EncryptCookies::class,
                 \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
