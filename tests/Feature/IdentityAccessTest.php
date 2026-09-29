@@ -39,6 +39,35 @@ class IdentityAccessTest extends TestCase {
             ->assertSee(route('filament.app.auth.login'), false)
             ->assertSee(route('filament.app.auth.register'), false);
     }
+    public function test_customer_and_admin_auth_pages_use_distinct_branded_experiences(): void
+    {
+        $this->withoutVite();
+
+        $this->get('/app/login')
+            ->assertOk()
+            ->assertSee('Tu planeación continúa aquí.')
+            ->assertSee('Accede a tu espacio docente')
+            ->assertSee('Tu contexto permanece listo')
+            ->assertSee('Volver al inicio');
+
+        $this->get('/app/register')
+            ->assertOk()
+            ->assertSee('Prepara tu espacio docente una sola vez.')
+            ->assertSee('Crea tu espacio docente');
+
+        $this->get('/app/password-reset/request')
+            ->assertOk()
+            ->assertSee('Vuelve a tu trabajo sin empezar de cero.')
+            ->assertSee('Vuelve a tu espacio docente');
+
+        $this->get('/admin/login')
+            ->assertOk()
+            ->assertSee('Centro de control de Planeaciones Soffee.')
+            ->assertSee('Acceso administrativo')
+            ->assertSee('Operación IA')
+            ->assertSee('Acceso interno');
+    }
+
     public function test_guests_see_login_on_each_panel_and_internal_registration_is_absent(): void {
         $this->get('/app/inicio')->assertRedirect('/app/login');
         $this->get('/app/login')->assertOk();
