@@ -24,6 +24,17 @@ use Livewire\Livewire;
  */
 class NewPlanningWizardTest extends PedagogyTestCase
 {
+    public function test_public_app_home_uses_light_landing_and_clear_navigation(): void
+    {
+        $this->get('/app')
+            ->assertOk()
+            ->assertSee('<meta name="color-scheme" content="light">', false)
+            ->assertSee('Cómo funciona')
+            ->assertSee('Qué obtienes')
+            ->assertSee('Menos configuración, más claridad para planear.')
+            ->assertSee('Crear una cuenta');
+    }
+
     public function test_dashboard_shows_nueva_planeacion_cta_when_onboarding_complete(): void
     {
         $ctx = $this->seedFullTeacher();
