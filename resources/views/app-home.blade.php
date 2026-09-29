@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
-    <meta name="theme-color" content="#08111f">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#ffffff">
     <title>Planeaciones Soffee | Planeación docente</title>
     <meta name="description" content="Organiza tus periodos, revisa conexiones curriculares y prepara tus planeaciones docentes en un solo lugar.">
     <link rel="icon" type="image/webp" href="{{ asset('branding/soffee-icon.webp') }}">
@@ -21,6 +21,7 @@
             <nav class="landing-nav" aria-label="Navegación principal">
                 <a class="landing-nav__link is-active" href="{{ url('/app') }}">Inicio</a>
                 <a class="landing-nav__link" href="#como-funciona">Cómo funciona</a>
+                <a class="landing-nav__link" href="#beneficios">Qué obtienes</a>
 
                 @auth
                     <a class="landing-button landing-button--small" href="{{ \App\Filament\App\Pages\Dashboard::getUrl() }}">
@@ -166,6 +167,37 @@
                         <span class="landing-feature__number">03</span>
                         <h3>Obtén tu documento</h3>
                         <p>Una vez aprobado el contenido, aplica el formato de salida y prepara tus archivos DOCX y PDF.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="landing-benefits" id="beneficios">
+                <div class="landing-section__heading">
+                    <span class="landing-eyebrow">Pensado para docentes</span>
+                    <h2>Menos configuración, más claridad para planear.</h2>
+                    <p>La plataforma conserva el contexto de tus grupos y te guía sólo por lo que necesitas revisar en cada planeación.</p>
+                </div>
+
+                <div class="landing-benefits__grid">
+                    <article>
+                        <span>01</span>
+                        <strong>Tu grupo se reutiliza</strong>
+                        <p>Perfil, grado y horario quedan preparados para no capturarlos de nuevo cada vez.</p>
+                    </article>
+                    <article>
+                        <span>02</span>
+                        <strong>El currículo se revisa contigo</strong>
+                        <p>Ves contenidos y PDA relacionados antes de confirmar, con indicaciones cuando falta algo.</p>
+                    </article>
+                    <article>
+                        <span>03</span>
+                        <strong>Preescolar y primaria</strong>
+                        <p>El flujo distingue el nivel y el grado para trabajar con el alcance educativo correspondiente.</p>
+                    </article>
+                    <article>
+                        <span>04</span>
+                        <strong>Documento listo para usar</strong>
+                        <p>Al final puedes preparar la salida de tu planeación en DOCX y PDF.</p>
                     </article>
                 </div>
             </section>
