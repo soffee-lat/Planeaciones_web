@@ -2064,3 +2064,62 @@ body:has(.pd-auth-scene--admin) .fi-simple-main::before {
         font-size: 1.5rem;
     }
 }
+
+
+.pd-auth-scene--review {
+    background:
+        radial-gradient(circle at 14% 18%, rgb(99 102 241 / .18), transparent 18rem),
+        radial-gradient(circle at 90% 76%, rgb(14 116 144 / .12), transparent 22rem),
+        linear-gradient(145deg, #161a33 0%, #0f1530 60%, #151a36 100%);
+}
+
+.pd-auth-scene--review .pd-auth-scene__eyebrow {
+    color: #a5b4fc;
+}
+
+.pd-auth-review-grid > div {
+    border-color: rgb(129 140 248 / .12);
+    background: rgb(99 102 241 / .05);
+}
+
+.pd-auth-review-note {
+    border-color: rgb(129 140 248 / .16);
+    background: rgb(99 102 241 / .06);
+}
+
+.pd-auth-review-note > span {
+    background: rgb(99 102 241 / .12);
+    color: #c7d2fe;
+}
+
+body:has(.pd-auth-scene--review) .fi-simple-layout {
+    background:
+        radial-gradient(circle at 88% 10%, rgb(99 102 241 / .055), transparent 24rem),
+        linear-gradient(160deg, #f8f9ff, #ffffff 58%);
+}
+
+body:has(.pd-auth-scene--review) .fi-simple-main::before {
+    border-color: #d9ddfb;
+    background: #f5f6ff;
+    color: #4f46e5;
+    content: "ESPACIO DE REVISIÓN";
+}
+
+body:has(.pd-auth-scene--review) .fi-simple-header-subheading a,
+body:has(.pd-auth-scene--review) .fi-fo-field-wrp-hint a,
+body:has(.pd-auth-scene--review) .fi-link {
+    color: #4f46e5;
+}
+
+body:has(.pd-auth-scene--review) .fi-input-wrp:focus-within {
+    border-color: #9aa4ef;
+    box-shadow: 0 0 0 4px rgb(99 102 241 / .09);
+}
+
+body:has(.pd-auth-scene--review) .fi-btn.fi-color-primary,
+body:has(.pd-auth-scene--review) .fi-btn[data-color='primary'] {
+    border-color: #5b5bd6;
+    background: linear-gradient(135deg, #696ee8, #4f46c8);
+    color: #fff;
+    box-shadow: 0 13px 28px rgb(79 70 229 / .18);
+}
