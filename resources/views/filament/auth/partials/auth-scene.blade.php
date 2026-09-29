@@ -3,6 +3,7 @@
     $routeName = (string) (request()->route()?->getName() ?? '');
     $isAuth = str_contains($routeName, '.auth.');
     $isAdmin = $panelId === 'admin';
+    $isReview = $panelId === 'review';
     $isRegister = str_contains($routeName, '.register');
     $isPassword = str_contains($routeName, 'password-reset');
 
@@ -10,6 +11,10 @@
         $eyebrow = 'SOFFEE · ADMINISTRACIÓN';
         $title = 'Centro de control de Planeaciones Soffee.';
         $copy = 'Gestiona usuarios, operación, catálogos y planes desde un acceso separado del espacio docente.';
+    } elseif ($isReview) {
+        $eyebrow = 'SOFFEE · REVISIÓN';
+        $title = 'Revisión pedagógica, en un espacio separado.';
+        $copy = 'Consulta asignaciones, revisa documentos y da seguimiento a las planeaciones que requieren intervención humana.';
     } elseif ($isRegister) {
         $eyebrow = 'EMPIEZA CON SOFFEE';
         $title = 'Prepara tu espacio docente una sola vez.';
@@ -26,7 +31,7 @@
 @endphp
 
 @if ($isAuth)
-    <div class="pd-auth-scene pd-auth-scene--{{ $isAdmin ? 'admin' : 'app' }}" aria-hidden="true">
+    <div class="pd-auth-scene pd-auth-scene--{{ $isAdmin ? 'admin' : ($isReview ? 'review' : 'app') }}" aria-hidden="true">
         <div class="pd-auth-scene__mesh"></div>
         <div class="pd-auth-scene__orb pd-auth-scene__orb--one"></div>
         <div class="pd-auth-scene__orb pd-auth-scene__orb--two"></div>
@@ -37,7 +42,7 @@
                     src="{{ asset($isAdmin ? 'branding/soffee-logo-white.webp' : 'branding/soffee-logo-white.webp') }}"
                     alt="Soffee"
                 >
-                <span>{{ $isAdmin ? 'Administración' : 'Planeaciones' }}</span>
+                <span>{{ $isAdmin ? 'Administración' : ($isReview ? 'Revisión' : 'Planeaciones') }}</span>
             </a>
 
             <div class="pd-auth-scene__eyebrow">{{ $eyebrow }}</div>
@@ -57,6 +62,21 @@
                     <div>
                         <strong>Acceso interno</strong>
                         <small>Este panel es independiente del espacio de clientes.</small>
+                    </div>
+                </div>
+            @elseif ($isReview)
+                <div class="pd-auth-admin-grid pd-auth-review-grid">
+                    <div><strong>Asignaciones</strong><span>Trabajo pendiente</span></div>
+                    <div><strong>Revisión</strong><span>Contenido y calidad</span></div>
+                    <div><strong>Correcciones</strong><span>Seguimiento claro</span></div>
+                    <div><strong>Historial</strong><span>Trazabilidad del proceso</span></div>
+                </div>
+
+                <div class="pd-auth-admin-note pd-auth-review-note">
+                    <span>◎</span>
+                    <div>
+                        <strong>Espacio de revisión</strong>
+                        <small>Separado del acceso de clientes y administración.</small>
                     </div>
                 </div>
             @else
@@ -98,7 +118,7 @@
 
         <div class="pd-auth-scene__footer">
             <span>© {{ now()->year }} Soffee</span>
-            <span>{{ $isAdmin ? 'Panel interno' : 'Preescolar y primaria · DOCX y PDF' }}</span>
+            <span>{{ $isAdmin ? 'Panel interno' : ($isReview ? 'Revisión pedagógica' : 'Preescolar y primaria · DOCX y PDF') }}</span>
         </div>
     </div>
 
