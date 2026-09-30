@@ -15,7 +15,7 @@
     <header class="landing-header" data-landing-header>
         <div class="landing-header__inner">
             <a class="landing-brand" href="{{ url('/app') }}" aria-label="Planeaciones Soffee, inicio">
-                <img class="landing-brand__logo" src="{{ asset('branding/soffee-logo-brand.svg') }}" alt="Soffee">
+                <img class="landing-brand__logo" src="{{ asset('branding/soffee-logo-white.webp') }}" alt="Soffee">
                 <span class="landing-brand__divider" aria-hidden="true"></span>
                 <span class="landing-brand__product">Planeaciones</span>
             </a>
@@ -338,7 +338,7 @@
     <footer class="landing-footer">
         <div class="landing-shell landing-footer__inner">
             <div class="landing-brand landing-brand--footer">
-                <img class="landing-brand__logo" src="{{ asset('branding/soffee-logo-brand.svg') }}" alt="Soffee">
+                <img class="landing-brand__logo" src="{{ asset('branding/soffee-logo-white.webp') }}" alt="Soffee">
                 <span class="landing-brand__divider" aria-hidden="true"></span>
                 <span class="landing-brand__product">Planeaciones</span>
             </div>
