@@ -34,7 +34,7 @@ class NewPlanningWizardTest extends PedagogyTestCase
             ->assertSee('Para docentes')
             ->assertSee('El sistema recuerda el contexto. Tú te concentras en enseñar.')
             ->assertSee('Menos configuración técnica. Más claridad para decidir.')
-            ->assertSee('branding/soffee-logo-brand.svg', false)
+            ->assertSee('branding/soffee-logo-white.webp', false)
             ->assertSee('data-menu-toggle', false)
             ->assertSee('data-tilt', false)
             ->assertSee('data-demo-tab="periodo"', false)
