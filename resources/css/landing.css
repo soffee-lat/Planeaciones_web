@@ -98,7 +98,11 @@ img { max-width: 100%; }
     display: block;
     width: 118px;
     height: auto;
+    max-height: 30px;
     flex: 0 0 auto;
+    object-fit: contain;
+    object-position: left center;
+    filter: brightness(0) saturate(100%) invert(13%) sepia(13%) saturate(1846%) hue-rotate(164deg) brightness(90%) contrast(94%);
 }
 
 .landing-brand__divider {
