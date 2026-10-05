@@ -26,6 +26,9 @@ class CanonicalPlanValidator
         if (! is_array($schema)) {
             throw new AiContractException('AI_SCHEMA_INVALID', '$', basename($schemaPath));
         }
+        if ($schemaVersion === self::SCHEMA_VERSION) {
+            $schema = $this->relaxOptionalSessionCurriculum($schema);
+        }
 
         $basePayload = $payload;
         unset($basePayload['custom']);
@@ -112,5 +115,18 @@ class CanonicalPlanValidator
         if (preg_match('/^[a-z][a-z0-9_]{1,63}$/', $key) !== 1) {
             throw new AiContractException('CANONICAL_CUSTOM_KEY_INVALID', $path . '.' . $key);
         }
+    }
+
+    /** @param array<string,mixed> $schema @return array<string,mixed> */
+    private function relaxOptionalSessionCurriculum(array $schema): array
+    {
+        foreach (['field_codes', 'content_codes', 'pda_codes'] as $key) {
+            if (isset($schema['$defs']['session']['properties'][$key])
+                && is_array($schema['$defs']['session']['properties'][$key])) {
+                unset($schema['$defs']['session']['properties'][$key]['minItems']);
+            }
+        }
+
+        return $schema;
     }
 }
