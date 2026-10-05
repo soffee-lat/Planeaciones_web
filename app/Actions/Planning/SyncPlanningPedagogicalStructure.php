@@ -123,7 +123,10 @@ final class SyncPlanningPedagogicalStructure
         }
 
         $topicSummary = implode(' · ', array_values(array_unique($allTopics)));
-        $project = $integrativeProject !== '' ? $integrativeProject : ($allTopics[0] ?? 'Planeación');
+        // No convertir el primer tema de la semana en un proyecto ficticio.
+        // Si el docente no capturó proyecto integrador, dejamos project vacío
+        // para que la generación pueda proponer un nombre global coherente.
+        $project = $integrativeProject !== '' ? $integrativeProject : null;
         $topic = "Temas por semana: {$topicSummary}";
         if ($integrativePurpose !== '') {
             $topic .= "\nProyecto integrador: {$integrativePurpose}";
@@ -168,7 +171,7 @@ final class SyncPlanningPedagogicalStructure
                 'starts_on' => $period['starts_on'],
                 'ends_on' => $period['ends_on'],
                 'period_label' => $period['label'],
-                'project' => mb_strimwidth($project, 0, 255, ''),
+                'project' => $project === null ? null : mb_strimwidth($project, 0, 255, ''),
                 'topic' => $topic,
                 'comments' => $contextNote === '' ? null : $contextNote,
             ])->save();
