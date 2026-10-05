@@ -84,9 +84,11 @@ final class FormatAwareGenerationSchema
                             'type' => 'array',
                             'items' => ['type' => 'string', 'minLength' => 1],
                         ],
+                        // La cobertura PDA puede ser legítimamente vacía cuando
+                        // el formato incluye materias institucionales o cuando no
+                        // existe una correspondencia curricular temática real.
                         'pda_coverage' => [
                             'type' => 'array',
-                            'minItems' => 1,
                             'items' => [
                                 'type' => 'object',
                                 'additionalProperties' => false,
