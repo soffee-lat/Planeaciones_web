@@ -332,16 +332,20 @@ class CanonicalPlanAssembler
                     );
                 }
 
+                // Si una sesión declara referencias curriculares, deben respetar
+                // el campo del horario. Una sesión sin referencias es válida: el
+                // bloque puede ser institucional o no tener correspondencia NEM.
                 $blockFields = array_values(array_filter((array) ($block['field_codes'] ?? []), 'is_string'));
-                if ($blockFields !== [] && ! (bool) ($block['is_flexible'] ?? false)) {
-                    $sessionFields = array_values(array_filter((array) ($session['field_codes'] ?? []), 'is_string'));
-                    if (array_intersect($blockFields, $sessionFields) === []) {
-                        throw new AiContractException(
-                            'GENERATED_SESSION_FIELD_NOT_ALLOWED_BY_SCHEDULE',
-                            $path . '.field_codes',
-                            implode(',', $blockFields),
-                        );
-                    }
+                $sessionFields = array_values(array_filter((array) ($session['field_codes'] ?? []), 'is_string'));
+                if ($blockFields !== []
+                    && $sessionFields !== []
+                    && ! (bool) ($block['is_flexible'] ?? false)
+                    && array_intersect($blockFields, $sessionFields) === []) {
+                    throw new AiContractException(
+                        'GENERATED_SESSION_FIELD_NOT_ALLOWED_BY_SCHEDULE',
+                        $path . '.field_codes',
+                        implode(',', $blockFields),
+                    );
                 }
             }
         }
