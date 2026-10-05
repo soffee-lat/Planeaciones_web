@@ -20,6 +20,7 @@ class GeneratedPlanDraftValidator
         }
 
         $schema = $this->loadSchema(resource_path('schemas/ai/generated_plan_draft_v1.schema.json'));
+        $schema = $this->relaxOptionalSessionCurriculum($schema);
 
         // `custom` se define dinámicamente por el contrato del formato de esta
         // ejecución. El contrato base sigue siendo v1; la extensión se valida
@@ -47,8 +48,6 @@ class GeneratedPlanDraftValidator
             if (! is_array($payload[$optionalObject])) {
                 throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
             }
-            // `{}` se decodifica como `[]` en PHP. Se acepta únicamente vacío;
-            // una lista real no vacía sigue siendo inválida para estos objetos.
             if ($payload[$optionalObject] !== [] && array_is_list($payload[$optionalObject])) {
                 throw new AiContractException('ADAPTIVE_GENERATION_OBJECT_REQUIRED', '$.' . $optionalObject);
             }
@@ -218,6 +217,19 @@ class GeneratedPlanDraftValidator
                 }
             }
         }
+    }
+
+    /** @param array<string,mixed> $schema @return array<string,mixed> */
+    private function relaxOptionalSessionCurriculum(array $schema): array
+    {
+        foreach (['field_codes', 'content_codes', 'pda_codes'] as $key) {
+            if (isset($schema['$defs']['session']['properties'][$key])
+                && is_array($schema['$defs']['session']['properties'][$key])) {
+                unset($schema['$defs']['session']['properties'][$key]['minItems']);
+            }
+        }
+
+        return $schema;
     }
 
     /** @return array<string,mixed> */
