@@ -189,8 +189,10 @@ final class CurriculumMapService
 
         $state = $this->state($actor, $request, false);
 
-        // Un PDA nunca debe quedar huérfano en el mapa. Si el docente agrega
-        // uno cuyo contenido no estaba incluido, agregamos también el contenido.
+        // Si el docente agrega un PDA, conservamos su contenido padre para que
+        // la selección siga siendo curricularmente íntegra. Lo contrario no es
+        // obligatorio: un contenido puede ser pertinente aunque no exista un
+        // PDA adecuado para ese tema concreto.
         if ($entityType === 'pda') {
             $pda = Pda::query()->findOrFail($entityId);
             $contentId = (int) $pda->curricular_content_id;
@@ -220,39 +222,27 @@ final class CurriculumMapService
         }
 
         $selected = $state['selected'];
-        if ($selected['contents'] === []) {
-            throw new \RuntimeException('CURRICULUM_MAP_CONTENT_REQUIRED');
-        }
-        if ($selected['pdas'] === []) {
-            throw new \RuntimeException('CURRICULUM_MAP_PDA_REQUIRED');
-        }
-
-        $pdaContentIds = Pda::query()
-            ->whereIn('id', $selected['pdas'])
-            ->pluck('curricular_content_id')
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
         $selectedContentIds = $this->sortedInts($selected['contents']);
 
-        foreach ($selectedContentIds as $contentId) {
-            if (! in_array($contentId, $pdaContentIds, true)) {
-                throw new \RuntimeException('CURRICULUM_MAP_CONTENT_WITHOUT_PDA:' . $contentId);
-            }
-        }
+        // La selección curricular es una ayuda, no un requisito artificial. Un
+        // docente puede continuar sin contenidos/PDA cuando no existe una
+        // correspondencia real para el tema (por ejemplo Inglés, Tecnología,
+        // Deportes o Huerto). Si sí eligió un PDA, su contenido padre debe
+        // permanecer seleccionado para conservar integridad referencial.
+        $pdaContentIds = $selected['pdas'] === []
+            ? []
+            : Pda::query()
+                ->whereIn('id', $selected['pdas'])
+                ->pluck('curricular_content_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+
         foreach ($pdaContentIds as $contentId) {
             if (! in_array($contentId, $selectedContentIds, true)) {
                 throw new \RuntimeException('CURRICULUM_MAP_PDA_WITHOUT_CONTENT:' . $contentId);
             }
-        }
-
-        $scheduleFieldCoverage = $this->scheduleFieldCoverage($request, $selectedContentIds, $selected['pdas']);
-        if ($scheduleFieldCoverage['missing'] !== []) {
-            throw new \RuntimeException(
-                'CURRICULUM_MAP_SCHEDULE_FIELD_REQUIRED:'
-                . implode(',', array_column($scheduleFieldCoverage['missing'], 'code'))
-            );
         }
 
         $synced = $this->syncSelections->execute($actor, $request, [
@@ -297,7 +287,6 @@ final class CurriculumMapService
         $contentModels = CurricularContent::query()
             ->with('formativeField:id,code,name')
             ->where('curriculum_version_id', $request->curriculum_version_id)
-            ->whereHas('pdas', fn ($query) => $query->where('grade_id', $request->grade_id))
             ->orderBy('sort_order')->orderBy('code')
             ->get(['id', 'formative_field_id', 'code', 'title']);
 
@@ -357,8 +346,9 @@ final class CurriculumMapService
     }
 
     /**
-     * Devuelve los códigos de campo oficial exigidos por bloques no flexibles
-     * que sí participan en la planeación.
+     * Devuelve los códigos de campo oficial asociados a bloques no flexibles
+     * que participan en la planeación. Se usan para orientar sugerencias, no
+     * para obligar al docente a seleccionar una referencia curricular.
      *
      * @return list<string>
      */
@@ -392,8 +382,9 @@ final class CurriculumMapService
     }
 
     /**
-     * Garantiza que cada campo oficial no flexible del horario que entra en la
-     * planeación tenga tanto contenido curricular como al menos un PDA elegido.
+     * Resume la cobertura curricular disponible por campo. Es información de
+     * apoyo para la interfaz; una ausencia ya no bloquea la planeación porque
+     * puede significar que no existe una correspondencia temática real.
      *
      * @param int[] $selectedContentIds
      * @param int[] $selectedPdaIds
@@ -459,20 +450,15 @@ final class CurriculumMapService
         $required = array_map(function (string $code) use ($fieldNames, $selectedContentFieldCodes, $selectedPdaFieldCodes): array {
             $hasContent = in_array($code, $selectedContentFieldCodes, true);
             $hasPda = in_array($code, $selectedPdaFieldCodes, true);
-            $missingRequirement = match (true) {
-                $hasContent && $hasPda => null,
-                ! $hasContent && ! $hasPda => 'content_and_pda',
-                ! $hasContent => 'content',
-                default => 'pda',
-            };
+            $covered = $hasContent || $hasPda;
 
             return [
                 'code' => $code,
                 'name' => (string) ($fieldNames[$code] ?? $code),
                 'content_selected' => $hasContent,
                 'pda_selected' => $hasPda,
-                'covered' => $hasContent && $hasPda,
-                'missing_requirement' => $missingRequirement,
+                'covered' => $covered,
+                'missing_requirement' => $covered ? null : 'optional_curriculum',
             ];
         }, $requiredCodes);
 
@@ -491,15 +477,9 @@ final class CurriculumMapService
     }
 
     /**
-     * Construye opciones accionables para cada campo faltante. La unidad de
-     * elección es el PDA porque al agregarlo el mapa incluye también su
-     * contenido padre, de modo que una sola acción puede resolver ambos
-     * requisitos sin obligar al docente a adivinar qué combinar.
-     *
-     * Las coincidencias de la estrategia determinista aparecen primero. Si no
-     * existe coincidencia temática, se muestran opciones válidas del mismo
-     * campo y grado como alternativas explícitas, sin presentarlas como
-     * recomendaciones.
+     * Construye opciones sólo cuando la estrategia encontró una coincidencia
+     * temática real. Ya no rellena campos faltantes con PDA arbitrarios del
+     * mismo campo únicamente para completar el formulario.
      *
      * @param array<string,mixed> $coverage
      * @param array<string,mixed> $suggestion
@@ -596,6 +576,9 @@ final class CurriculumMapService
 
             $suggested = array_key_exists($pdaId, $suggestedPdaOrder)
                 || array_key_exists($contentId, $suggestedContentOrder);
+            if (! $suggested) {
+                continue;
+            }
 
             $ranked[$fieldCode][] = [
                 'field_code' => $fieldCode,
@@ -606,8 +589,8 @@ final class CurriculumMapService
                 'pda_code' => (string) $pda->code,
                 'pda_text' => (string) $pda->full_text,
                 'content_already_selected' => isset($selectedContentSet[$contentId]),
-                'suggested' => $suggested,
-                'reason' => $suggested ? ($suggestion['reasons'][$contentId] ?? null) : null,
+                'suggested' => true,
+                'reason' => $suggestion['reasons'][$contentId] ?? null,
                 '_pda_rank' => $suggestedPdaOrder[$pdaId] ?? PHP_INT_MAX,
                 '_content_rank' => $suggestedContentOrder[$contentId] ?? PHP_INT_MAX,
             ];
@@ -617,9 +600,6 @@ final class CurriculumMapService
             usort($rows, function (array $a, array $b): int {
                 if ($a['content_already_selected'] !== $b['content_already_selected']) {
                     return $a['content_already_selected'] ? -1 : 1;
-                }
-                if ($a['suggested'] !== $b['suggested']) {
-                    return $a['suggested'] ? -1 : 1;
                 }
                 if ($a['_pda_rank'] !== $b['_pda_rank']) {
                     return $a['_pda_rank'] <=> $b['_pda_rank'];
@@ -658,21 +638,15 @@ final class CurriculumMapService
             'comments' => $request->comments,
         ];
 
-        // Cuando el horario exige campos concretos, reservamos primero espacio
-        // para intentar cubrirlos y dejamos la sugerencia general como apoyo.
         $base = $this->suggestions->suggest(
             (int) $request->curriculum_version_id,
             (int) $request->grade_id,
             $baseInput,
-            maxContents: $requiredFieldCodes !== [] ? 3 : 6,
+            maxContents: 3,
         );
 
-        if ($request->planningWeeks->isEmpty() && $requiredFieldCodes === []) {
-            return $base;
-        }
-
         $merged = [
-            'strategy_version' => 'deterministic_v3_schedule_priority',
+            'strategy_version' => 'deterministic_v4_topic_strict',
             'tokens' => [],
             'content_ids' => [],
             'pda_ids' => [],
@@ -682,20 +656,23 @@ final class CurriculumMapService
             'reasons' => [],
         ];
 
-        $mergePiece = function (array $piece, ?string $reasonPrefix = null) use (&$merged): void {
-            foreach (['tokens', 'content_ids', 'pda_ids', 'axis_ids', 'formative_field_ids'] as $listKey) {
+        $mergeStrongCurriculum = function (array $piece, ?string $reasonPrefix = null) use (&$merged): void {
+            $strong = (bool) ($piece['has_strong_match'] ?? false);
+            $merged['tokens'] = array_values(array_unique(array_merge($merged['tokens'], $piece['tokens'] ?? [])));
+            if (! $strong) {
+                return;
+            }
+
+            foreach (['content_ids', 'pda_ids', 'formative_field_ids'] as $listKey) {
                 $merged[$listKey] = array_values(array_unique(array_merge(
-                    $merged[$listKey] ?? [],
+                    $merged[$listKey],
                     $piece[$listKey] ?? [],
                 )));
             }
-
             foreach (($piece['reasons'] ?? []) as $contentId => $reason) {
                 $merged['reasons'][$contentId] = ($reasonPrefix ?? '') . $reason;
             }
-
-            $merged['has_strong_match'] = (bool) ($merged['has_strong_match'] ?? false)
-                || (bool) ($piece['has_strong_match'] ?? false);
+            $merged['has_strong_match'] = true;
         };
 
         $topics = [];
@@ -713,57 +690,50 @@ final class CurriculumMapService
             }
         }
 
-        // 1) Campos obligatorios del horario. Si hay temas asociados a ese campo,
-        // se usan antes que el texto general de la solicitud.
-        foreach ($requiredFieldCodes as $fieldCode) {
-            $fieldTopicTexts = array_values(array_unique(array_map(
-                fn (array $topic) => $topic['text'],
-                array_filter($topics, fn (array $topic) => $topic['field_code'] === $fieldCode),
-            )));
+        // Los ejes pueden surgir del contexto global. Contenidos y PDA, en
+        // cambio, se vinculan sólo desde temas de materias que sí tienen un
+        // campo curricular configurado y sólo cuando la coincidencia es fuerte.
+        $merged['tokens'] = array_values(array_unique(array_merge($merged['tokens'], $base['tokens'] ?? [])));
+        $merged['axis_ids'] = array_values(array_unique(array_map('intval', $base['axis_ids'] ?? [])));
 
-            $fieldInput = $baseInput;
-            if ($fieldTopicTexts !== []) {
-                $fieldInput['topic'] = implode(' ', $fieldTopicTexts);
+        if ($topics === [] && $requiredFieldCodes === []) {
+            $mergeStrongCurriculum($base);
+            return $merged;
+        }
+
+        // Primero agrupamos los temas por campo. Esto evita usar el texto global
+        // de toda la semana para justificar un PDA de una materia distinta.
+        $topicsByField = [];
+        foreach ($topics as $topic) {
+            if ($topic['field_code'] === '') {
+                continue;
             }
+            $topicsByField[$topic['field_code']][] = $topic['text'];
+        }
 
+        foreach ($topicsByField as $fieldCode => $fieldTopics) {
+            $fieldTopics = array_values(array_unique($fieldTopics));
             $piece = $this->suggestions->suggest(
                 (int) $request->curriculum_version_id,
                 (int) $request->grade_id,
-                $fieldInput,
-                maxContents: 1,
+                ['topic' => implode(' ', $fieldTopics)],
+                maxContents: 2,
                 maxPdasPerContent: 2,
                 maxAxes: 0,
                 fieldCode: $fieldCode,
             );
 
-            $mergePiece($piece, 'Horario ' . $fieldCode . ': ');
+            $mergeStrongCurriculum($piece, 'Temas del campo: ');
         }
 
-        // 2) Temas capturados por el docente, respetando su campo cuando la
-        // materia está vinculada al currículo.
-        $seen = [];
-        foreach ($topics as $topic) {
-            $key = mb_strtolower($topic['text']) . '|' . $topic['field_code'];
-            if (isset($seen[$key])) {
+        // Si el horario declara un campo curricular pero no hay un tema docente
+        // asociado a él, no inventamos una selección a partir del resto de la
+        // solicitud. La ausencia queda como información opcional en la interfaz.
+        foreach ($requiredFieldCodes as $fieldCode) {
+            if (array_key_exists($fieldCode, $topicsByField)) {
                 continue;
             }
-            $seen[$key] = true;
-
-            $piece = $this->suggestions->suggest(
-                (int) $request->curriculum_version_id,
-                (int) $request->grade_id,
-                ['topic' => $topic['text']],
-                maxContents: 1,
-                maxPdasPerContent: 2,
-                maxAxes: 0,
-                fieldCode: $topic['field_code'] !== '' ? $topic['field_code'] : null,
-            );
-
-            $mergePiece($piece, 'Tema “' . $topic['text'] . '”: ');
         }
-
-        // 3) Coincidencias generales y ejes como sugerencias adicionales.
-        $mergePiece($base);
 
         return $merged;
     }
@@ -867,7 +837,6 @@ final class CurriculumMapService
             'content' => CurricularContent::query()
                 ->whereKey($entityId)
                 ->where('curriculum_version_id', $request->curriculum_version_id)
-                ->whereHas('pdas', fn ($query) => $query->where('grade_id', $request->grade_id))
                 ->exists(),
             'pda' => Pda::query()
                 ->whereKey($entityId)
