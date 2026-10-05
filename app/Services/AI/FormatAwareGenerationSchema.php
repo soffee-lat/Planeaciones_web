@@ -118,6 +118,13 @@ final class FormatAwareGenerationSchema
     /** @param array<string,mixed> $baseSchema @param array<string,mixed> $formatContext @return array<string,mixed> */
     private function legacySchema(array $baseSchema, array $formatContext): array
     {
+        // Un bloque institucional (Inglés, Deportes, Tecnología, Huerto, etc.)
+        // puede ser perfectamente planeable sin tener una referencia NEM
+        // directa. Los códigos siguen validados cuando existen, pero ya no se
+        // obliga a la IA a insertar un PDA irrelevante sólo para llenar el
+        // contrato.
+        $baseSchema = $this->relaxOptionalSessionCurriculum($baseSchema);
+
         [$properties, $required] = $this->customProperties($formatContext);
         if ($properties === []) {
             return $baseSchema;
@@ -137,6 +144,19 @@ final class FormatAwareGenerationSchema
         $baseSchema['required'] = $rootRequired;
 
         return $baseSchema;
+    }
+
+    /** @param array<string,mixed> $schema @return array<string,mixed> */
+    public function relaxOptionalSessionCurriculum(array $schema): array
+    {
+        foreach (['field_codes', 'content_codes', 'pda_codes'] as $key) {
+            if (isset($schema['$defs']['session']['properties'][$key])
+                && is_array($schema['$defs']['session']['properties'][$key])) {
+                unset($schema['$defs']['session']['properties'][$key]['minItems']);
+            }
+        }
+
+        return $schema;
     }
 
     /** @param array<string,mixed> $formatContext @return array{0:array<string,mixed>,1:list<string>} */
