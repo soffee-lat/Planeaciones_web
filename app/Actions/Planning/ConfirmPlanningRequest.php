@@ -20,21 +20,17 @@ use RuntimeException;
 /**
  * Confirma una PlanningRequest en BORRADOR y congela un snapshot textual
  * completo (JSONB) que incluye datos de la solicitud, del grupo/perfil
- * pedagógico y del árbol curricular seleccionado (con textos completos,
- * no sólo IDs).
+ * pedagógico y, cuando existe correspondencia real, del árbol curricular
+ * seleccionado (con textos completos, no sólo IDs).
  *
- * En Subfase 2C, tras confirmar, la solicitud transita a ESPERANDO_PAGO
- * porque el módulo comercial (planes/periodos/reservas) aún no existe;
- * la transición a LISTA_PARA_PROCESAR requiere derechos y es responsabilidad
- * de la Fase 3. Ver WORKFLOWS.md matriz "BORRADOR → ESPERANDO_PAGO".
+ * La referencia curricular es una ayuda pedagógica, no un requisito artificial:
+ * una planeación puede confirmarse sin contenidos/PDA cuando el tema o la
+ * materia no tienen una correspondencia NEM pertinente.
  *
- * Códigos de error semánticos:
- *  - PLANNING_REQUEST_ALREADY_CONFIRMED
+ * Códigos de error semánticos principales:
  *  - PLANNING_REQUEST_MISSING_DATES
  *  - PLANNING_REQUEST_MISSING_TOPIC
- *  - PLANNING_REQUEST_NO_CONTENT_SELECTED
- *  - PLANNING_REQUEST_NO_PDA_SELECTED
- *  - PLANNING_REQUEST_CONTENT_WITHOUT_PDA:<code>
+ *  - PLANNING_REQUEST_PDA_WITHOUT_CONTENT:<code>
  *  - PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT
  */
 class ConfirmPlanningRequest
@@ -119,50 +115,21 @@ class ConfirmPlanningRequest
             throw new RuntimeException('PLANNING_REQUEST_GROUP_PROFILE_INSUFFICIENT');
         }
 
-        $contents = $r->contents()
-            ->with('formativeField:id,code,name')
-            ->get(['curricular_contents.id', 'curricular_contents.formative_field_id', 'code']);
-        if ($contents->isEmpty()) {
-            throw new RuntimeException('PLANNING_REQUEST_NO_CONTENT_SELECTED');
-        }
-        $pdas = $r->pdas()->get(['pdas.id', 'curricular_content_id', 'code']);
-        if ($pdas->isEmpty()) {
-            throw new RuntimeException('PLANNING_REQUEST_NO_PDA_SELECTED');
-        }
-        $pdaContentIds = $pdas->pluck('curricular_content_id')->unique()->all();
-        foreach ($contents as $c) {
-            if (! in_array($c->id, $pdaContentIds, true)) {
-                throw new RuntimeException('PLANNING_REQUEST_CONTENT_WITHOUT_PDA:' . $c->code);
-            }
-        }
-
-        $selectedFieldCodes = $contents
-            ->map(fn ($content) => (string) ($content->formativeField?->code ?? ''))
-            ->filter()
+        // Contenido y PDA son opcionales. Si el docente sí eligió un PDA,
+        // únicamente verificamos que conserve su contenido padre; no exigimos
+        // que cada contenido tenga PDA ni que exista selección curricular.
+        $contentIds = $r->contents()
+            ->pluck('curricular_contents.id')
+            ->map(fn ($id) => (int) $id)
             ->unique()
             ->values()
             ->all();
+        $pdas = $r->pdas()->get(['pdas.id', 'curricular_content_id', 'code']);
 
-        $groupWithSchedule = $r->group()->with('activeSchedule.blocks')->firstOrFail();
-        $requiredFieldCodes = [];
-        foreach ($groupWithSchedule->activeSchedule?->blocks ?? [] as $block) {
-            if (! $block->include_in_planning || $block->is_flexible) {
-                continue;
+        foreach ($pdas as $pda) {
+            if (! in_array((int) $pda->curricular_content_id, $contentIds, true)) {
+                throw new RuntimeException('PLANNING_REQUEST_PDA_WITHOUT_CONTENT:' . $pda->code);
             }
-            foreach ((array) ($block->field_codes ?? []) as $fieldCode) {
-                $fieldCode = trim((string) $fieldCode);
-                if ($fieldCode !== '') {
-                    $requiredFieldCodes[$fieldCode] = true;
-                }
-            }
-        }
-
-        $missingFieldCodes = array_values(array_diff(array_keys($requiredFieldCodes), $selectedFieldCodes));
-        sort($missingFieldCodes, SORT_STRING);
-        if ($missingFieldCodes !== []) {
-            throw new RuntimeException(
-                'PLANNING_REQUEST_SCHEDULE_FIELD_NOT_SELECTED:' . implode(',', $missingFieldCodes)
-            );
         }
     }
 
