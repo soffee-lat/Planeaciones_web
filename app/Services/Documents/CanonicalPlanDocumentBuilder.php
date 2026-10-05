@@ -6,8 +6,9 @@ final class CanonicalPlanDocumentBuilder
 {
     /**
      * Construye un view-model documental orientado a consulta docente.
-     * No intenta serializar el canonical como texto: organiza la información
-     * en resumen, tablas, sesiones, momentos, evaluación e instrumentos.
+     * La salida prioriza tablas, fechas, horario, secuencia didáctica y
+     * evaluación. Los códigos técnicos del catálogo permanecen en el canonical
+     * para trazabilidad, pero no se imprimen en el documento del docente.
      *
      * @param array<string,mixed> $plan
      * @return list<array<string,mixed>>
@@ -23,6 +24,7 @@ final class CanonicalPlanDocumentBuilder
         $adaptation = $this->object($plan['adaptation_notes'] ?? []);
         $context = $this->object($plan['context'] ?? []);
         $sessions = $this->list($plan['sessions'] ?? []);
+        $sessionSlots = $this->sessionScheduleSlots($sessions, $context);
 
         $title = trim((string) ($planning['title'] ?? 'Planeación didáctica')) ?: 'Planeación didáctica';
         $project = trim((string) ($planning['project_name'] ?? ''));
@@ -42,41 +44,47 @@ final class CanonicalPlanDocumentBuilder
             ],
             [
                 'Periodo', $this->period($planning),
-                'Sesiones', $this->sessionSummary($planning),
+                'Bloques planeados', $this->sessionSummary($planning),
             ],
             [
                 'Nivel educativo', $this->value($context['educational_level_label'] ?? null, '—'),
                 'Ciclo escolar', $this->value($context['school_year'] ?? null, '—'),
             ],
             [
-                'Grado', $this->value($grade['name'] ?? $grade['code'] ?? null, '—'),
-                'Fase', $this->value($phase['name'] ?? $phase['code'] ?? null, '—'),
+                'Grado', $this->value($grade['name'] ?? null, '—'),
+                'Fase', $this->value($phase['name'] ?? null, '—'),
             ],
         ];
         $blocks[] = ['type' => 'meta_table', 'rows' => $metaRows];
 
-        $blocks[] = ['type' => 'section', 'text' => 'Propósito y enfoque'];
-        $blocks[] = [
-            'type' => 'callout',
-            'label' => 'Propósito',
-            'text' => $this->value($pedagogy['purpose'] ?? null, 'No especificado.'),
+        $blocks[] = ['type' => 'section', 'text' => 'Propósito y enfoque pedagógico'];
+        $methodology = $this->object($pedagogy['methodology'] ?? []);
+        $focusRows = [
+            ['Propósito', $this->value($pedagogy['purpose'] ?? null, 'No especificado.')],
         ];
         if ($this->value($pedagogy['problem_or_interest'] ?? null) !== '') {
-            $blocks[] = ['type' => 'key_value', 'label' => 'Problema o interés', 'text' => $this->value($pedagogy['problem_or_interest'] ?? null)];
+            $focusRows[] = ['Problemática o interés', $this->value($pedagogy['problem_or_interest'] ?? null)];
         }
-        $methodology = $this->object($pedagogy['methodology'] ?? []);
+        if ($this->value($pedagogy['scenario'] ?? null) !== '') {
+            $focusRows[] = ['Escenario', $this->value($pedagogy['scenario'] ?? null)];
+        }
         if ($this->value($methodology['name'] ?? null) !== '') {
-            $blocks[] = ['type' => 'key_value', 'label' => 'Metodología', 'text' => $this->value($methodology['name'] ?? null)];
+            $focusRows[] = ['Metodología', $this->value($methodology['name'] ?? null)];
+        }
+        $methodologyPhases = $this->stringList($methodology['phases'] ?? []);
+        if ($methodologyPhases !== []) {
+            $focusRows[] = ['Fases metodológicas', implode(' → ', $methodologyPhases)];
         }
         if ($this->value($methodology['rationale'] ?? null) !== '') {
-            $blocks[] = ['type' => 'paragraph', 'text' => $this->value($methodology['rationale'] ?? null)];
+            $focusRows[] = ['Justificación metodológica', $this->value($methodology['rationale'] ?? null)];
         }
+        $blocks[] = ['type' => 'two_column_table', 'rows' => $focusRows];
+
         $goals = $this->stringList($pedagogy['learning_goals'] ?? []);
         if ($goals !== []) {
             $blocks[] = ['type' => 'list', 'label' => 'Metas de aprendizaje', 'items' => $goals];
         }
 
-        $blocks[] = ['type' => 'section', 'text' => 'Alineación curricular'];
         $curriculumRows = [];
         $fields = $this->namedList($alignment['fields'] ?? []);
         $axes = $this->namedList($alignment['articulating_axes'] ?? []);
@@ -86,31 +94,35 @@ final class CanonicalPlanDocumentBuilder
         if ($axes !== '') {
             $curriculumRows[] = ['Ejes articuladores', $axes];
         }
+
         $contents = [];
         foreach ($this->list($alignment['contents'] ?? []) as $contentRaw) {
             $content = $this->object($contentRaw);
-            $code = trim((string) ($content['code'] ?? ''));
             $text = trim((string) ($content['full_text'] ?? $content['title'] ?? ''));
             if ($text !== '') {
-                $contents[] = trim(($code !== '' ? $code . ' · ' : '') . $text);
+                $contents[] = $text;
             }
         }
         if ($contents !== []) {
-            $curriculumRows[] = ['Contenidos', implode("\n", $contents)];
+            $curriculumRows[] = ['Contenidos pertinentes', implode("\n", $contents)];
         }
+
         $pdas = [];
         foreach ($this->list($alignment['pdas'] ?? []) as $pdaRaw) {
             $pda = $this->object($pdaRaw);
-            $code = trim((string) ($pda['code'] ?? ''));
             $text = trim((string) ($pda['full_text'] ?? ''));
             if ($text !== '') {
-                $pdas[] = trim(($code !== '' ? $code . ' · ' : '') . $text);
+                $pdas[] = $text;
             }
         }
         if ($pdas !== []) {
-            $curriculumRows[] = ['PDA', implode("\n", $pdas)];
+            $curriculumRows[] = ['Procesos de desarrollo de aprendizaje', implode("\n", $pdas)];
         }
-        $blocks[] = ['type' => 'two_column_table', 'rows' => $curriculumRows];
+
+        if ($curriculumRows !== []) {
+            $blocks[] = ['type' => 'section', 'text' => 'Referentes curriculares pertinentes'];
+            $blocks[] = ['type' => 'two_column_table', 'rows' => $curriculumRows];
+        }
 
         $connections = [];
         foreach ($this->list($pedagogy['transversal_connections'] ?? []) as $connectionRaw) {
@@ -124,93 +136,144 @@ final class CanonicalPlanDocumentBuilder
             $blocks[] = ['type' => 'list', 'label' => 'Conexiones transversales', 'items' => $connections];
         }
 
+        $sessionFriendlyLabels = [];
+        foreach ($sessions as $index => $sessionRaw) {
+            $session = $this->object($sessionRaw);
+            $slot = $sessionSlots[$index] ?? [];
+            $sessionId = trim((string) ($session['id'] ?? ''));
+            if ($sessionId !== '') {
+                $sessionFriendlyLabels[$sessionId] = $this->friendlySessionLabel($session, $slot);
+            }
+        }
+
         if ($sessions !== []) {
             $blocks[] = ['type' => 'section', 'text' => 'Vista semanal'];
             $overviewRows = [];
-            foreach ($sessions as $sessionRaw) {
+            foreach ($sessions as $index => $sessionRaw) {
                 $session = $this->object($sessionRaw);
-                $centralActivity = '';
+                $slot = $sessionSlots[$index] ?? [];
                 $evidence = '';
                 foreach ($this->list($session['moments'] ?? []) as $momentRaw) {
                     $moment = $this->object($momentRaw);
-                    if (($moment['type'] ?? null) !== 'desarrollo') {
-                        continue;
+                    foreach ($this->list($moment['activities'] ?? []) as $activityRaw) {
+                        $activity = $this->object($activityRaw);
+                        $candidate = implode('; ', $this->stringList($activity['expected_evidence'] ?? []));
+                        if ($candidate !== '') {
+                            $evidence = $candidate;
+                            break 2;
+                        }
                     }
-                    $activity = $this->object($this->list($moment['activities'] ?? [])[0] ?? []);
-                    $centralActivity = trim((string) ($activity['instruction'] ?? ''));
-                    $evidence = implode('; ', $this->stringList($activity['expected_evidence'] ?? []));
-                    break;
                 }
+
+                $date = $this->value($session['date'] ?? null, 'Por definir');
+                $time = $this->slotTime($slot);
                 $overviewRows[] = [
-                    $this->value($session['date'] ?? null, 'Por definir'),
-                    $this->value($session['title'] ?? null, 'Sesión'),
+                    trim($date . ($time !== '' ? "\n" . $time : '')),
+                    $this->slotName($slot, $session),
+                    $this->value($session['title'] ?? null, 'Actividad'),
                     $this->value($session['specific_goal'] ?? null, '—'),
-                    $centralActivity !== '' ? $centralActivity : '—',
+                    isset($session['estimated_minutes']) ? ((int) $session['estimated_minutes']) . ' min' : '—',
                     $evidence !== '' ? $evidence : '—',
                 ];
             }
             $blocks[] = [
                 'type' => 'table',
-                'headers' => ['Fecha', 'Sesión', 'Objetivo', 'Actividad central', 'Evidencia'],
+                'headers' => ['Fecha y horario', 'Materia / bloque', 'Tema o actividad', 'Propósito', 'Tiempo', 'Evidencia'],
                 'rows' => $overviewRows,
             ];
         }
 
         foreach ($sessions as $index => $sessionRaw) {
             $session = $this->object($sessionRaw);
+            $slot = $sessionSlots[$index] ?? [];
             if ($index > 0) {
                 $blocks[] = ['type' => 'page_break'];
             }
-            $sequence = (string) ($session['sequence'] ?? ($index + 1));
-            $sessionTitle = $this->value($session['title'] ?? null, 'Sesión');
+
+            $sessionTitle = $this->value($session['title'] ?? null, 'Actividad');
             $date = $this->value($session['date'] ?? null, 'Fecha por definir');
             $minutes = isset($session['estimated_minutes']) ? (int) $session['estimated_minutes'] : null;
+            $slotName = $this->slotName($slot, $session);
+            $time = $this->slotTime($slot);
+            $headerText = $date . ' · ' . $slotName;
+            $headerMeta = trim(($time !== '' ? $time : '')
+                . ($minutes ? (($time !== '' ? ' · ' : '') . $minutes . ' min') : ''));
+
             $blocks[] = [
                 'type' => 'session_header',
-                'text' => 'Sesión ' . $sequence . ' · ' . $sessionTitle,
-                'meta' => $date . ($minutes ? ' · ' . $minutes . ' min' : ''),
+                'text' => $headerText,
+                'meta' => $headerMeta,
             ];
-            $blocks[] = ['type' => 'callout', 'label' => 'Objetivo del día', 'text' => $this->value($session['specific_goal'] ?? null, 'No especificado.')];
-            $codes = $this->codesForSession($session);
-            if ($codes !== '') {
-                $blocks[] = ['type' => 'small_note', 'label' => 'Referencias curriculares', 'text' => $codes];
-            }
 
+            $summaryRows = [
+                ['Tema / actividad', $sessionTitle],
+                ['Propósito del bloque', $this->value($session['specific_goal'] ?? null, 'No especificado.')],
+            ];
+            if ($this->value($session['methodology_phase'] ?? null) !== '') {
+                $summaryRows[] = ['Fase metodológica', $this->value($session['methodology_phase'] ?? null)];
+            }
+            $blocks[] = ['type' => 'two_column_table', 'rows' => $summaryRows];
+
+            $activityRows = [];
             foreach ($this->list($session['moments'] ?? []) as $momentRaw) {
                 $moment = $this->object($momentRaw);
                 $momentType = ucfirst((string) ($moment['type'] ?? 'Momento'));
                 $momentMinutes = isset($moment['minutes']) ? (int) $moment['minutes'] : null;
-                $blocks[] = [
-                    'type' => 'moment_header',
-                    'text' => $momentType,
-                    'meta' => $momentMinutes ? $momentMinutes . ' min' : '',
-                ];
+
                 foreach ($this->list($moment['activities'] ?? []) as $activityRaw) {
                     $activity = $this->object($activityRaw);
-                    $blocks[] = [
-                        'type' => 'activity',
-                        'instruction' => $this->value($activity['instruction'] ?? null, 'Actividad'),
-                        'teacher_action' => $this->value($activity['teacher_action'] ?? null, '—'),
-                        'student_action' => $this->value($activity['student_action'] ?? null, '—'),
-                        'organization' => $this->organizationLabel((string) ($activity['organization'] ?? '')),
-                        'materials' => $this->stringList($activity['materials'] ?? []),
-                        'evidence' => $this->stringList($activity['expected_evidence'] ?? []),
-                        'checks' => $this->stringList($activity['assessment_checks'] ?? []),
+                    $activityText = $this->value($activity['instruction'] ?? null, 'Actividad');
+                    $organization = $this->organizationLabel((string) ($activity['organization'] ?? ''));
+                    $materials = $this->stringList($activity['materials'] ?? []);
+                    if ($organization !== '') {
+                        $activityText .= "\nOrganización: " . $organization;
+                    }
+                    if ($materials !== []) {
+                        $activityText .= "\nRecursos: " . implode(', ', $materials);
+                    }
+
+                    $checks = $this->stringList($activity['assessment_checks'] ?? []);
+                    $evidence = $this->stringList($activity['expected_evidence'] ?? []);
+                    $evaluationText = $checks !== [] ? 'Criterios: ' . implode('; ', $checks) : '—';
+                    if ($evidence !== []) {
+                        $evaluationText .= "\nEvidencia: " . implode('; ', $evidence);
+                    }
+
+                    $activityRows[] = [
+                        $momentType,
+                        $momentMinutes ? $momentMinutes . ' min' : '—',
+                        $activityText,
+                        $this->value($activity['teacher_action'] ?? null, '—'),
+                        $this->value($activity['student_action'] ?? null, '—'),
+                        $evaluationText,
                     ];
                 }
             }
 
+            if ($activityRows !== []) {
+                $blocks[] = ['type' => 'section', 'text' => 'Secuencia didáctica'];
+                $blocks[] = [
+                    'type' => 'table',
+                    'headers' => ['Momento', 'Tiempo', 'Actividad y recursos', 'Docente', 'Alumnos', 'Evaluación / evidencia'],
+                    'rows' => $activityRows,
+                ];
+            }
+
             $formative = $this->object($session['formative_assessment'] ?? []);
+            $formativeRows = [];
             $criteria = $this->stringList($formative['criteria'] ?? []);
             if ($criteria !== []) {
-                $blocks[] = ['type' => 'checklist', 'label' => 'Evaluación formativa', 'items' => $criteria];
+                $formativeRows[] = ['Criterios de evaluación', implode("\n", $criteria)];
             }
             $evidence = $this->stringList($formative['evidence'] ?? []);
             if ($evidence !== []) {
-                $blocks[] = ['type' => 'list', 'label' => 'Evidencias', 'items' => $evidence];
+                $formativeRows[] = ['Evidencias del bloque', implode("\n", $evidence)];
             }
             if ($this->value($formative['feedback_strategy'] ?? null) !== '') {
-                $blocks[] = ['type' => 'small_note', 'label' => 'Retroalimentación', 'text' => $this->value($formative['feedback_strategy'] ?? null)];
+                $formativeRows[] = ['Retroalimentación', $this->value($formative['feedback_strategy'] ?? null)];
+            }
+            if ($formativeRows !== []) {
+                $blocks[] = ['type' => 'two_column_table', 'title' => 'Evaluación formativa', 'rows' => $formativeRows];
             }
 
             $diff = $this->object($session['differentiation'] ?? []);
@@ -228,6 +291,9 @@ final class CanonicalPlanDocumentBuilder
             if ($supportRows !== []) {
                 $blocks[] = ['type' => 'two_column_table', 'title' => 'Atención a la diversidad', 'rows' => $supportRows];
             }
+            if ($this->value($session['teacher_notes'] ?? null) !== '') {
+                $blocks[] = ['type' => 'small_note', 'label' => 'Notas para el docente', 'text' => $this->value($session['teacher_notes'] ?? null)];
+            }
             if ($this->value($session['homework_or_extension'] ?? null) !== '') {
                 $blocks[] = ['type' => 'small_note', 'label' => 'Tarea o extensión', 'text' => $this->value($session['homework_or_extension'] ?? null)];
             }
@@ -235,31 +301,40 @@ final class CanonicalPlanDocumentBuilder
 
         $blocks[] = ['type' => 'page_break'];
         $blocks[] = ['type' => 'section', 'text' => 'Evaluación e instrumentos'];
+        $assessmentRows = [];
         foreach ([
             'Diagnóstico' => $assessment['diagnostic'] ?? null,
             'Seguimiento' => $assessment['ongoing'] ?? null,
             'Cierre' => $assessment['closure'] ?? null,
         ] as $label => $value) {
             if ($this->value($value) !== '') {
-                $blocks[] = ['type' => 'key_value', 'label' => $label, 'text' => $this->value($value)];
+                $assessmentRows[] = [$label, $this->value($value)];
             }
         }
+        if ($assessmentRows !== []) {
+            $blocks[] = ['type' => 'two_column_table', 'rows' => $assessmentRows];
+        }
+
         foreach ($this->list($assessment['instruments'] ?? []) as $instrumentRaw) {
             $instrument = $this->object($instrumentRaw);
+            $appliesTo = [];
+            foreach ($this->stringList($instrument['applies_to_sessions'] ?? []) as $sessionId) {
+                $appliesTo[] = $sessionFriendlyLabels[$sessionId] ?? $sessionId;
+            }
             $blocks[] = [
                 'type' => 'instrument',
                 'name' => $this->value($instrument['name'] ?? null, 'Instrumento'),
                 'purpose' => $this->value($instrument['purpose'] ?? null, ''),
                 'criteria' => $this->stringList($instrument['criteria'] ?? []),
                 'scale' => $this->stringList($instrument['scale'] ?? []),
-                'sessions' => $this->stringList($instrument['applies_to_sessions'] ?? []),
+                'sessions' => $appliesTo,
             ];
         }
 
         $physical = $this->stringList($resources['physical_materials'] ?? []);
         $digital = $this->stringList($resources['digital_resources'] ?? []);
         if ($physical !== [] || $digital !== []) {
-            $blocks[] = ['type' => 'section', 'text' => 'Recursos'];
+            $blocks[] = ['type' => 'section', 'text' => 'Recursos generales'];
             if ($physical !== []) {
                 $blocks[] = ['type' => 'list', 'label' => 'Materiales físicos', 'items' => $physical];
             }
@@ -272,7 +347,6 @@ final class CanonicalPlanDocumentBuilder
         foreach ([
             'Basado en el perfil del grupo' => 'based_on_group_profile',
             'Supuestos utilizados' => 'assumptions',
-            'Información faltante' => 'missing_information',
         ] as $label => $key) {
             $items = $this->stringList($adaptation[$key] ?? []);
             if ($items !== []) {
@@ -318,12 +392,12 @@ final class CanonicalPlanDocumentBuilder
         $names = [];
         foreach ($this->list($value) as $rowRaw) {
             $row = $this->object($rowRaw);
-            $text = trim((string) ($row['name'] ?? $row['code'] ?? ''));
+            $text = trim((string) ($row['name'] ?? ''));
             if ($text !== '') {
                 $names[] = $text;
             }
         }
-        return implode('; ', $names);
+        return implode('; ', array_values(array_unique($names)));
     }
 
     /** @param array<string,mixed> $planning */
@@ -342,25 +416,89 @@ final class CanonicalPlanDocumentBuilder
         if ($count < 1) {
             return '—';
         }
-        return $count . ' sesión(es)' . ($minutes > 0 ? ' · ' . $minutes . ' min' : '');
+        return $count . ' bloque(s) de trabajo' . ($minutes > 0 ? ' · ' . $minutes . ' min aprox.' : '');
     }
 
-    /** @param array<string,mixed> $session */
-    private function codesForSession(array $session): string
+    /**
+     * Asocia cada bloque generado con el bloque real del horario por fecha y
+     * posición. La generación ya se valida contra ese mismo orden.
+     *
+     * @param list<mixed> $sessions
+     * @param array<string,mixed> $context
+     * @return array<int,array<string,mixed>>
+     */
+    private function sessionScheduleSlots(array $sessions, array $context): array
     {
-        $parts = [];
-        foreach ([
-            'Campos' => 'field_codes',
-            'Contenidos' => 'content_codes',
-            'PDA' => 'pda_codes',
-            'Ejes' => 'axis_codes',
-        ] as $label => $key) {
-            $values = $this->stringList($session[$key] ?? []);
-            if ($values !== []) {
-                $parts[] = $label . ': ' . implode(', ', $values);
+        $slotsByDate = [];
+        foreach ($this->list($context['planning_calendar'] ?? []) as $dayRaw) {
+            $day = $this->object($dayRaw);
+            $date = trim((string) ($day['date'] ?? ''));
+            if ($date === '') {
+                continue;
+            }
+            foreach ($this->list($day['blocks'] ?? []) as $slotRaw) {
+                $slot = $this->object($slotRaw);
+                if (! (bool) ($slot['include_in_planning'] ?? false)) {
+                    continue;
+                }
+                $slotsByDate[$date][] = $slot;
             }
         }
-        return implode(' | ', $parts);
+
+        $usedByDate = [];
+        $result = [];
+        foreach ($sessions as $index => $sessionRaw) {
+            $session = $this->object($sessionRaw);
+            $date = trim((string) ($session['date'] ?? ''));
+            $position = $usedByDate[$date] ?? 0;
+            $result[$index] = $date !== '' ? ($slotsByDate[$date][$position] ?? []) : [];
+            if ($date !== '') {
+                $usedByDate[$date] = $position + 1;
+            }
+        }
+
+        return $result;
+    }
+
+    /** @param array<string,mixed> $slot @param array<string,mixed> $session */
+    private function slotName(array $slot, array $session): string
+    {
+        foreach (['subject_name_snapshot', 'label'] as $key) {
+            $value = trim((string) ($slot[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return $this->value($session['title'] ?? null, 'Bloque de trabajo');
+    }
+
+    /** @param array<string,mixed> $slot */
+    private function slotTime(array $slot): string
+    {
+        $start = trim((string) ($slot['starts_at'] ?? ''));
+        $end = trim((string) ($slot['ends_at'] ?? ''));
+        if ($start === '' && $end === '') {
+            return '';
+        }
+        if ($start === '') {
+            return 'Hasta ' . $end;
+        }
+        if ($end === '') {
+            return 'Desde ' . $start;
+        }
+
+        return $start . '–' . $end;
+    }
+
+    /** @param array<string,mixed> $session @param array<string,mixed> $slot */
+    private function friendlySessionLabel(array $session, array $slot): string
+    {
+        $date = $this->value($session['date'] ?? null, 'Fecha por definir');
+        $name = $this->slotName($slot, $session);
+        $time = $this->slotTime($slot);
+
+        return trim($date . ' · ' . $name . ($time !== '' ? ' · ' . $time : ''));
     }
 
     private function organizationLabel(string $value): string
