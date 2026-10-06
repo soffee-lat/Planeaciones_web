@@ -151,48 +151,22 @@ class PlanningRequestSnapshotTest extends PedagogyTestCase
         app(ConfirmPlanningRequest::class)->execute($req->owner, $req);
     }
 
-    public function test_confirm_rejects_when_content_has_no_selected_pda(): void
+    public function test_confirm_allows_selected_content_without_pda(): void
     {
-        // Escenario aislado: currículo con 2 contenidos en el mismo grado pero
-        // sólo 1 PDA seleccionable, para forzar el path CONTENT_WITHOUT_PDA.
-        $admin = $this->admin();
-        $curr = \App\Models\Curriculum::factory()->create();
-        $ver = \App\Models\CurriculumVersion::factory()->create(['curriculum_id' => $curr->id, 'number' => 1]);
-        $phase = \App\Models\EducationalPhase::factory()->create(['curriculum_version_id' => $ver->id, 'code' => 'PH-Z']);
-        $grade = \App\Models\Grade::factory()->create(['curriculum_version_id' => $ver->id, 'educational_phase_id' => $phase->id, 'code' => 'GR-Z', 'ordinal' => 1]);
-        $field = \App\Models\FormativeField::factory()->create(['curriculum_version_id' => $ver->id, 'code' => 'FF-Z']);
-        $c1 = CurricularContent::factory()->create(['curriculum_version_id' => $ver->id, 'educational_phase_id' => $phase->id, 'formative_field_id' => $field->id, 'code' => 'CT-Z1']);
-        $c2 = CurricularContent::factory()->create(['curriculum_version_id' => $ver->id, 'educational_phase_id' => $phase->id, 'formative_field_id' => $field->id, 'code' => 'CT-Z2']);
-        $pdaC1 = Pda::factory()->create(['curriculum_version_id' => $ver->id, 'curricular_content_id' => $c1->id, 'grade_id' => $grade->id, 'code' => 'PDA-Z1']);
-        Pda::factory()->create(['curriculum_version_id' => $ver->id, 'curricular_content_id' => $c2->id, 'grade_id' => $grade->id, 'code' => 'PDA-Z2']);
-        \App\Models\ArticulatingAxis::factory()->create(['curriculum_version_id' => $ver->id, 'code' => 'AX-Z']);
-        app(\App\Actions\Curriculum\PublishCurriculumVersion::class)($ver, $admin);
-        $curr->fill(['selectable_version_id' => $ver->id])->save();
+        ['req' => $req] = $this->makeReadyDraft();
+        $contentId = (int) $req->contents()->value('curricular_contents.id');
 
-        $user = $this->customer();
-        $school = \App\Models\School::factory()->create(['owner_id' => $user->id, 'school_type' => \App\Enums\SchoolType::Public->value]);
-        $group = \App\Models\Group::create(['owner_id' => $user->id, 'school_id' => $school->id, 'curriculum_version_id' => $ver->id, 'grade_id' => $grade->id, 'name' => 'GZ', 'school_year' => '2026-2027']);
-        \App\Models\GroupProfile::factory()->create([
-            'group_id' => $group->id,
-            'student_count' => 25,
-            'general_level' => 'medio',
-            'session_minutes' => 50,
-            'characteristics' => 'Grupo Z.',
-        ]);
-        $req = PlanningRequest::factory()->create([
-            'owner_id' => $user->id,
-            'group_id' => $group->id,
-            'curriculum_version_id' => $ver->id,
-            'grade_id' => $grade->id,
-        ]);
-        // Seleccionamos los dos contenidos pero sólo el PDA del primero.
-        app(\App\Actions\Planning\SyncPlanningRequestSelections::class)->execute($user, $req, [
-            'contents' => [$c1->id, $c2->id],
-            'pdas' => [$pdaC1->id],
+        app(SyncPlanningRequestSelections::class)->execute($req->owner, $req, [
+            'contents' => [$contentId],
+            'pdas' => [],
+            'axes' => [],
         ]);
 
-        $this->expectExceptionMessageMatches('/PLANNING_REQUEST_CONTENT_WITHOUT_PDA/');
-        app(ConfirmPlanningRequest::class)->execute($user, $req->refresh());
+        $confirmed = app(ConfirmPlanningRequest::class)->execute($req->owner, $req->refresh());
+
+        $this->assertEquals(PlanningRequestStatus::ESPERANDO_PAGO, $confirmed->status);
+        $this->assertCount(1, $confirmed->currentInputVersion->snapshot['curriculum']['contents']);
+        $this->assertSame([], $confirmed->currentInputVersion->snapshot['curriculum']['pdas']);
     }
 
     public function test_confirm_rejects_when_already_confirmed(): void
