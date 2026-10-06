@@ -17,7 +17,7 @@ class CurriculumMapController
         $request = $this->ownedEditable($httpRequest, $planningRequest);
         $state = $maps->state($httpRequest->user(), $request, true);
 
-        return view('planning.curriculum-map', $state);
+        return view('planning.curriculum-map-v2', $state);
     }
 
     public function decision(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
@@ -49,7 +49,7 @@ class CurriculumMapController
         $request = $this->ownedEditable($httpRequest, $planningRequest);
         $maps->acceptAllSuggested($httpRequest->user(), $request);
 
-        return back()->with('curriculum_map_status', 'Aceptamos las sugerencias pendientes. Puedes quitar o agregar lo que necesites antes de confirmar.');
+        return back()->with('curriculum_map_status', 'Incluimos las sugerencias pendientes. Puedes quitar cualquier referencia que no corresponda antes de confirmar.');
     }
 
     public function add(Request $httpRequest, PlanningRequest $planningRequest, CurriculumMapService $maps): RedirectResponse
@@ -133,12 +133,8 @@ class CurriculumMapController
     private function messageFor(string $code): string
     {
         return match (true) {
-            $code === 'CURRICULUM_MAP_HAS_PENDING_DECISIONS' => 'Todavía hay sugerencias sin aceptar o rechazar. Puedes usar “Aceptar todas” y después ajustar lo que no quieras.',
-            $code === 'CURRICULUM_MAP_CONTENT_REQUIRED' => 'El mapa necesita al menos un contenido.',
-            $code === 'CURRICULUM_MAP_PDA_REQUIRED' => 'El mapa necesita al menos un PDA.',
-            str_starts_with($code, 'CURRICULUM_MAP_CONTENT_WITHOUT_PDA:') => 'Cada contenido seleccionado debe conservar al menos un PDA relacionado.',
-            str_starts_with($code, 'CURRICULUM_MAP_PDA_WITHOUT_CONTENT:') => 'Cada PDA incluido debe pertenecer a uno de los contenidos del mapa.',
-            str_starts_with($code, 'CURRICULUM_MAP_SCHEDULE_FIELD_REQUIRED:') => 'Tu horario tiene campos oficiales sin cobertura curricular en esta planeación (' . str_replace(',', ', ', substr($code, strlen('CURRICULUM_MAP_SCHEDULE_FIELD_REQUIRED:'))) . '). Agrega al menos un contenido y su PDA de cada campo antes de confirmar.',
+            $code === 'CURRICULUM_MAP_HAS_PENDING_DECISIONS' => 'Todavía hay sugerencias sin aceptar o rechazar. Revisa cada una antes de continuar.',
+            str_starts_with($code, 'CURRICULUM_MAP_PDA_WITHOUT_CONTENT:') => 'El PDA seleccionado debe conservar su contenido curricular relacionado.',
             $code === 'CURRICULUM_MAP_ENTITY_NOT_COMPATIBLE' => 'Esa opción no pertenece al currículo y grado de esta planeación.',
             $code === 'CURRICULUM_MAP_ENTITY_NOT_AVAILABLE' => 'Esa sugerencia ya no está disponible en el mapa actual.',
             default => 'No pudimos aplicar ese cambio al mapa curricular. Recarga la página e inténtalo de nuevo.',
