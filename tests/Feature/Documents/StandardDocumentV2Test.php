@@ -159,14 +159,22 @@ class StandardDocumentV2Test extends TestCase
         $this->assertStringStartsWith("PK\x03\x04", $docx);
         $this->assertStringContainsString('<w:tbl', $docx);
         $this->assertStringContainsString('Vista semanal', $docx);
+        $this->assertStringContainsString('Materia / campo formativo', $docx);
         $this->assertStringContainsString('Secuencia didáctica', $docx);
+        $this->assertStringContainsString('Momento / campo formativo', $docx);
+        $this->assertStringContainsString('Campo: Lenguajes', $docx);
         $this->assertStringContainsString('Actividad y recursos', $docx);
         $this->assertStringContainsString('Docente', $docx);
         $this->assertStringContainsString('Alumnos', $docx);
         $this->assertStringContainsString('Evaluación / evidencia', $docx);
+        $this->assertStringContainsString('Ejes articuladores', $docx);
+        $this->assertStringContainsString('Inclusión', $docx);
         $this->assertStringContainsString('Evaluación formativa', $docx);
         $this->assertStringContainsString('Lista de cotejo', $docx);
         $this->assertStringContainsString('Sí', $docx);
         $this->assertStringContainsString('En proceso', $docx);
+        $this->assertStringNotContainsString('Referentes curriculares pertinentes', $docx);
+        $this->assertStringNotContainsString('Contenido de prueba para validar el diseño.', $docx);
+        $this->assertStringNotContainsString('PDA de prueba para validar el diseño.', $docx);
     }
 }
