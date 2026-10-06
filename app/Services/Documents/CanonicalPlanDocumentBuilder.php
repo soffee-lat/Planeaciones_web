@@ -25,6 +25,7 @@ final class CanonicalPlanDocumentBuilder
         $context = $this->object($plan['context'] ?? []);
         $sessions = $this->list($plan['sessions'] ?? []);
         $sessionSlots = $this->sessionScheduleSlots($sessions, $context);
+        $fieldNamesByCode = $this->nameMapByCode($alignment['fields'] ?? []);
 
         $title = trim((string) ($planning['title'] ?? 'Planeación didáctica')) ?: 'Planeación didáctica';
         $project = trim((string) ($planning['project_name'] ?? ''));
@@ -78,50 +79,15 @@ final class CanonicalPlanDocumentBuilder
         if ($this->value($methodology['rationale'] ?? null) !== '') {
             $focusRows[] = ['Justificación metodológica', $this->value($methodology['rationale'] ?? null)];
         }
+        $axes = $this->namedList($alignment['articulating_axes'] ?? []);
+        if ($axes !== '') {
+            $focusRows[] = ['Ejes articuladores', $axes];
+        }
         $blocks[] = ['type' => 'two_column_table', 'rows' => $focusRows];
 
         $goals = $this->stringList($pedagogy['learning_goals'] ?? []);
         if ($goals !== []) {
             $blocks[] = ['type' => 'list', 'label' => 'Metas de aprendizaje', 'items' => $goals];
-        }
-
-        $curriculumRows = [];
-        $fields = $this->namedList($alignment['fields'] ?? []);
-        $axes = $this->namedList($alignment['articulating_axes'] ?? []);
-        if ($fields !== '') {
-            $curriculumRows[] = ['Campos formativos', $fields];
-        }
-        if ($axes !== '') {
-            $curriculumRows[] = ['Ejes articuladores', $axes];
-        }
-
-        $contents = [];
-        foreach ($this->list($alignment['contents'] ?? []) as $contentRaw) {
-            $content = $this->object($contentRaw);
-            $text = trim((string) ($content['full_text'] ?? $content['title'] ?? ''));
-            if ($text !== '') {
-                $contents[] = $text;
-            }
-        }
-        if ($contents !== []) {
-            $curriculumRows[] = ['Contenidos pertinentes', implode("\n", $contents)];
-        }
-
-        $pdas = [];
-        foreach ($this->list($alignment['pdas'] ?? []) as $pdaRaw) {
-            $pda = $this->object($pdaRaw);
-            $text = trim((string) ($pda['full_text'] ?? ''));
-            if ($text !== '') {
-                $pdas[] = $text;
-            }
-        }
-        if ($pdas !== []) {
-            $curriculumRows[] = ['Procesos de desarrollo de aprendizaje', implode("\n", $pdas)];
-        }
-
-        if ($curriculumRows !== []) {
-            $blocks[] = ['type' => 'section', 'text' => 'Referentes curriculares pertinentes'];
-            $blocks[] = ['type' => 'two_column_table', 'rows' => $curriculumRows];
         }
 
         $connections = [];
@@ -152,6 +118,11 @@ final class CanonicalPlanDocumentBuilder
             foreach ($sessions as $index => $sessionRaw) {
                 $session = $this->object($sessionRaw);
                 $slot = $sessionSlots[$index] ?? [];
+                $fieldLabel = $this->namesForCodes(
+                    $session['field_codes'] ?? [],
+                    $fieldNamesByCode,
+                    'Sin referencia curricular pertinente',
+                );
                 $evidence = '';
                 foreach ($this->list($session['moments'] ?? []) as $momentRaw) {
                     $moment = $this->object($momentRaw);
@@ -169,7 +140,7 @@ final class CanonicalPlanDocumentBuilder
                 $time = $this->slotTime($slot);
                 $overviewRows[] = [
                     trim($date . ($time !== '' ? "\n" . $time : '')),
-                    $this->slotName($slot, $session),
+                    $this->slotName($slot, $session) . "\nCampo formativo: " . $fieldLabel,
                     $this->value($session['title'] ?? null, 'Actividad'),
                     $this->value($session['specific_goal'] ?? null, '—'),
                     isset($session['estimated_minutes']) ? ((int) $session['estimated_minutes']) . ' min' : '—',
@@ -178,7 +149,7 @@ final class CanonicalPlanDocumentBuilder
             }
             $blocks[] = [
                 'type' => 'table',
-                'headers' => ['Fecha y horario', 'Materia / bloque', 'Tema o actividad', 'Propósito', 'Tiempo', 'Evidencia'],
+                'headers' => ['Fecha y horario', 'Materia / campo formativo', 'Tema o actividad', 'Propósito', 'Tiempo', 'Evidencia'],
                 'rows' => $overviewRows,
             ];
         }
@@ -195,6 +166,11 @@ final class CanonicalPlanDocumentBuilder
             $minutes = isset($session['estimated_minutes']) ? (int) $session['estimated_minutes'] : null;
             $slotName = $this->slotName($slot, $session);
             $time = $this->slotTime($slot);
+            $fieldLabel = $this->namesForCodes(
+                $session['field_codes'] ?? [],
+                $fieldNamesByCode,
+                'Sin referencia curricular pertinente',
+            );
             $headerText = $date . ' · ' . $slotName;
             $headerMeta = trim(($time !== '' ? $time : '')
                 . ($minutes ? (($time !== '' ? ' · ' : '') . $minutes . ' min') : ''));
@@ -207,6 +183,7 @@ final class CanonicalPlanDocumentBuilder
 
             $summaryRows = [
                 ['Tema / actividad', $sessionTitle],
+                ['Campo formativo', $fieldLabel],
                 ['Propósito del bloque', $this->value($session['specific_goal'] ?? null, 'No especificado.')],
             ];
             if ($this->value($session['methodology_phase'] ?? null) !== '') {
@@ -240,7 +217,7 @@ final class CanonicalPlanDocumentBuilder
                     }
 
                     $activityRows[] = [
-                        $momentType,
+                        $momentType . "\nCampo: " . $fieldLabel,
                         $momentMinutes ? $momentMinutes . ' min' : '—',
                         $activityText,
                         $this->value($activity['teacher_action'] ?? null, '—'),
@@ -254,7 +231,7 @@ final class CanonicalPlanDocumentBuilder
                 $blocks[] = ['type' => 'section', 'text' => 'Secuencia didáctica'];
                 $blocks[] = [
                     'type' => 'table',
-                    'headers' => ['Momento', 'Tiempo', 'Actividad y recursos', 'Docente', 'Alumnos', 'Evaluación / evidencia'],
+                    'headers' => ['Momento / campo formativo', 'Tiempo', 'Actividad y recursos', 'Docente', 'Alumnos', 'Evaluación / evidencia'],
                     'rows' => $activityRows,
                 ];
             }
@@ -398,6 +375,37 @@ final class CanonicalPlanDocumentBuilder
             }
         }
         return implode('; ', array_values(array_unique($names)));
+    }
+
+    /** @param mixed $value @return array<string,string> */
+    private function nameMapByCode(mixed $value): array
+    {
+        $map = [];
+        foreach ($this->list($value) as $rowRaw) {
+            $row = $this->object($rowRaw);
+            $code = trim((string) ($row['code'] ?? ''));
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($code !== '' && $name !== '') {
+                $map[$code] = $name;
+            }
+        }
+
+        return $map;
+    }
+
+    /** @param mixed $codes @param array<string,string> $namesByCode */
+    private function namesForCodes(mixed $codes, array $namesByCode, string $fallback = ''): string
+    {
+        $names = [];
+        foreach ($this->stringList($codes) as $code) {
+            if (isset($namesByCode[$code]) && trim($namesByCode[$code]) !== '') {
+                $names[] = trim($namesByCode[$code]);
+            }
+        }
+
+        $names = array_values(array_unique($names));
+
+        return $names !== [] ? implode('; ', $names) : $fallback;
     }
 
     /** @param array<string,mixed> $planning */
