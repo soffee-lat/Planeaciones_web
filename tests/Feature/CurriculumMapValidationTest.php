@@ -215,7 +215,7 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $this->assertTrue($request->hasConfirmedCurriculumMap());
     }
 
-    public function test_schedule_coverage_explains_exact_missing_field_and_surfaces_actionable_options(): void
+    public function test_schedule_field_without_topic_match_is_optional_and_does_not_force_a_pda(): void
     {
         $ctx = $this->seedFullTeacher();
 
@@ -241,37 +241,29 @@ class CurriculumMapValidationTest extends PedagogyTestCase
         $service = app(CurriculumMapService::class);
         $state = $service->state($ctx['user'], $request);
 
-        $this->assertSame('deterministic_v3_schedule_priority', $state['suggestion']['strategy_version']);
+        $this->assertSame('deterministic_v4_topic_strict', $state['suggestion']['strategy_version']);
         $this->assertCount(1, $state['schedule_field_coverage']['missing']);
         $this->assertSame('FF-1', $state['schedule_field_coverage']['missing'][0]['code']);
-        $this->assertSame('content_and_pda', $state['schedule_field_coverage']['missing'][0]['missing_requirement']);
+        $this->assertSame('optional_curriculum', $state['schedule_field_coverage']['missing'][0]['missing_requirement']);
         $this->assertArrayHasKey('FF-1', $state['schedule_field_options']);
-        $this->assertNotEmpty($state['schedule_field_options']['FF-1']);
-
-        $option = $state['schedule_field_options']['FF-1'][0];
-        $this->assertSame('FF-1', $option['field_code']);
-        $this->assertGreaterThan(0, $option['content_id']);
-        $this->assertGreaterThan(0, $option['pda_id']);
+        $this->assertSame([], $state['schedule_field_options']['FF-1']);
+        $this->assertSame([], $state['selected']['contents']);
+        $this->assertSame([], $state['selected']['pdas']);
 
         $this->actingAs($ctx['user']);
         $this->get(route('planning.curriculum-map', $request))
             ->assertOk()
-            ->assertSee('Faltantes para completar tu horario')
-            ->assertSee('Opciones para cubrir FF-1')
-            ->assertSee('Seleccionar')
-            ->assertSee('Agregar selecciones')
-            ->assertSee('name="pda_ids[]"', false)
-            ->assertSee((string) $option['pda_code']);
+            ->assertSee('Referencia curricular opcional')
+            ->assertSee('No encontramos un PDA claramente relacionado')
+            ->assertDontSee('Selecciona al menos un PDA')
+            ->assertDontSee('Faltantes para completar tu horario');
 
-        $this->post(route('planning.curriculum-map.add', $request), [
-            'pda_ids' => [$option['pda_id']],
-        ])->assertRedirect();
+        $service->acceptAllSuggested($ctx['user'], $request);
+        $confirmed = $service->confirm($ctx['user'], $request);
 
-        $after = $service->state($ctx['user'], $request, false);
-        $this->assertSame([], $after['schedule_field_coverage']['missing']);
-        $this->assertTrue($after['schedule_field_coverage']['required'][0]['covered']);
-        $this->assertContains((int) $option['content_id'], $after['selected']['contents']);
-        $this->assertContains((int) $option['pda_id'], $after['selected']['pdas']);
+        $this->assertTrue($confirmed->hasConfirmedCurriculumMap());
+        $this->assertCount(0, $confirmed->contents);
+        $this->assertCount(0, $confirmed->pdas);
     }
 
     /** @param array<string,mixed> $ctx */
