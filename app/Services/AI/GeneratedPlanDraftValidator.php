@@ -73,7 +73,7 @@ class GeneratedPlanDraftValidator
         if (! is_array($core['adaptation_considerations']) || ! array_is_list($core['adaptation_considerations'])) {
             throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.adaptation_considerations');
         }
-        if (! is_array($core['pda_coverage']) || $core['pda_coverage'] === [] || ! array_is_list($core['pda_coverage'])) {
+        if (! is_array($core['pda_coverage']) || ! array_is_list($core['pda_coverage'])) {
             throw new AiContractException('ADAPTIVE_GENERATION_CORE_INVALID', '$.core.pda_coverage');
         }
 
