@@ -3,6 +3,7 @@
 namespace App\Services\Planning;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 final class PlanningFocusResolver
 {
@@ -33,6 +34,7 @@ final class PlanningFocusResolver
                 'group_subject_id' => $topic->group_subject_id ? (int) $topic->group_subject_id : null,
                 'subject_name' => $topic->subject?->name,
                 'subject_color' => $topic->subject?->color,
+                'subject_field_code' => $topic->subject?->curriculum_field_code,
             ])->values();
 
             $blocks = array_map(function (array $block) use ($week, $topics): array {
@@ -40,12 +42,12 @@ final class PlanningFocusResolver
                     ? (int) $block['group_subject_id']
                     : null;
 
-                $primary = $subjectId
-                    ? $topics->where('group_subject_id', $subjectId)->values()
-                    : collect();
+                $primary = $topics
+                    ->filter(fn (array $topic): bool => $this->topicMatchesBlock($topic, $block, $subjectId))
+                    ->values();
 
                 $transversalCandidates = $topics
-                    ->reject(fn (array $topic) => $subjectId !== null && (int) ($topic['group_subject_id'] ?? 0) === $subjectId)
+                    ->reject(fn (array $topic): bool => $this->topicMatchesBlock($topic, $block, $subjectId))
                     ->values();
 
                 $isPlanable = (bool) ($block['include_in_planning'] ?? false);
@@ -68,5 +70,52 @@ final class PlanningFocusResolver
                 'blocks' => $blocks,
             ];
         }, $calendar);
+    }
+
+    /** @param array<string,mixed> $topic @param array<string,mixed> $block */
+    private function topicMatchesBlock(array $topic, array $block, ?int $subjectId): bool
+    {
+        $topicSubjectId = isset($topic['group_subject_id']) && $topic['group_subject_id'] !== null
+            ? (int) $topic['group_subject_id']
+            : null;
+
+        if ($subjectId !== null && $topicSubjectId === $subjectId) {
+            return true;
+        }
+
+        // Las escuelas suelen usar nombres de materias distintos a los nombres
+        // oficiales de los campos NEM (por ejemplo Español vs Lenguajes y
+        // Matemáticas vs Saberes y Pensamiento Científico). Si no coincide el
+        // ID de materia, permitimos la equivalencia únicamente cuando ambos
+        // lados apuntan al mismo campo curricular conocido.
+        $topicField = trim((string) ($topic['subject_field_code'] ?? ''));
+        if ($topicField === '') {
+            $topicField = $this->inferredFieldCode((string) ($topic['subject_name'] ?? '')) ?? '';
+        }
+
+        $blockFields = array_values(array_filter(array_map(
+            static fn ($code): string => trim((string) $code),
+            (array) ($block['field_codes'] ?? []),
+        )));
+        $blockField = $blockFields[0] ?? null;
+        if ($blockField === null || $blockField === '') {
+            $blockField = $this->inferredFieldCode(
+                (string) ($block['subject_name_snapshot'] ?? $block['label'] ?? ''),
+            );
+        }
+
+        return $topicField !== '' && $blockField !== null && $topicField === $blockField;
+    }
+
+    private function inferredFieldCode(string $subjectName): ?string
+    {
+        $normalized = mb_strtolower(Str::ascii(trim($subjectName)));
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+        return match ($normalized) {
+            'espanol', 'lenguaje', 'lenguajes', 'lengua materna' => 'LEN',
+            'matematica', 'matematicas', 'saberes y pensamiento cientifico' => 'SPC',
+            default => null,
+        };
     }
 }
