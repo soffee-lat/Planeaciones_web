@@ -150,17 +150,20 @@ class StandardDocumentV2Test extends TestCase
         $this->assertContains('meta_table', $types);
         $this->assertContains('table', $types);
         $this->assertContains('session_header', $types);
-        $this->assertContains('activity', $types);
-        $this->assertContains('checklist', $types);
         $this->assertContains('instrument', $types);
+        $this->assertNotContains('activity', $types);
+        $this->assertNotContains('checklist', $types);
 
         $docx = (new StandardDocxRenderer())->render($blocks);
 
         $this->assertStringStartsWith("PK\x03\x04", $docx);
         $this->assertStringContainsString('<w:tbl', $docx);
         $this->assertStringContainsString('Vista semanal', $docx);
-        $this->assertStringContainsString('DOCENTE', $docx);
-        $this->assertStringContainsString('ALUMNOS', $docx);
+        $this->assertStringContainsString('Secuencia didáctica', $docx);
+        $this->assertStringContainsString('Actividad y recursos', $docx);
+        $this->assertStringContainsString('Docente', $docx);
+        $this->assertStringContainsString('Alumnos', $docx);
+        $this->assertStringContainsString('Evaluación / evidencia', $docx);
         $this->assertStringContainsString('Evaluación formativa', $docx);
         $this->assertStringContainsString('Lista de cotejo', $docx);
         $this->assertStringContainsString('Sí', $docx);
